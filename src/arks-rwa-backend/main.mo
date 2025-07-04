@@ -13,7 +13,8 @@ import Hash "mo:base/Hash";
 
 actor class ARKSRWA() = this {
 
-  let admin : Principal = Principal.fromText("aaaaa-aa"); // Placeholder, should replace this later !
+  // dfx identity get-principal
+  let admin : Principal = Principal.fromText("o6dtt-od7eq-p5tmn-yilm3-4v453-v64p5-ep4q6-hxoeq-jhygx-u5dz7-aqe");
 
   type Company = {
     id : Nat;
@@ -37,12 +38,43 @@ actor class ARKSRWA() = this {
     amount : Nat;
   };
 
+  type Account = {
+    owner : Principal;
+    subaccount : ?Blob;
+  };
+
+  type TransferArgs = {
+    from_subaccount : ?Blob;
+    to : Account;
+    amount : Nat;
+    fee : ?Nat;
+    memo : ?Blob;
+    created_at_time : ?Nat64;
+  };
+
+  type TransferResult = {
+    #Ok : Nat;
+    #Err : TransferError;
+  };
+
+  type TransferError = {
+    #BadFee : { expected_fee : Nat };
+    #BadBurn : { min_burn_amount : Nat };
+    #InsufficientFunds : { balance : Nat };
+    #TooOld;
+    #CreatedInFuture : { ledger_time : Nat64 };
+    #Duplicate : { duplicate_of : Nat };
+    #TemporarilyUnavailable;
+    #GenericError : { error_code : Nat; message : Text };
+  };
+
   var companies : HashMap.HashMap<Nat, Company> = HashMap.HashMap(0, Nat.equal, Hash.hash);
 
   var holdings : HashMap.HashMap<Principal, HashMap.HashMap<Nat, Nat>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
 
   var companyCount : Nat = 0;
   var minValuationE8s : Nat = 10_000_000;
+  var transactionCount : Nat = 0;
 
   func getMinValuationE8s() : Nat {
     minValuationE8s;
@@ -209,8 +241,7 @@ actor class ARKSRWA() = this {
     };
   };
 
-  public func setMinValuationE8s(newMin : Nat) : async () {
-    let caller = Principal.fromActor(this);
+  public func setMinValuationE8s(newMin : Nat, caller : Principal) : async () {
     if (caller != admin) {
       throw Error.reject("Authorization failed: Only admin can perform this action.");
     };
@@ -236,11 +267,157 @@ actor class ARKSRWA() = this {
     return companies.get(companyId);
   };
 
-  public query func icrc1_balance_of(companyId : Nat, user : Principal) : async Nat {
-    switch (holdings.get(user)) {
-      case (null) { return 0 };
-      case (?personalHoldings) {
-        return Option.get(personalHoldings.get(companyId), 0);
+  public query func icrc1_balance_of(companyId : Nat, account : Account) : async {
+    #ok : Nat;
+    #err : Text;
+  } {
+    switch (companies.get(companyId)) {
+      case (null) { return #err("Invalid company ID") };
+      case (?_) {
+        switch (holdings.get(account.owner)) {
+          case (null) { #ok(0) };
+          case (?personalHoldings) {
+            #ok(Option.get(personalHoldings.get(companyId), 0));
+          };
+        };
+      };
+    };
+  };
+
+  public query func icrc1_name(companyId : Nat) : async {
+    #ok : Text;
+    #err : Text;
+  } {
+    switch (companies.get(companyId)) {
+      case (null) { #err("Invalid company ID") };
+      case (?company) { #ok(company.name) };
+    };
+  };
+
+  public query func icrc1_symbol(companyId : Nat) : async {
+    #ok : Text;
+    #err : Text;
+  } {
+    switch (companies.get(companyId)) {
+      case (null) { #err("Invalid company ID") };
+      case (?company) { #ok(company.symbol) };
+    };
+  };
+
+  public query func icrc1_decimals(tokenCompanyId : Nat) : async {
+    #ok : Nat;
+    #err : Text;
+  } {
+    switch (companies.get(tokenCompanyId)) {
+      case (null) { #err("Invalid company ID") };
+      case (?_) { #ok(0) };
+    };
+  };
+
+  public query func icrc1_total_supply(tokenCompanyId : Nat) : async {
+    #ok : Nat;
+    #err : Text;
+  } {
+    switch (companies.get(tokenCompanyId)) {
+      case (null) { #err("Invalid company ID") };
+      case (?company) { #ok(company.supply) };
+    };
+  };
+
+  public query func icrc1_fee(tokenCompanyId : Nat) : async {
+    #ok : Nat;
+    #err : Text;
+  } {
+    switch (companies.get(tokenCompanyId)) {
+      case (null) { #err("Invalid company ID") };
+      case (?_) { #ok(0) };
+    };
+  };
+
+  public query func icrc1_minting_account(tokenCompanyId : Nat) : async {#ok : ?Account; #err : Text} {
+    switch (companies.get(tokenCompanyId)) {
+      case (null) { #err("Invalid company ID") };
+      case (?company) { #ok(?{owner = company.owner; subaccount = null}) };
+    };
+  };
+
+  public query func icrc1_supported_standards() : async [{
+    name : Text;
+    url : Text;
+  }] {
+    [
+      {
+        name = "ICRC-1";
+        url = "https://github.com/dfinity/ICRC-1/tree/main/standards/ICRC-1";
+      },
+      {
+        name = "ICRC-7";
+        url = "https://github.com/dfinity/ICRC-1/tree/main/standards/ICRC-7";
+      },
+    ];
+  };
+
+  public query func icrc1_metadata(tokenCompanyId : Nat) : async {
+    #ok : [(Text, { #Nat : Nat; #Text : Text })];
+    #err : Text;
+  } {
+    switch (companies.get(tokenCompanyId)) {
+      case (null) { #err("Invalid company ID") };
+      case (?company) {
+        #ok([
+          ("icrc1:name", #Text(company.name)),
+          ("icrc1:symbol", #Text(company.symbol)),
+          ("icrc1:decimals", #Nat(0)),
+          ("icrc1:fee", #Nat(0)),
+          ("icrc1:logo", #Text(company.logo_url)),
+          ("icrc1:description", #Text(company.description)),
+        ]);
+      };
+    };
+  };
+
+  public func icrc1_transfer(companyId : Nat, args : TransferArgs, caller : Principal) : async TransferResult {
+
+    switch (companies.get(companyId)) {
+      case (null) {
+        return #Err(#GenericError({ error_code = 404; message = "Invalid company ID" }));
+      };
+      case (?_company) {
+        if (args.amount == 0) {
+          return #Err(#GenericError({ error_code = 400; message = "Transfer amount must be greater than 0" }));
+        };
+
+        let fromPrincipal = caller;
+        let toPrincipal = args.to.owner;
+
+        let fromHoldings = Option.get(holdings.get(fromPrincipal), HashMap.HashMap<Nat, Nat>(0, Nat.equal, Hash.hash));
+        let currentBalance = Option.get(fromHoldings.get(companyId), 0);
+
+        if (currentBalance < args.amount) {
+          return #Err(#InsufficientFunds({ balance = currentBalance }));
+        };
+
+        let newFromBalance = currentBalance - args.amount;
+
+        if (newFromBalance == 0) {
+          let _ = fromHoldings.remove(companyId);
+        } else {
+          fromHoldings.put(companyId, newFromBalance);
+        };
+
+        if (fromHoldings.size() == 0) {
+          let _ = holdings.remove(fromPrincipal);
+        } else {
+          holdings.put(fromPrincipal, fromHoldings);
+        };
+
+        let toHoldings = Option.get(holdings.get(toPrincipal), HashMap.HashMap<Nat, Nat>(0, Nat.equal, Hash.hash));
+        let currentToBalance = Option.get(toHoldings.get(companyId), 0);
+        toHoldings.put(companyId, currentToBalance + args.amount);
+        holdings.put(toPrincipal, toHoldings);
+
+        transactionCount += 1;
+        return #Ok(transactionCount);
       };
     };
   };

@@ -267,6 +267,7 @@ actor class ARKSRWA() = this {
     return companies.get(companyId);
   };
 
+  // Test: dfx canister call arks-rwa-backend icrc1_balance_of '(0, record{owner=principal "o6dtt-od7eq-p5tmn-yilm3-4v453-v64p5-ep4q6-hxoeq-jhygx-u5dz7-aqe"; subaccount=null})'
   public query func icrc1_balance_of(companyId : Nat, account : Account) : async {
     #ok : Nat;
     #err : Text;
@@ -284,6 +285,7 @@ actor class ARKSRWA() = this {
     };
   };
 
+  // Test: dfx canister call arks-rwa-backend icrc1_name '(0)'
   public query func icrc1_name(companyId : Nat) : async {
     #ok : Text;
     #err : Text;
@@ -294,6 +296,7 @@ actor class ARKSRWA() = this {
     };
   };
 
+  // Test: dfx canister call arks-rwa-backend icrc1_symbol '(0)'
   public query func icrc1_symbol(companyId : Nat) : async {
     #ok : Text;
     #err : Text;
@@ -304,6 +307,7 @@ actor class ARKSRWA() = this {
     };
   };
 
+  // Test: dfx canister call arks-rwa-backend icrc1_decimals '(0)'
   public query func icrc1_decimals(tokenCompanyId : Nat) : async {
     #ok : Nat;
     #err : Text;
@@ -314,6 +318,7 @@ actor class ARKSRWA() = this {
     };
   };
 
+  // Test: dfx canister call arks-rwa-backend icrc1_total_supply '(0)'
   public query func icrc1_total_supply(tokenCompanyId : Nat) : async {
     #ok : Nat;
     #err : Text;
@@ -324,6 +329,7 @@ actor class ARKSRWA() = this {
     };
   };
 
+  // Test: dfx canister call arks-rwa-backend icrc1_fee '(0)'
   public query func icrc1_fee(tokenCompanyId : Nat) : async {
     #ok : Nat;
     #err : Text;
@@ -334,6 +340,7 @@ actor class ARKSRWA() = this {
     };
   };
 
+  // Test: dfx canister call arks-rwa-backend icrc1_minting_account '(0)'
   public query func icrc1_minting_account(tokenCompanyId : Nat) : async {#ok : ?Account; #err : Text} {
     switch (companies.get(tokenCompanyId)) {
       case (null) { #err("Invalid company ID") };
@@ -341,6 +348,7 @@ actor class ARKSRWA() = this {
     };
   };
 
+  // Test: dfx canister call arks-rwa-backend icrc1_supported_standards '()'
   public query func icrc1_supported_standards() : async [{
     name : Text;
     url : Text;
@@ -357,6 +365,7 @@ actor class ARKSRWA() = this {
     ];
   };
 
+  // Test: dfx canister call arks-rwa-backend icrc1_metadata '(0)'
   public query func icrc1_metadata(tokenCompanyId : Nat) : async {
     #ok : [(Text, { #Nat : Nat; #Text : Text })];
     #err : Text;
@@ -376,6 +385,7 @@ actor class ARKSRWA() = this {
     };
   };
 
+  // Test: dfx canister call arks-rwa-backend icrc1_transfer '(0, record{from_subaccount=null; to=record{owner=principal "recipient-principal"; subaccount=null}; amount=100; fee=null; memo=null; created_at_time=null}, principal "sender-principal")'
   public func icrc1_transfer(companyId : Nat, args : TransferArgs, caller : Principal) : async TransferResult {
 
     switch (companies.get(companyId)) {

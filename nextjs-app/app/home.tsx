@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, ReactNode } from 'react';
+import { authService, AuthUser } from '../services/auth';
 
 // --- Type definitions for window.ic ---
 // This extends the global Window interface to include the 'ic' object
@@ -69,9 +70,7 @@ const FeaturePoint = ({ children }: FeaturePointProps) => (
 // --- Main App Component ---
 
 export default function App() {
-  const [plugConnected, setPlugConnected] = useState<boolean>(false);
-  const [internetIdentityConnected, setInternetIdentityConnected] = useState<boolean>(false);
-  const [principalId, setPrincipalId] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [isPlugAvailable, setIsPlugAvailable] = useState<boolean>(false);
 
   // Check if Plug wallet is installed on component mount
@@ -94,57 +93,35 @@ export default function App() {
   // --- Wallet Connection Logic ---
 
   const handleConnectPlug = async () => {
-    if (!window.ic?.plug) {
-      // For demo purposes, simulate connection when Plug is not available
-      console.log("Plug wallet not detected, simulating connection for demo...");
-      setPrincipalId("demo-principal-id-" + Math.random().toString(36).substr(2, 9));
-      setPlugConnected(true);
-      alert("Demo connection successful! (Install Plug wallet for real connection)");
-      return;
-    }
-    
     try {
-      // Whitelist for the canister you want to interact with
-      // Replace with your actual canister ID in a real application
-      const canisterId = "ryjl3-tyaaa-aaaaa-aaaba-cai"; // Example canister
-      const whitelist = [canisterId];
-
-      // Request connection
-      await window.ic.plug.requestConnect({ whitelist });
-
-      // Verify connection and get principal
-      const connected = await window.ic.plug.isConnected();
-      if (!connected) {
-          throw new Error("Plug connection failed silently.");
-      }
+      const user = await authService.connectPlug();
+      setCurrentUser(user);
       
-      // Create an agent to interact with the IC if it doesn't exist
-      if (!window.ic.plug.agent) {
-        await window.ic.plug.createAgent({ whitelist });
+      if (user.walletType === 'demo') {
+        alert("Demo connection successful! (Install Plug wallet for real connection)");
+      } else {
+        alert("Plug wallet connected successfully!");
       }
-
-      // Get the principal ID
-      const principal = await window.ic.plug.agent?.getPrincipal();
-      if (principal) {
-        setPrincipalId(principal.toText());
-        setPlugConnected(true);
-        console.log("Plug wallet connected successfully!");
-      }
-
-    } catch (e: any) {
-      console.error("Plug connection failed:", e);
-      alert(`Failed to connect Plug wallet: ${e.message}`);
+    } catch (error) {
+      console.error("Failed to connect Plug wallet:", error);
+      alert("Failed to connect Plug wallet");
     }
   };
 
   const handleConnectInternetIdentity = async () => {
-    // This is a placeholder for Internet Identity connection logic.
-    // In a real IC app, you would use the @dfinity/auth-client library.
-    // This example simulates a successful connection.
-    console.log("Simulating Internet Identity connection...");
-    setPrincipalId("2vxsx-fae"); // Example Principal ID
-    setInternetIdentityConnected(true);
-    alert("Successfully connected with Internet Identity (Simulated).");
+    try {
+      const user = await authService.connectInternetIdentity();
+      setCurrentUser(user);
+      
+      if (user.walletType === 'demo') {
+        alert("Demo Internet Identity connection successful!");
+      } else {
+        alert("Internet Identity connected successfully!");
+      }
+    } catch (error) {
+      console.error("Failed to connect Internet Identity:", error);
+      alert("Failed to connect Internet Identity");
+    }
   };
 
   // --- Render Logic ---
@@ -179,11 +156,14 @@ export default function App() {
           </div>
 
           {/* --- Connection Status --- */}
-          {principalId && (
+          {currentUser && currentUser.isConnected && (
             <div className="mt-6 rounded-lg bg-primary/10 p-4 text-center border border-primary/30">
               <p className="font-medium text-primary">Connection Successful!</p>
               <p className="mt-1 text-xs text-text-secondary break-all">
-                Principal ID: {principalId}
+                Principal ID: {currentUser.principal}
+              </p>
+              <p className="mt-1 text-xs text-text-muted">
+                Wallet: {currentUser.walletType}
               </p>
             </div>
           )}
@@ -203,8 +183,8 @@ export default function App() {
                 Connect using the Plug browser extension for seamless ICP interactions.
               </p>
               <div className="mt-8">
-                <WalletButton onClick={handleConnectPlug} disabled={!isPlugAvailable || plugConnected}>
-                  {plugConnected ? 'Connected' : 'Connect Plug'}
+                <WalletButton onClick={handleConnectPlug} disabled={!isPlugAvailable || (currentUser?.walletType === 'plug')}>
+                  {currentUser?.walletType === 'plug' ? 'Connected' : 'Connect Plug'}
                 </WalletButton>
               </div>
             </div>
@@ -221,8 +201,8 @@ export default function App() {
                 Use Internet Computer's native authentication for secure access.
               </p>
               <div className="mt-8">
-                <WalletButton onClick={handleConnectInternetIdentity} disabled={internetIdentityConnected}>
-                   {internetIdentityConnected ? 'Connected' : 'Connect Internet Identity'}
+                <WalletButton onClick={handleConnectInternetIdentity} disabled={currentUser?.walletType === 'internet-identity'}>
+                   {currentUser?.walletType === 'internet-identity' ? 'Connected' : 'Connect Internet Identity'}
                 </WalletButton>
               </div>
             </div>

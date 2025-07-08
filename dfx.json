@@ -6,11 +6,8 @@
     },
     "frontend": {
       "dependencies": ["arks-rwa-backend"],
-      "frontend": {
-        "entrypoint": "src/frontend/index.html"
-      },
-      "source": ["frontend/dist"],
-      "type": "assets"
+      "source": ["src/frontend/build"],
+       "type": "assets"
     },
     "internet_identity": {
       "type": "custom",

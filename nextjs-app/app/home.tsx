@@ -190,6 +190,12 @@ export default function App() {
               </p>
               <div className="mt-4 flex flex-wrap justify-center gap-2">
                 <button
+                  onClick={() => router.push('/dashboard')}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                >
+                  Dashboard
+                </button>
+                <button
                   onClick={() => router.push('/companies')}
                   className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm"
                 >

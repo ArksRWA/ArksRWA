@@ -357,11 +357,7 @@ actor class ARKSRWA() = this {
       {
         name = "ICRC-1";
         url = "https://github.com/dfinity/ICRC-1/tree/main/standards/ICRC-1";
-      },
-      {
-        name = "ICRC-7";
-        url = "https://github.com/dfinity/ICRC-1/tree/main/standards/ICRC-7";
-      },
+      }
     ];
   };
 

@@ -103,6 +103,12 @@ class AuthServiceImpl implements AuthService {
   disconnect(): void {
     this.currentUser = null;
     console.log("User disconnected");
+    
+    // Clear backend service cache when user disconnects
+    // We need to import this dynamically to avoid circular dependency
+    import('./backend').then(({ backendService }) => {
+      backendService.disconnect();
+    });
   }
 
   getCurrentUser(): AuthUser | null {

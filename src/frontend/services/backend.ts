@@ -1,6 +1,6 @@
 import { authService } from './auth';
 import { getCanisterId, HOST, isLocal } from '../config/canister';
-import type {
+import {
   Company,
   CreateCompanyParams,
   candidCompanyToFrontend,
@@ -12,8 +12,8 @@ import type {
 export type { Company, CreateCompanyParams } from '../types/canister';
 
 class BackendService {
-  private readonly canisterId = "uxrrr-q7777-77774-qaaaq-cai";
-  private readonly host = 'http://localhost:4943';
+  private readonly canisterId = getCanisterId('arks_rwa_backend');
+  private readonly host = HOST;
   
   // Cache for actor and agent to avoid recreating them repeatedly
   private actorCache: any = null;

@@ -1,10 +1,9 @@
 // Canister configuration for different environments
 export const CANISTER_IDS = {
   local: {
-    // Adjust with your local env
-    arks_rwa_backend: "ufxgi-4p777-77774-qaadq-cai",
-    internet_identity: "vpyes-67777-77774-qaaeq-cai",
-    frontend: "vizcg-th777-77774-qaaea-cai"
+    arks_rwa_backend: process.env.CANISTER_ID_ARKS_RWA_BACKEND || "ufxgi-4p777-77774-qaadq-cai",
+    internet_identity: process.env.CANISTER_ID_INTERNET_IDENTITY || "vpyes-67777-77774-qaaeq-cai",
+    frontend: process.env.CANISTER_ID_FRONTEND || "vizcg-th777-77774-qaaea-cai"
   },
   ic: {
     arks_rwa_backend: process.env.CANISTER_ID_ARKS_RWA_BACKEND || "",

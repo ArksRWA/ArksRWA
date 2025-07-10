@@ -229,7 +229,7 @@ export default function ManageCompanyPage() {
               <div className="flex items-center gap-4 text-sm text-gray-400">
                 <span>Created: {new Date(company.created_at).toLocaleDateString()}</span>
                 <span>•</span>
-                <span>Valuation: {company.valuation.toLocaleString()}</span>
+                <span>Valuation: {Number(company.valuation).toLocaleString()}</span>
                 <span>•</span>
                 <span>Tokens: {company.remaining}/{company.supply}</span>
               </div>
@@ -335,11 +335,11 @@ export default function ManageCompanyPage() {
           <h3 className="text-xl font-semibold text-white mb-4">Company Statistics</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-primary">{company.valuation.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-primary">{Number(company.valuation).toLocaleString()}</div>
               <div className="text-sm text-gray-400">Valuation</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-primary">{company.token_price.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-primary">{Number(company.token_price).toLocaleString()}</div>
               <div className="text-sm text-gray-400">Current Price</div>
             </div>
             <div className="text-center">

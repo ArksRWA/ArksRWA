@@ -18,7 +18,7 @@ interface Transaction {
 }
 
 type FilterType = 'all' | 'buy' | 'sell';
-type SortOption = 'timestamp' | 'amount' | 'value' | 'company';
+type SortOption = 'timestamp' | 'amount' | 'totalValue' | 'company';
 type SortDirection = 'asc' | 'desc';
 
 export default function TransactionsPage() {
@@ -87,7 +87,7 @@ export default function TransactionsPage() {
       const company = companiesList[Math.floor(Math.random() * companiesList.length)];
       const type = Math.random() > 0.5 ? 'buy' : 'sell';
       const amount = Math.floor(Math.random() * 10) + 1;
-      const pricePerToken = company.token_price + (Math.random() - 0.5) * 100000;
+      const pricePerToken = Number(company.token_price) + (Math.random() - 0.5) * 100000;
       const totalValue = amount * pricePerToken;
       const timestamp = Date.now() - Math.floor(Math.random() * 30 * 24 * 60 * 60 * 1000); // Last 30 days
       
@@ -132,12 +132,15 @@ export default function TransactionsPage() {
 
     // Apply sorting
     filtered.sort((a, b) => {
-      let aValue: any = a[sortBy];
-      let bValue: any = b[sortBy];
+      let aValue: any;
+      let bValue: any;
 
       if (sortBy === 'company') {
         aValue = a.company.name.toLowerCase();
         bValue = b.company.name.toLowerCase();
+      } else {
+        aValue = a[sortBy as keyof Transaction];
+        bValue = b[sortBy as keyof Transaction];
       }
 
       if (sortDirection === 'asc') {
@@ -263,7 +266,7 @@ export default function TransactionsPage() {
               </svg>
             </div>
             <div className="text-2xl font-bold text-white">
-              {transactions.reduce((sum, tx) => sum + tx.totalValue, 0).toLocaleString()}
+              {Number(transactions.reduce((sum, tx) => sum + tx.totalValue, 0)).toLocaleString()}
             </div>
           </div>
         </div>
@@ -334,7 +337,7 @@ export default function TransactionsPage() {
                 <option value="timestamp">Date</option>
                 <option value="company">Company</option>
                 <option value="amount">Amount</option>
-                <option value="value">Value</option>
+                <option value="totalValue">Value</option>
               </select>
             </div>
           </div>
@@ -396,11 +399,11 @@ export default function TransactionsPage() {
                     <th className="text-right py-4 px-6 text-gray-300 font-medium">Price</th>
                     <th className="text-right py-4 px-6 text-gray-300 font-medium">
                       <button
-                        onClick={() => handleSort('value')}
+                        onClick={() => handleSort('totalValue')}
                         className="flex items-center gap-2 hover:text-white ml-auto"
                       >
                         Total Value
-                        {sortBy === 'value' && (
+                        {sortBy === 'totalValue' && (
                           <span>{sortDirection === 'asc' ? '↑' : '↓'}</span>
                         )}
                       </button>
@@ -442,8 +445,8 @@ export default function TransactionsPage() {
                         </div>
                       </td>
                       <td className="py-4 px-6 text-right text-white">{transaction.amount}</td>
-                      <td className="py-4 px-6 text-right text-white">{transaction.pricePerToken.toLocaleString()}</td>
-                      <td className="py-4 px-6 text-right text-white">{transaction.totalValue.toLocaleString()}</td>
+                      <td className="py-4 px-6 text-right text-white">{Number(transaction.pricePerToken).toLocaleString()}</td>
+                      <td className="py-4 px-6 text-right text-white">{Number(transaction.totalValue).toLocaleString()}</td>
                       <td className="py-4 px-6 text-right">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(transaction.status)}`}>
                           {transaction.status.toUpperCase()}

@@ -81,7 +81,7 @@ export default function CompanyDetailsPage() {
       }
       
       if (tradeType === 'buy') {
-        const totalCost = amount * company.token_price;
+        const totalCost = amount * Number(company.token_price);
         if (totalCost < company.minimum_purchase) {
           throw new Error(`Minimum purchase is ${company.minimum_purchase.toLocaleString()}`);
         }
@@ -218,7 +218,7 @@ export default function CompanyDetailsPage() {
                   <div className="text-sm text-gray-400">Valuation</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-primary">{company.token_price.toLocaleString()}</div>
+                  <div className="text-2xl font-bold text-primary">{Number(company.token_price).toLocaleString()}</div>
                   <div className="text-sm text-gray-400">Token Price</div>
                 </div>
                 <div className="text-center">
@@ -242,7 +242,7 @@ export default function CompanyDetailsPage() {
                 <div className="text-3xl font-bold text-primary">{userHoldings}</div>
                 <div className="text-sm text-gray-400">Tokens</div>
                 <div className="text-sm text-gray-500 mt-1">
-                  Value: {(userHoldings * company.token_price).toLocaleString()}
+                  Value: {(Number(userHoldings) * Number(company.token_price)).toLocaleString()}
                 </div>
               </div>
             </div>
@@ -295,12 +295,12 @@ export default function CompanyDetailsPage() {
                 <div className="mb-4 p-3 bg-gray-800 rounded-lg text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-400">Price per token:</span>
-                    <span className="text-white">{company.token_price.toLocaleString()}</span>
+                    <span className="text-white">{Number(company.token_price).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">Total {tradeType === 'buy' ? 'cost' : 'value'}:</span>
                     <span className="text-white">
-                      {(parseInt(tradeAmount || '0') * company.token_price).toLocaleString()}
+                      {(parseInt(tradeAmount || '0') * Number(company.token_price)).toLocaleString()}
                     </span>
                   </div>
                 </div>

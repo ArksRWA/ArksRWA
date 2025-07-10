@@ -217,6 +217,65 @@ class BackendService {
     }
   }
 
+  async getTokenCostInICP(companyId: number, amount: number): Promise<number> {
+    const user = authService.getCurrentUser();
+    if (!user || !user.isConnected) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      // Demo mode simulation
+      if (user.walletType === 'demo') {
+        return amount * 1000000; // Mock cost: 0.01 ICP per token
+      }
+
+      // Real backend call
+      const actor = await this.createActor();
+      const result = await actor.getTokenCostInICP(companyId, amount);
+      
+      if (result.ok !== undefined) {
+        return Number(result.ok);
+      } else if (result.err) {
+        throw new Error(result.err);
+      } else {
+        throw new Error('Unexpected response format');
+      }
+    } catch (error) {
+      console.error('Error getting token cost:', error);
+      throw error;
+    }
+  }
+
+  async buyTokensWithICP(companyId: number, amount: number, paymentBlockIndex: number): Promise<string> {
+    const user = authService.getCurrentUser();
+    if (!user || !user.isConnected) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      // Demo mode simulation
+      if (user.walletType === 'demo') {
+        console.log('Demo mode: Buying tokens with ICP:', { companyId, amount, paymentBlockIndex });
+        return `Demo: Successfully bought ${amount} tokens with ICP payment`;
+      }
+
+      // Real backend call
+      const actor = await this.createActor();
+      const result = await actor.buyTokensWithICP(companyId, amount, paymentBlockIndex);
+      
+      if (result.ok !== undefined) {
+        return result.ok;
+      } else if (result.err) {
+        throw new Error(result.err);
+      } else {
+        throw new Error('Unexpected response format');
+      }
+    } catch (error) {
+      console.error('Error buying tokens with ICP:', error);
+      throw error;
+    }
+  }
+
   async buyTokens(companyId: number, amount: number): Promise<string> {
     const user = authService.getCurrentUser();
     if (!user || !user.isConnected) {
@@ -230,12 +289,71 @@ class BackendService {
         return `Demo: Successfully bought ${amount} tokens`;
       }
 
-      // Real backend call
+      // Real backend call - using legacy function for backward compatibility
       const actor = await this.createActor();
       const result = await actor.buyTokens(companyId, amount);
       return result as string;
     } catch (error) {
       console.error('Error buying tokens:', error);
+      throw error;
+    }
+  }
+
+  async getTokenSaleValue(companyId: number, amount: number): Promise<number> {
+    const user = authService.getCurrentUser();
+    if (!user || !user.isConnected) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      // Demo mode simulation
+      if (user.walletType === 'demo') {
+        return amount * 950000; // Mock value: slightly less than cost due to fees
+      }
+
+      // Real backend call
+      const actor = await this.createActor();
+      const result = await actor.getTokenSaleValue(companyId, amount);
+      
+      if (result.ok !== undefined) {
+        return Number(result.ok);
+      } else if (result.err) {
+        throw new Error(result.err);
+      } else {
+        throw new Error('Unexpected response format');
+      }
+    } catch (error) {
+      console.error('Error getting token sale value:', error);
+      throw error;
+    }
+  }
+
+  async sellTokensForICP(companyId: number, amount: number): Promise<string> {
+    const user = authService.getCurrentUser();
+    if (!user || !user.isConnected) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      // Demo mode simulation
+      if (user.walletType === 'demo') {
+        console.log('Demo mode: Selling tokens for ICP:', { companyId, amount });
+        return `Demo: Successfully sold ${amount} tokens for ICP`;
+      }
+
+      // Real backend call
+      const actor = await this.createActor();
+      const result = await actor.sellTokensForICP(companyId, amount);
+      
+      if (result.ok !== undefined) {
+        return result.ok;
+      } else if (result.err) {
+        throw new Error(result.err);
+      } else {
+        throw new Error('Unexpected response format');
+      }
+    } catch (error) {
+      console.error('Error selling tokens for ICP:', error);
       throw error;
     }
   }
@@ -253,7 +371,7 @@ class BackendService {
         return `Demo: Successfully sold ${amount} tokens`;
       }
 
-      // Real backend call
+      // Real backend call - using legacy function for backward compatibility
       const actor = await this.createActor();
       const result = await actor.sellTokens(companyId, amount);
       return result as string;
@@ -370,6 +488,69 @@ class BackendService {
       }
     } catch (error) {
       console.error('Error getting token balance:', error);
+      throw error;
+    }
+  }
+
+  async getPaymentHistory(limit?: number): Promise<any[]> {
+    const user = authService.getCurrentUser();
+    if (!user || !user.isConnected) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      // Demo mode simulation
+      if (user.walletType === 'demo') {
+        return [
+          {
+            buyer: user.principal,
+            companyId: 1,
+            amount: 5,
+            icpAmount: 5000000,
+            blockIndex: 12345,
+            timestamp: Date.now() - 86400000 // 1 day ago
+          }
+        ];
+      }
+
+      // Real backend call
+      const actor = await this.createActor();
+      const result = await actor.getPaymentHistory(limit ? [limit] : []);
+      return result as any[];
+    } catch (error) {
+      console.error('Error getting payment history:', error);
+      throw error;
+    }
+  }
+
+  async getUserPaymentHistory(userPrincipal?: string, limit?: number): Promise<any[]> {
+    const user = authService.getCurrentUser();
+    if (!user || !user.isConnected) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      // Demo mode simulation
+      if (user.walletType === 'demo') {
+        return [
+          {
+            buyer: user.principal,
+            companyId: 1,
+            amount: 5,
+            icpAmount: 5000000,
+            blockIndex: 12345,
+            timestamp: Date.now() - 86400000 // 1 day ago
+          }
+        ];
+      }
+
+      // Real backend call
+      const actor = await this.createActor();
+      const targetPrincipal = userPrincipal || user.principal;
+      const result = await actor.getUserPaymentHistory(targetPrincipal, limit ? [limit] : []);
+      return result as any[];
+    } catch (error) {
+      console.error('Error getting user payment history:', error);
       throw error;
     }
   }

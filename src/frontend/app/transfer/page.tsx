@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { backendService, Company } from '../../services/backend';
 import { authService, AuthUser } from '../../services/auth';
@@ -18,7 +18,7 @@ interface TransferFormData {
   memo: string;
 }
 
-export default function TransferPage() {
+function TransferPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -70,7 +70,7 @@ export default function TransferPage() {
       const holdingsPromises = companiesList.map(async (company) => {
         const amount = await backendService.getUserHoldings(company.id);
         if (amount > 0) {
-          const currentValue = amount * company.token_price;
+          const currentValue = amount * Number(company.token_price);
           return {
             company,
             amount,
@@ -348,7 +348,7 @@ export default function TransferPage() {
                       <div className="flex justify-between">
                         <span className="text-gray-400">Current Value:</span>
                         <span className="text-white">
-                          {(parseInt(formData.amount || '0') * selectedCompany.token_price).toLocaleString()}
+                          {(parseInt(formData.amount || '0') * Number(selectedCompany.token_price)).toLocaleString()}
                         </span>
                       </div>
                     </div>
@@ -400,7 +400,7 @@ export default function TransferPage() {
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-400">Value:</span>
-                          <span className="text-white">{holding.currentValue.toLocaleString()}</span>
+                          <span className="text-white">{Number(holding.currentValue).toLocaleString()}</span>
                         </div>
                       </div>
                     </div>
@@ -469,7 +469,7 @@ export default function TransferPage() {
               <div className="flex justify-between">
                 <span className="text-gray-400">Value:</span>
                 <span className="text-white">
-                  {(parseInt(formData.amount) * selectedCompany.token_price).toLocaleString()}
+                  {(parseInt(formData.amount) * Number(selectedCompany.token_price)).toLocaleString()}
                 </span>
               </div>
               {formData.memo && (
@@ -499,5 +499,17 @@ export default function TransferPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function TransferPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+        <div className="text-white">Loading transfer page...</div>
+      </div>
+    }>
+      <TransferPageContent />
+    </Suspense>
   );
 }

@@ -55,9 +55,9 @@ export default function DashboardPage() {
       const holdingsPromises = companiesList.map(async (company) => {
         const amount = await backendService.getUserHoldings(company.id);
         if (amount > 0) {
-          const currentValue = amount * company.token_price;
+          const currentValue = Number(amount) * Number(company.token_price);
           // For demo purposes, assume invested at base price
-          const investmentValue = amount * company.base_price;
+          const investmentValue = Number(amount) * Number(company.base_price);
           const profitLoss = currentValue - investmentValue;
           const profitLossPercent = investmentValue > 0 ? (profitLoss / investmentValue) * 100 : 0;
           
@@ -137,7 +137,7 @@ export default function DashboardPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
               </svg>
             </div>
-            <div className="text-2xl font-bold text-white">{totalValue.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-white">{Number(totalValue).toLocaleString()}</div>
           </div>
 
           <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
@@ -147,7 +147,7 @@ export default function DashboardPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
             </div>
-            <div className="text-2xl font-bold text-white">{totalInvested.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-white">{Number(totalInvested).toLocaleString()}</div>
           </div>
 
           <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
@@ -157,8 +157,8 @@ export default function DashboardPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
               </svg>
             </div>
-            <div className={`text-2xl font-bold ${totalProfitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {totalProfitLoss >= 0 ? '+' : ''}{totalProfitLoss.toLocaleString()}
+            <div className={`text-2xl font-bold ${Number(totalProfitLoss) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {Number(totalProfitLoss) >= 0 ? '+' : ''}{Number(totalProfitLoss).toLocaleString()}
             </div>
           </div>
 
@@ -169,8 +169,8 @@ export default function DashboardPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
             </div>
-            <div className={`text-2xl font-bold ${totalProfitLossPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {totalProfitLossPercent >= 0 ? '+' : ''}{totalProfitLossPercent.toFixed(2)}%
+            <div className={`text-2xl font-bold ${Number(totalProfitLossPercent) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {Number(totalProfitLossPercent) >= 0 ? '+' : ''}{Number(totalProfitLossPercent).toFixed(2)}%
             </div>
           </div>
         </div>
@@ -238,15 +238,15 @@ export default function DashboardPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="py-4 px-4 text-right text-white">{holding.amount}</td>
-                      <td className="py-4 px-4 text-right text-white">{holding.company.token_price.toLocaleString()}</td>
-                      <td className="py-4 px-4 text-right text-white">{holding.currentValue.toLocaleString()}</td>
-                      <td className="py-4 px-4 text-right text-gray-400">{holding.investmentValue.toLocaleString()}</td>
-                      <td className={`py-4 px-4 text-right ${holding.profitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {holding.profitLoss >= 0 ? '+' : ''}{holding.profitLoss.toLocaleString()}
+                      <td className="py-4 px-4 text-right text-white">{Number(holding.amount)}</td>
+                      <td className="py-4 px-4 text-right text-white">{Number(holding.company.token_price).toLocaleString()}</td>
+                      <td className="py-4 px-4 text-right text-white">{Number(holding.currentValue).toLocaleString()}</td>
+                      <td className="py-4 px-4 text-right text-gray-400">{Number(holding.investmentValue).toLocaleString()}</td>
+                      <td className={`py-4 px-4 text-right ${Number(holding.profitLoss) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {Number(holding.profitLoss) >= 0 ? '+' : ''}{Number(holding.profitLoss).toLocaleString()}
                       </td>
-                      <td className={`py-4 px-4 text-right ${holding.profitLossPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {holding.profitLossPercent >= 0 ? '+' : ''}{holding.profitLossPercent.toFixed(2)}%
+                      <td className={`py-4 px-4 text-right ${Number(holding.profitLossPercent) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {Number(holding.profitLossPercent) >= 0 ? '+' : ''}{Number(holding.profitLossPercent).toFixed(2)}%
                       </td>
                       <td className="py-4 px-4 text-right">
                         <div className="flex gap-1 justify-end">
@@ -314,11 +314,11 @@ export default function DashboardPage() {
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-400">Price:</span>
-                    <span className="text-white">{company.token_price.toLocaleString()}</span>
+                    <span className="text-white">{Number(company.token_price).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">Available:</span>
-                    <span className="text-white">{company.remaining}/{company.supply}</span>
+                    <span className="text-white">{Number(company.remaining)}/{Number(company.supply)}</span>
                   </div>
                 </div>
               </div>

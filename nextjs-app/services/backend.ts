@@ -301,6 +301,94 @@ class BackendService {
     }
   }
 
+  async transferTokens(companyId: number, recipient: string, amount: number, memo?: string): Promise<string> {
+    const user = authService.getCurrentUser();
+    if (!user || !user.isConnected) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      // Demo mode simulation
+      if (user.walletType === 'demo') {
+        console.log('Demo mode: Transferring tokens:', { companyId, recipient, amount, memo });
+        return `Demo: Successfully transferred ${amount} tokens to ${recipient.slice(0, 10)}...`;
+      }
+
+      // Real backend call
+      const actor = await this.createActor();
+      
+      // Prepare transfer arguments according to ICRC-1 standard
+      const transferArgs = {
+        from_subaccount: null, // Using default subaccount
+        to: {
+          owner: recipient, // Principal ID as string, will be converted by backend
+          subaccount: null
+        },
+        amount: amount,
+        fee: null, // Let backend determine fee
+        memo: memo ? [new TextEncoder().encode(memo)] : null,
+        created_at_time: null // Let backend set timestamp
+      };
+
+      const result = await actor.icrc1_transfer(companyId, transferArgs, user.principal);
+      
+      // Handle the result which is either #Ok(Nat) or #Err(TransferError)
+      if (result.Ok !== undefined) {
+        return `Transfer successful! Transaction ID: ${result.Ok}`;
+      } else if (result.Err) {
+        const error = result.Err;
+        if (error.InsufficientFunds) {
+          throw new Error(`Insufficient funds. Current balance: ${error.InsufficientFunds.balance}`);
+        } else if (error.BadFee) {
+          throw new Error(`Invalid fee. Expected: ${error.BadFee.expected_fee}`);
+        } else if (error.GenericError) {
+          throw new Error(`Transfer failed: ${error.GenericError.message}`);
+        } else {
+          throw new Error('Transfer failed with unknown error');
+        }
+      } else {
+        throw new Error('Unexpected response format from backend');
+      }
+    } catch (error) {
+      console.error('Error transferring tokens:', error);
+      throw error;
+    }
+  }
+
+  async getTokenBalance(companyId: number, principalId?: string): Promise<number> {
+    const user = authService.getCurrentUser();
+    if (!user || !user.isConnected) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      // Demo mode simulation
+      if (user.walletType === 'demo') {
+        return 5; // Mock balance
+      }
+
+      // Real backend call
+      const actor = await this.createActor();
+      const account = {
+        owner: principalId || user.principal,
+        subaccount: null
+      };
+      
+      const result = await actor.icrc1_balance_of(companyId, account);
+      
+      if (result.ok !== undefined) {
+        return result.ok;
+      } else if (result.err) {
+        throw new Error(result.err);
+      } else {
+        throw new Error('Unexpected response format');
+      }
+    } catch (error) {
+      console.error('Error getting token balance:', error);
+      throw error;
+    }
+  }
+
   // Utility method to clear cache when user logs out
   disconnect() {
     this.clearCache();

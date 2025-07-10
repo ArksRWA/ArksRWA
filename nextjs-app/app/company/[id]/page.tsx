@@ -15,6 +15,7 @@ export default function CompanyDetailsPage() {
   const [error, setError] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userHoldings, setUserHoldings] = useState(0);
+  const [isOwner, setIsOwner] = useState(false);
   
   // Trading states
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
@@ -53,6 +54,12 @@ export default function CompanyDetailsPage() {
       
       setCompany(companyData);
       setUserHoldings(holdings);
+      
+      // Check if current user is the owner
+      const user = authService.getCurrentUser();
+      if (user && user.principal === companyData.owner) {
+        setIsOwner(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load company data');
     } finally {
@@ -162,6 +169,19 @@ export default function CompanyDetailsPage() {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-6">
+          {isOwner && (
+            <div className="flex justify-end">
+              <button
+                onClick={() => router.push(`/manage-company/${companyId}`)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+                </svg>
+                Manage Company
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

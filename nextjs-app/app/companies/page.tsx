@@ -15,6 +15,7 @@ export default function CompaniesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   
   // Filter and sort states
   const [searchTerm, setSearchTerm] = useState('');
@@ -25,7 +26,9 @@ export default function CompaniesPage() {
 
   useEffect(() => {
     const checkAuth = () => {
+      const user = authService.getCurrentUser();
       const authenticated = authService.isAuthenticated();
+      setCurrentUser(user);
       setIsAuthenticated(authenticated);
       if (!authenticated) {
         router.push('/');
@@ -299,7 +302,7 @@ export default function CompaniesPage() {
                   </div>
                 </div>
 
-                {/* Availability Status */}
+                {/* Availability Status and Actions */}
                 <div className="flex items-center justify-between">
                   <span className={`text-xs px-2 py-1 rounded-full ${
                     company.remaining > 0 
@@ -308,9 +311,22 @@ export default function CompaniesPage() {
                   }`}>
                     {company.remaining > 0 ? 'Available' : 'Sold Out'}
                   </span>
-                  <span className="text-xs text-gray-500">
-                    {new Date(company.created_at).toLocaleDateString()}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {currentUser && currentUser.principal === company.owner && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/manage-company/${company.id}`);
+                        }}
+                        className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                      >
+                        Manage
+                      </button>
+                    )}
+                    <span className="text-xs text-gray-500">
+                      {new Date(company.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
                 </div>
               </div>
             ))}

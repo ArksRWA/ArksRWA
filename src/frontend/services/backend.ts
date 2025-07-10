@@ -427,7 +427,7 @@ class BackendService {
           owner: recipient, // Principal ID as string, will be converted by backend
           subaccount: null
         },
-        amount: amount,
+        amount: BigInt(amount), // Convert to BigInt for ICRC-1 compatibility
         fee: null, // Let backend determine fee
         memo: memo ? [new TextEncoder().encode(memo)] : null,
         created_at_time: null // Let backend set timestamp

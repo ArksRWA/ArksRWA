@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { backendService, Company } from '../../services/backend';
 import { authService, AuthUser } from '../../services/auth';
+import WalletStatus from '../components/WalletStatus';
 
 interface UserHolding {
   company: Company;
@@ -124,8 +125,55 @@ export default function DashboardPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Dashboard</h1>
-          <p className="text-gray-400">Welcome back, {currentUser?.principal.slice(0, 10)}...</p>
+          <h1 className="text-4xl font-bold text-white mb-2">Trading Dashboard</h1>
+          <p className="text-gray-400">Manage your wallet-based RWA investments</p>
+        </div>
+
+        {/* Wallet Status */}
+        <div className="mb-8">
+          <WalletStatus showBalance={true} showActions={true} />
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <button
+            onClick={() => router.push('/companies')}
+            className="bg-primary text-white rounded-lg p-6 hover:bg-primary/90 transition-colors text-left"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+              <h3 className="font-semibold">Browse Companies</h3>
+            </div>
+            <p className="text-sm opacity-90">Discover and invest in tokenized real-world assets</p>
+          </button>
+          
+          <button
+            onClick={() => router.push('/create-company')}
+            className="bg-green-600 text-white rounded-lg p-6 hover:bg-green-700 transition-colors text-left"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              <h3 className="font-semibold">Create Company</h3>
+            </div>
+            <p className="text-sm opacity-90">Tokenize your real-world assets on the blockchain</p>
+          </button>
+          
+          <button
+            onClick={() => router.push('/transfer')}
+            className="bg-blue-600 text-white rounded-lg p-6 hover:bg-blue-700 transition-colors text-left"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+              <h3 className="font-semibold">Transfer Tokens</h3>
+            </div>
+            <p className="text-sm opacity-90">Send tokens to other wallet addresses</p>
+          </button>
         </div>
 
         {/* Portfolio Overview */}

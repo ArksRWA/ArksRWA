@@ -66,8 +66,22 @@ export default function Navigation({ className = '' }: NavigationProps) {
           <div className="text-sm font-medium text-white">
             {currentUser?.principal.slice(0, 10)}...
           </div>
-          <div className="text-xs text-gray-400">
-            {currentUser?.walletType}
+          <div className="flex items-center gap-2">
+            <span className={`text-xs px-2 py-0.5 rounded ${
+              currentUser?.walletType === 'demo'
+                ? 'bg-yellow-900/20 text-yellow-400'
+                : currentUser?.walletType === 'plug'
+                ? 'bg-blue-900/20 text-blue-400'
+                : 'bg-green-900/20 text-green-400'
+            }`}>
+              {currentUser?.walletType === 'demo' ? 'Demo' :
+               currentUser?.walletType === 'plug' ? 'Plug' :
+               currentUser?.walletType === 'internet-identity' ? 'Internet Identity' :
+               currentUser?.walletType}
+            </span>
+            {currentUser?.walletType !== 'demo' && (
+              <div className="w-2 h-2 rounded-full bg-green-400"></div>
+            )}
           </div>
         </div>
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -75,8 +89,28 @@ export default function Navigation({ className = '' }: NavigationProps) {
         </svg>
       </button>
       
-      <div className="absolute right-0 mt-2 w-48 bg-card-bg border border-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+      <div className="absolute right-0 mt-2 w-56 bg-card-bg border border-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
         <div className="p-2">
+          {/* Wallet Info */}
+          <div className="px-3 py-2 border-b border-gray-600 mb-2">
+            <div className="text-xs text-gray-400 mb-1">Wallet Status</div>
+            <div className="flex items-center justify-between">
+              <span className={`text-xs px-2 py-1 rounded ${
+                currentUser?.walletType === 'demo'
+                  ? 'bg-yellow-900/20 text-yellow-400'
+                  : 'bg-green-900/20 text-green-400'
+              }`}>
+                {currentUser?.walletType === 'demo' ? 'Demo Mode' : 'Real Wallet'}
+              </span>
+              {currentUser?.walletType !== 'demo' && (
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-green-400"></div>
+                  <span className="text-xs text-green-400">Connected</span>
+                </div>
+              )}
+            </div>
+          </div>
+
           <button
             onClick={() => router.push('/dashboard')}
             className="flex items-center gap-2 w-full px-3 py-2 text-left text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
@@ -93,17 +127,29 @@ export default function Navigation({ className = '' }: NavigationProps) {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
             </svg>
-            My Companies
+            Browse Companies
           </button>
           <button
-            onClick={handleDisconnect}
-            className="flex items-center gap-2 w-full px-3 py-2 text-left text-red-400 hover:text-red-300 hover:bg-gray-700 rounded-lg transition-colors"
+            onClick={() => router.push('/transactions')}
+            className="flex items-center gap-2 w-full px-3 py-2 text-left text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
             </svg>
-            Disconnect
+            Transaction History
           </button>
+          
+          <div className="border-t border-gray-600 mt-2 pt-2">
+            <button
+              onClick={handleDisconnect}
+              className="flex items-center gap-2 w-full px-3 py-2 text-left text-red-400 hover:text-red-300 hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+              </svg>
+              Disconnect Wallet
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -77,7 +77,7 @@ if [ "$NETWORK" = "local" ]; then
     print_status "Checking local DFX replica..."
     
     # Check if replica is already running
-    if ! dfx ping --network local &> /dev/null; then
+    if ! dfx ping local &> /dev/null; then
         print_status "Starting local DFX replica..."
         dfx start --background --clean
         
@@ -86,7 +86,7 @@ if [ "$NETWORK" = "local" ]; then
         sleep 5
         
         # Verify replica is running
-        if ! dfx ping --network local &> /dev/null; then
+        if ! dfx ping local &> /dev/null; then
             print_error "Failed to start local replica"
             exit 1
         fi

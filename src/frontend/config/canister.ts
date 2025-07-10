@@ -1,9 +1,9 @@
 // Canister configuration for different environments
 export const CANISTER_IDS = {
   local: {
-    arks_rwa_backend: process.env.CANISTER_ID_ARKS_RWA_BACKEND || "ufxgi-4p777-77774-qaadq-cai",
-    internet_identity: process.env.CANISTER_ID_INTERNET_IDENTITY || "vpyes-67777-77774-qaaeq-cai",
-    frontend: process.env.CANISTER_ID_FRONTEND || "vizcg-th777-77774-qaaea-cai"
+    arks_rwa_backend: process.env.CANISTER_ID_ARKS_RWA_BACKEND || process.env.NEXT_PUBLIC_CANISTER_ID_ARKS_RWA_BACKEND || "vt46d-j7777-77774-qaagq-cai",
+    internet_identity: process.env.CANISTER_ID_INTERNET_IDENTITY || process.env.NEXT_PUBLIC_CANISTER_ID_INTERNET_IDENTITY || "v56tl-sp777-77774-qaahq-cai",
+    frontend: process.env.CANISTER_ID_FRONTEND || process.env.NEXT_PUBLIC_CANISTER_ID_FRONTEND || "v27v7-7x777-77774-qaaha-cai"
   },
   ic: {
     arks_rwa_backend: process.env.CANISTER_ID_ARKS_RWA_BACKEND || "",
@@ -30,3 +30,7 @@ export const getCanisterId = (canisterName: keyof typeof CANISTER_IDS.local) => 
 // Environment helpers
 export const isLocal = () => NETWORK === "local";
 export const isProduction = () => NETWORK === "ic";
+
+// Force real wallet mode (set to true to enable real Plug wallet in local development)
+export const FORCE_REAL_WALLET = true;
+export const shouldUseRealWallet = () => isProduction() || FORCE_REAL_WALLET;

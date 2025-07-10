@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { backendService, Company } from '../../services/backend';
 import { authService, AuthUser } from '../../services/auth';
+import WalletStatus from '../components/WalletStatus';
 
 interface UserHolding {
   company: Company;
@@ -68,7 +69,7 @@ function TransferPageContent() {
       
       // Load user holdings for each company
       const holdingsPromises = companiesList.map(async (company) => {
-        const amount = await backendService.getUserHoldings(company.id);
+        const amount = await Number(backendService.getUserHoldings(company.id));
         if (amount > 0) {
           const currentValue = amount * Number(company.token_price);
           return {
@@ -125,11 +126,11 @@ function TransferPageContent() {
     if (!formData.recipient.trim()) {
       throw new Error('Please enter recipient address');
     }
-    if (!formData.amount || parseInt(formData.amount) <= 0) {
+    if (!formData.amount || Number(formData.amount) <= 0) {
       throw new Error('Please enter a valid amount');
     }
 
-    const amount = parseInt(formData.amount);
+    const amount = Number(formData.amount);
     if (!selectedHolding || amount > selectedHolding.amount) {
       throw new Error('Insufficient tokens for transfer');
     }
@@ -166,9 +167,9 @@ function TransferPageContent() {
 
     try {
       const result = await backendService.transferTokens(
-        parseInt(formData.companyId),
+        Number(formData.companyId),
         formData.recipient,
-        parseInt(formData.amount),
+        Number(formData.amount),
         formData.memo
       );
 
@@ -223,9 +224,29 @@ function TransferPageContent() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Transfer Tokens</h1>
-          <p className="text-gray-400">Send your company tokens to other users</p>
+          <h1 className="text-4xl font-bold text-white mb-2">Wallet Transfer</h1>
+          <p className="text-gray-400">Send your tokenized assets to other wallet addresses</p>
         </div>
+
+        {/* Wallet Status */}
+        <div className="mb-8">
+          <WalletStatus showBalance={false} showActions={false} compact={true} />
+        </div>
+
+        {/* Transfer Warning for Demo Mode */}
+        {currentUser?.walletType === 'demo' && (
+          <div className="mb-6 p-4 bg-yellow-900/20 border border-yellow-500 rounded-lg">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <div>
+                <p className="text-yellow-400 font-medium">Demo Mode Transfer</p>
+                <p className="text-yellow-300 text-sm">Connect a real wallet (Plug or Internet Identity) for actual blockchain transfers</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Success/Error Messages */}
         {transferSuccess && (
@@ -263,7 +284,7 @@ function TransferPageContent() {
                     <option value="">Choose a company...</option>
                     {holdings.map((holding) => (
                       <option key={holding.company.id} value={holding.company.id.toString()}>
-                        {holding.company.name} ({holding.company.symbol}) - {holding.amount} tokens
+                        {holding.company.name} ({holding.company.symbol}) - {Number(holding.amount)} tokens
                       </option>
                     ))}
                   </select>
@@ -275,7 +296,7 @@ function TransferPageContent() {
                 {/* Recipient Address */}
                 <div>
                   <label htmlFor="recipient" className="block text-sm font-medium text-gray-300 mb-2">
-                    Recipient Address
+                    Recipient Wallet Address
                   </label>
                   <input
                     type="text"
@@ -284,11 +305,14 @@ function TransferPageContent() {
                     value={formData.recipient}
                     onChange={handleInputChange}
                     className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                    placeholder="Enter recipient's principal ID"
+                    placeholder="Enter recipient's wallet principal ID"
                     required
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    Principal ID format: abc12-def34-ghi56-...
+                    {currentUser?.walletType === 'demo'
+                      ? 'Demo mode: Any valid principal format will work for testing'
+                      : 'Principal ID format: abc12-def34-ghi56-... (must be a valid ICP wallet address)'
+                    }
                   </p>
                 </div>
 
@@ -306,12 +330,12 @@ function TransferPageContent() {
                     className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                     placeholder="Enter amount to transfer"
                     min="1"
-                    max={selectedHolding?.amount || 0}
+                    max={Number(selectedHolding?.amount) || 0}
                     required
                   />
                   {selectedHolding && (
                     <p className="text-xs text-gray-500 mt-1">
-                      Available: {selectedHolding.amount} tokens
+                      Available: {Number(selectedHolding.amount)} tokens
                     </p>
                   )}
                 </div>
@@ -348,7 +372,7 @@ function TransferPageContent() {
                       <div className="flex justify-between">
                         <span className="text-gray-400">Current Value:</span>
                         <span className="text-white">
-                          {(parseInt(formData.amount || '0') * Number(selectedCompany.token_price)).toLocaleString()}
+                          {(Number(formData.amount || '0') * Number(selectedCompany.token_price)).toLocaleString()}
                         </span>
                       </div>
                     </div>
@@ -359,9 +383,23 @@ function TransferPageContent() {
                 <button
                   type="submit"
                   disabled={transferLoading || holdings.length === 0}
-                  className="w-full px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {transferLoading ? 'Processing...' : 'Review Transfer'}
+                  {transferLoading ? (
+                    <>
+                      <svg className="animate-spin w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Processing Wallet Transfer...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                      </svg>
+                      Review Wallet Transfer
+                    </>
+                  )}
                 </button>
               </form>
             </div>
@@ -396,7 +434,7 @@ function TransferPageContent() {
                       <div className="text-sm space-y-1">
                         <div className="flex justify-between">
                           <span className="text-gray-400">Amount:</span>
-                          <span className="text-white">{holding.amount}</span>
+                          <span className="text-white">{Number(holding.amount)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-400">Value:</span>
@@ -469,7 +507,7 @@ function TransferPageContent() {
               <div className="flex justify-between">
                 <span className="text-gray-400">Value:</span>
                 <span className="text-white">
-                  {(parseInt(formData.amount) * Number(selectedCompany.token_price)).toLocaleString()}
+                  {(Number(formData.amount) * Number(selectedCompany.token_price)).toLocaleString()}
                 </span>
               </div>
               {formData.memo && (

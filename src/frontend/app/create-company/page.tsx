@@ -20,11 +20,14 @@ export default function CreateCompanyPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
     const checkAuth = () => {
       const authenticated = authService.isAuthenticated();
+      const user = authService.getCurrentUser();
       setIsAuthenticated(authenticated);
+      setCurrentUser(user);
       if (!authenticated) {
         router.push('/');
       }
@@ -88,7 +91,7 @@ export default function CreateCompanyPage() {
       });
 
       console.log('Company created successfully with ID:', companyId);
-      router.push('/');
+      router.push(`/company/${companyId}`);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -112,6 +115,25 @@ export default function CreateCompanyPage() {
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white mb-2">Create Company</h1>
             <p className="text-gray-400">Launch your company on the ARKS RWA platform</p>
+            
+            {/* Wallet Status */}
+            {currentUser && (
+              <div className="mt-4 p-3 bg-gray-800 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-400">Connected as:</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-white">{currentUser.principal.slice(0, 10)}...</span>
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      currentUser.walletType === 'demo'
+                        ? 'bg-yellow-900/20 text-yellow-400'
+                        : 'bg-green-900/20 text-green-400'
+                    }`}>
+                      {currentUser.walletType === 'demo' ? 'Demo' : currentUser.walletType}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {error && (

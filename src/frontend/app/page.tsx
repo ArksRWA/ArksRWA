@@ -71,36 +71,42 @@ export default function HomePage() {
               ARKS <span className="text-primary">RWA</span>
             </h1>
             <p className="text-xl md:text-2xl text-gray-300 mb-8 max-w-3xl mx-auto">
-              Tokenize Real World Assets on the Internet Computer
+              Wallet-Based Real World Asset Trading Platform
             </p>
             <p className="text-lg text-gray-400 mb-12 max-w-2xl mx-auto">
-              Create, trade, and manage tokenized companies with full transparency and security. 
-              Built on the Internet Computer for true decentralization.
+              Connect your ICP wallet to trade tokenized real-world assets with actual blockchain transactions.
+              Buy, sell, and transfer company tokens using real ICP payments.
             </p>
 
-            {/* Connection Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
-              <button
-                onClick={handleConnectPlug}
-                disabled={isConnecting}
-                className="flex items-center gap-3 px-8 py-4 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[200px]"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                {isConnecting ? 'Connecting...' : 'Connect with Plug'}
-              </button>
+            {/* Wallet Connection Section */}
+            <div className="bg-card-bg border border-gray-700 rounded-lg p-6 mb-8 max-w-2xl mx-auto">
+              <h3 className="text-lg font-semibold text-white mb-4 text-center">Connect Your ICP Wallet to Start Trading</h3>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                <button
+                  onClick={handleConnectPlug}
+                  disabled={isConnecting}
+                  className="flex items-center gap-3 px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[180px]"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  {isConnecting ? 'Connecting...' : 'Plug Wallet'}
+                </button>
 
-              <button
-                onClick={handleConnectII}
-                disabled={isConnecting}
-                className="flex items-center gap-3 px-8 py-4 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[200px]"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-                Internet Identity
-              </button>
+                <button
+                  onClick={handleConnectII}
+                  disabled={isConnecting}
+                  className="flex items-center gap-3 px-6 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[180px]"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                  Internet Identity
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 text-center mt-3">
+                Real wallet connections enable actual ICP blockchain transactions
+              </p>
             </div>
 
             {error && (
@@ -109,15 +115,18 @@ export default function HomePage() {
               </div>
             )}
 
-            <p className="text-sm text-gray-500">
-              Don't have a wallet? Try our{' '}
-              <button
-                onClick={() => router.push('/companies')}
-                className="text-primary hover:text-primary/80 underline"
-              >
-                demo mode
-              </button>
-            </p>
+            <div className="bg-yellow-900/20 border border-yellow-500 rounded-lg p-4 max-w-md mx-auto">
+              <p className="text-sm text-yellow-400 text-center">
+                Don't have a wallet? Try our{' '}
+                <button
+                  onClick={() => router.push('/companies')}
+                  className="text-yellow-300 hover:text-yellow-200 underline font-medium"
+                >
+                  demo mode
+                </button>
+                {' '}(simulated transactions only)
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -147,12 +156,12 @@ export default function HomePage() {
           <div className="bg-card-bg border border-gray-700 rounded-lg p-8 text-center">
             <div className="w-16 h-16 bg-primary/20 rounded-lg flex items-center justify-center mx-auto mb-6">
               <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-white mb-4">Real-Time Trading</h3>
+            <h3 className="text-xl font-semibold text-white mb-4">Wallet-Based Trading</h3>
             <p className="text-gray-400">
-              Trade tokenized assets instantly with dynamic pricing and real-time market updates.
+              Use your ICP wallet for real blockchain transactions. Buy and sell tokens with actual ICP payments.
             </p>
           </div>
 
@@ -174,23 +183,30 @@ export default function HomePage() {
       <div className="bg-gray-800/50 border-t border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="text-center">
-            <h2 className="text-3xl font-bold text-white mb-4">Ready to Get Started?</h2>
+            <h2 className="text-3xl font-bold text-white mb-4">Ready to Start Wallet Trading?</h2>
             <p className="text-gray-400 mb-8 max-w-2xl mx-auto">
-              Join the future of asset tokenization. Connect your wallet and start trading today.
+              Connect your ICP wallet and experience real blockchain-based asset trading with actual ICP transactions.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 onClick={handleConnectPlug}
                 disabled={isConnecting}
-                className="px-8 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-8 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
-                Get Started
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Connect Wallet & Trade
               </button>
               <button
                 onClick={() => router.push('/companies')}
-                className="px-8 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                className="flex items-center gap-2 px-8 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
               >
-                Explore Demo
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                Try Demo Mode
               </button>
             </div>
           </div>

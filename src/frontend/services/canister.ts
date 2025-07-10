@@ -1,23 +1,22 @@
-// lib/arksBackend.ts
+// services/canister.ts
 
 import { Actor, HttpAgent } from "@dfinity/agent";
-import { idlFactory } from "../../../.dfx/local/canisters/arks-rwa-backend";
-import canisterIds from "../../../.dfx/local/canister_ids.json";
+import { idlFactory } from "../declarations/arks-rwa-backend";
+import { getCanisterId, HOST, isLocal } from "../config/canister";
 
-const isLocal = process.env.NEXT_PUBLIC_DFX_NETWORK === "local";
-
+// Create agent for the appropriate environment
 const agent = new HttpAgent({
-  host: isLocal ? "http://127.0.0.1:4943" : "https://icp-api.io",
+  host: HOST,
 });
 
 // Only fetch root key in local for certificate validation
-if (isLocal) {
+if (isLocal()) {
   agent.fetchRootKey();
 }
 
 const backendActor = Actor.createActor(idlFactory, {
   agent,
-  canisterId: canisterIds["arks-rwa-backend"].local, // or .ic
+  canisterId: getCanisterId('arks_rwa_backend'),
 });
 
 export default backendActor;

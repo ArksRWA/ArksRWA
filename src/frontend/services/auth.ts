@@ -1,22 +1,27 @@
-export interface AuthUser {
-  principal: string;
-  agent?: any;
-  isConnected: boolean;
-  walletType: 'plug' | 'internet-identity' | 'demo';
-}
+import { getCanisterId, HOST } from '../config/canister';
+import type { AuthUser, AuthService } from '../types/canister';
 
-export interface AuthService {
-  connectPlug(): Promise<AuthUser>;
-  connectInternetIdentity(): Promise<AuthUser>;
-  disconnect(): void;
-  getCurrentUser(): AuthUser | null;
-  isAuthenticated(): boolean;
+// Re-export types for convenience
+export type { AuthUser, AuthService } from '../types/canister';
+
+// Extend Window interface for Plug wallet
+declare global {
+  interface Window {
+    ic?: {
+      plug?: {
+        requestConnect: (options?: any) => Promise<any>;
+        agent: any;
+        principal: any;
+        accountId: string;
+      };
+    };
+  }
 }
 
 class AuthServiceImpl implements AuthService {
   private currentUser: AuthUser | null = null;
-  private readonly canisterId = "ryjl3-tyaaa-aaaaa-aaaba-cai";
-  private readonly host = "https://icp0.io";
+  private readonly canisterId = getCanisterId('arks_rwa_backend');
+  private readonly host = HOST;
 
   async connectPlug(): Promise<AuthUser> {
     try {

@@ -330,6 +330,48 @@ class BackendService {
       throw error;
     }
   }
+
+  async updateCompanyDescription(companyId: number, newDescription: string): Promise<string> {
+    const user = authService.getCurrentUser();
+    if (!user || !user.isConnected) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      // In demo mode, simulate the call
+      if (user.walletType === 'demo') {
+        console.log('Demo mode: Updating company description:', { companyId, newDescription });
+        return `Demo: Successfully updated company description`;
+      }
+
+      // Real backend call
+      if (!user.agent) {
+        throw new Error('User agent not available');
+      }
+
+      const { Actor, HttpAgent } = await import('@dfinity/agent');
+      const { idlFactory } = await import('../declarations/arks-rwa-backend');
+      
+      // Create local agent for development
+      const localAgent = new HttpAgent({
+        host: 'http://localhost:4943',
+      });
+      
+      // Fetch root key for local development
+      await localAgent.fetchRootKey();
+      
+      const actor = Actor.createActor(idlFactory, {
+        agent: localAgent,
+        canisterId: this.canisterId,
+      });
+
+      await actor.updateCompanyDescription(companyId, newDescription);
+      return 'Company description updated successfully';
+    } catch (error) {
+      console.error('Error updating company description:', error);
+      throw error;
+    }
+  }
 }
 
 export const backendService = new BackendService();

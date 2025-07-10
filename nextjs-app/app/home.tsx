@@ -155,7 +155,7 @@ export default function App() {
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         .font-sans { font-family: 'Inter', sans-serif; }
       `}</style>
-      <main className="flex min-h-screen w-full items-center justify-center bg-background text-foreground font-sans p-4">
+      <div className="flex min-h-screen w-full items-center justify-center bg-background text-foreground font-sans p-4">
         <div className="w-full max-w-4xl rounded-xl bg-card-bg p-8 border border-card-border">
 
           {/* --- Header Section --- */}
@@ -331,7 +331,7 @@ export default function App() {
             <p>Powered by Internet Computer Protocol • Secure • Fast • Decentralized</p>
           </div>
         </div>
-      </main>
+      </div>
     </>
   );
 }

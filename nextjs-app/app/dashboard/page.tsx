@@ -120,36 +120,10 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4 pt-20">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <button
-              onClick={() => router.push('/')}
-              className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Back to Home
-            </button>
-            <div className="flex gap-2">
-              <button
-                onClick={() => router.push('/companies')}
-                className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
-              >
-                Browse Companies
-              </button>
-              <button
-                onClick={() => router.push('/create-company')}
-                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-              >
-                Create Company
-              </button>
-            </div>
-          </div>
-          
           <h1 className="text-4xl font-bold text-white mb-2">Dashboard</h1>
           <p className="text-gray-400">Welcome back, {currentUser?.principal.slice(0, 10)}...</p>
         </div>
@@ -203,7 +177,18 @@ export default function DashboardPage() {
 
         {/* Holdings Table */}
         <div className="bg-card-bg border border-gray-700 rounded-lg p-6 mb-8">
-          <h2 className="text-xl font-semibold text-white mb-6">Your Holdings</h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-white">Your Holdings</h2>
+            <button
+              onClick={() => router.push('/transactions')}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+              </svg>
+              View Transactions
+            </button>
+          </div>
           
           {holdings.length > 0 ? (
             <div className="overflow-x-auto">

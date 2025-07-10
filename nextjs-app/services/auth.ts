@@ -27,10 +27,10 @@ class AuthServiceImpl implements AuthService {
 
       // Dynamic import to avoid SSR issues
       const { PlugLogin } = await import('ic-auth');
-      
+
       const whitelist = [this.canisterId];
       const user = await PlugLogin(whitelist, this.host);
-      
+
       if (user && user.principal) {
         const authUser: AuthUser = {
           principal: typeof user.principal === 'string' ? user.principal : String(user.principal),
@@ -38,7 +38,7 @@ class AuthServiceImpl implements AuthService {
           isConnected: true,
           walletType: 'plug'
         };
-        
+
         this.currentUser = authUser;
         console.log("Plug wallet connected successfully with ic-auth!");
         return authUser;
@@ -48,14 +48,14 @@ class AuthServiceImpl implements AuthService {
 
     } catch (e: any) {
       console.error("Plug connection failed:", e);
-      
+
       // Fallback to demo mode
       const demoUser: AuthUser = {
         principal: "demo-plug-" + Math.random().toString(36).substring(2, 11),
         isConnected: true,
         walletType: 'demo'
       };
-      
+
       this.currentUser = demoUser;
       console.log("Falling back to demo mode for Plug");
       return demoUser;
@@ -66,9 +66,9 @@ class AuthServiceImpl implements AuthService {
     try {
       // Dynamic import to avoid SSR issues
       const { IdentityLogin } = await import('ic-auth');
-      
+
       const user = await IdentityLogin(this.host);
-      
+
       if (user && user.principal) {
         const authUser: AuthUser = {
           principal: typeof user.principal === 'string' ? user.principal : String(user.principal),
@@ -76,7 +76,7 @@ class AuthServiceImpl implements AuthService {
           isConnected: true,
           walletType: 'internet-identity'
         };
-        
+
         this.currentUser = authUser;
         console.log("Internet Identity connected successfully with ic-auth!");
         return authUser;
@@ -86,14 +86,14 @@ class AuthServiceImpl implements AuthService {
 
     } catch (e: any) {
       console.error("Internet Identity connection failed:", e);
-      
+
       // Fallback to demo mode
       const demoUser: AuthUser = {
         principal: "demo-ii-" + Math.random().toString(36).substring(2, 11),
         isConnected: true,
         walletType: 'demo'
       };
-      
+
       this.currentUser = demoUser;
       console.log("Falling back to demo mode for Internet Identity");
       return demoUser;

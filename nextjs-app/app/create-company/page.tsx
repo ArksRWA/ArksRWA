@@ -106,7 +106,7 @@ export default function CreateCompanyPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4 pt-20">
       <div className="max-w-2xl mx-auto">
         <div className="bg-card-bg border border-gray-700 rounded-lg shadow-2xl p-8">
           <div className="mb-8">
@@ -261,7 +261,7 @@ export default function CreateCompanyPage() {
             <div className="flex gap-4 pt-6">
               <button
                 type="button"
-                onClick={() => router.push('/')}
+                onClick={() => router.push('/companies')}
                 className="flex-1 px-6 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
               >
                 Cancel

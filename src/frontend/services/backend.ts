@@ -1,34 +1,19 @@
 import { authService } from './auth';
+import { getCanisterId, HOST, isLocal } from '../config/canister';
+import {
+  Company,
+  CreateCompanyParams,
+  candidCompanyToFrontend,
+  candidTokenHolderToFrontend,
+  CanisterCallError
+} from '../types/canister';
 
-export interface Company {
-  id: number;
-  name: string;
-  symbol: string;
-  owner: string;
-  valuation: number;
-  base_price: number;
-  token_price: number;
-  supply: number;
-  remaining: number;
-  minimum_purchase: number;
-  logo_url: string;
-  description: string;
-  created_at: number;
-}
-
-export interface CreateCompanyParams {
-  name: string;
-  symbol: string;
-  logoUrl: string;
-  description: string;
-  valuation: number;
-  desiredSupply?: number;
-  desiredPrice?: number;
-}
+// Re-export types for convenience
+export type { Company, CreateCompanyParams } from '../types/canister';
 
 class BackendService {
-  private readonly canisterId = "uxrrr-q7777-77774-qaaaq-cai";
-  private readonly host = 'http://localhost:4943';
+  private readonly canisterId = getCanisterId('arks_rwa_backend');
+  private readonly host = HOST;
   
   // Cache for actor and agent to avoid recreating them repeatedly
   private actorCache: any = null;
@@ -123,12 +108,12 @@ class BackendService {
         params.symbol,
         params.logoUrl,
         params.description,
-        params.valuation,
-        params.desiredSupply ? [params.desiredSupply] : [],
-        params.desiredPrice ? [params.desiredPrice] : []
+        BigInt(params.valuation),
+        params.desiredSupply ? [BigInt(params.desiredSupply)] : [],
+        params.desiredPrice ? [BigInt(params.desiredPrice)] : []
       );
 
-      return result as number;
+      return Number(result);
     } catch (error) {
       console.error('Error creating company:', error);
       throw error;
@@ -166,7 +151,7 @@ class BackendService {
       // Real backend call
       const actor = await this.createActor();
       const companies = await actor.listCompanies();
-      return companies as Company[];
+      return (companies as any[]).map(candidCompanyToFrontend);
     } catch (error) {
       console.error('Error listing companies:', error);
       throw error;
@@ -203,7 +188,7 @@ class BackendService {
       const actor = await this.createActor();
       const company = await actor.getCompanyById(id);
       const companyResult = company as any[];
-      return companyResult[0] || null; // IC returns Option type
+      return companyResult[0] ? candidCompanyToFrontend(companyResult[0]) : null;
     } catch (error) {
       console.error('Error getting company by ID:', error);
       throw error;

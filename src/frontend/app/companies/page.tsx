@@ -71,10 +71,10 @@ export default function CompaniesPage() {
 
     // Apply price range filter
     if (priceRange.min) {
-      filtered = filtered.filter(company => company.token_price >= parseInt(priceRange.min));
+      filtered = filtered.filter(company => Number(company.token_price) >= parseInt(priceRange.min));
     }
     if (priceRange.max) {
-      filtered = filtered.filter(company => company.token_price <= parseInt(priceRange.max));
+      filtered = filtered.filter(company => Number(company.token_price) <= parseInt(priceRange.max));
     }
 
     // Apply availability filter
@@ -290,15 +290,15 @@ export default function CompaniesPage() {
                 <div className="space-y-2 mb-4">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-400">Token Price:</span>
-                    <span className="text-white font-medium">{company.token_price.toLocaleString()}</span>
+                    <span className="text-white font-medium">{Number(company.token_price).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-400">Available:</span>
-                    <span className="text-white font-medium">{company.remaining}/{company.supply}</span>
+                    <span className="text-white font-medium">{Number(company.remaining)}/{Number(company.supply)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-400">Valuation:</span>
-                    <span className="text-white font-medium">{company.valuation.toLocaleString()}</span>
+                    <span className="text-white font-medium">{Number(company.valuation).toLocaleString()}</span>
                   </div>
                 </div>
 

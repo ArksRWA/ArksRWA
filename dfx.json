@@ -4,6 +4,11 @@
       "main": "src/arks-rwa-backend/main.mo",
       "type": "motoko"
     },
+    "frontend": {
+      "dependencies": ["arks-rwa-backend"],
+      "source": ["src/frontend/build"],
+       "type": "assets"
+    },
     "internet_identity": {
       "type": "custom",
       "candid": "https://raw.githubusercontent.com/dfinity/internet-identity/main/src/internet_identity/internet_identity.did",

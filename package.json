@@ -1,0 +1,21 @@
+{
+  "name": "arks-rwa",
+  "version": "1.0.0",
+  "description": "ARKS RWA - Real World Asset Tokenization Platform",
+  "scripts": {
+    "dev": "./scripts/deploy-local.sh",
+    "deploy:local": "./scripts/deploy-local.sh",
+    "deploy:production": "./scripts/deploy-production.sh",
+    "build": "cd src/frontend && npm run build",
+    "start": "dfx start --background",
+    "stop": "dfx stop",
+    "clean": "dfx start --clean"
+  },
+  "keywords": ["blockchain", "tokenization", "real-world-assets", "internet-computer"],
+  "author": "ARKS RWA Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/arks-rwa"
+  }
+}

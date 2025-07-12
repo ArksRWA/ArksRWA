@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(export PATH=\"$HOME/Library/Application Support/org.dfinity.dfx/bin:$PATH\")",
+      "Bash(dfx deploy:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run dev:*)",
+      "Bash(dfx canister call:*)",
+      "Bash(grep:*)",
+      "Bash(pkill:*)",
+      "Bash(node:*)",
+      "Bash(curl:*)",
+      "Bash(npx tsc:*)",
+      "Bash(/dev/null)",
+      "Bash(ls:*)",
+      "Bash(export:*)",
+      "Bash(ln:*)"
+    ],
+    "deny": []
+  }
+}

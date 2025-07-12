@@ -45,6 +45,20 @@ export default function HomePage() {
     }
   };
 
+  const handleDemoMode = async () => {
+    setIsConnecting(true);
+    setError('');
+    try {
+      const user = await authService.connectDemo();
+      setCurrentUser(user);
+      router.push('/dashboard');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start demo mode');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
   if (currentUser && currentUser.isConnected) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
@@ -110,13 +124,7 @@ export default function HomePage() {
             )}
 
             <p className="text-sm text-gray-500">
-              Don't have a wallet? Try our{' '}
-              <button
-                onClick={() => router.push('/companies')}
-                className="text-primary hover:text-primary/80 underline"
-              >
-                demo mode
-              </button>
+              Need help connecting? Make sure your Plug wallet extension is installed and unlocked.
             </p>
           </div>
         </div>
@@ -184,13 +192,14 @@ export default function HomePage() {
                 disabled={isConnecting}
                 className="px-8 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
-                Get Started
+                Connect with Plug
               </button>
               <button
-                onClick={() => router.push('/companies')}
-                className="px-8 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                onClick={handleConnectII}
+                disabled={isConnecting}
+                className="px-8 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
               >
-                Explore Demo
+                Internet Identity
               </button>
             </div>
           </div>

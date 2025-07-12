@@ -25,10 +25,8 @@ class BackendService {
       throw new Error('User not authenticated');
     }
 
-    // Return cached actor if available and user hasn't changed
-    if (this.actorCache) {
-      return this.actorCache;
-    }
+    // Always clear cache for now to ensure fresh connections
+    this.actorCache = null;
 
     try {
       // For demo mode, we don't need a real actor
@@ -45,23 +43,39 @@ class BackendService {
         await this.agentCache.fetchRootKey(); // For local development
       }
 
-      // Try to import declarations, but handle gracefully if not available
-      let idlFactory;
-      try {
-        const declarations = await import('../declarations/arks-rwa-backend');
-        idlFactory = declarations.idlFactory;
-      } catch (error) {
-        console.warn('IDL declarations not found, using fallback for development');
-        // For development, we can create a minimal IDL or use user's agent
-        if (user.agent) {
+      // If user has an agent (from wallet connection), try to use it
+      if (user.agent) {
+        console.log('User agent available from wallet, checking if it has the right interface...');
+        
+        // Check if the agent has the expected methods
+        if (typeof user.agent.listCompanies === 'function') {
+          console.log('Using user agent from wallet connection');
+          this.actorCache = user.agent;
           return user.agent;
+        } else {
+          console.log('User agent missing expected methods, creating our own actor...');
         }
-        throw new Error('No IDL factory available and no user agent');
       }
+
+      // Import declarations - try alias first, fallback to relative path
+      let declarations;
+      try {
+        declarations = await import('@declarations/arks-rwa-backend');
+      } catch (e) {
+        console.log('Alias import failed, trying relative path...');
+        declarations = await import('../../declarations/arks-rwa-backend');
+      }
+      const idlFactory = declarations.idlFactory;
 
       this.actorCache = Actor.createActor(idlFactory, {
         agent: this.agentCache,
         canisterId: this.canisterId,
+      });
+
+      console.log('Actor created successfully:', {
+        canisterId: this.canisterId,
+        hasListCompanies: typeof this.actorCache.listCompanies === 'function',
+        methods: Object.getOwnPropertyNames(this.actorCache)
       });
 
       return this.actorCache;
@@ -77,6 +91,11 @@ class BackendService {
     this.agentCache = null;
   }
 
+  // Public method to clear cache when user disconnects
+  disconnect() {
+    this.clearCache();
+  }
+
   async createCompany(params: CreateCompanyParams): Promise<number> {
     const user = authService.getCurrentUser();
     if (!user || !user.isConnected) {
@@ -84,8 +103,8 @@ class BackendService {
     }
 
     try {
-      // Demo mode simulation
-      if (user.walletType === 'demo') {
+      // Demo mode simulation - only for explicit demo users
+      if (user.walletType === 'demo' && user.principal.startsWith('demo-user-')) {
         console.log('Demo mode: Creating company with params:', params);
         
         // Simulate validation
@@ -102,7 +121,9 @@ class BackendService {
       }
 
       // Real backend call
+      const { Principal } = await import('@dfinity/principal');
       const actor = await this.createActor();
+      const callerPrincipal = Principal.fromText(user.principal);
       const result = await actor.createCompany(
         params.name,
         params.symbol,
@@ -110,7 +131,8 @@ class BackendService {
         params.description,
         BigInt(params.valuation),
         params.desiredSupply ? [BigInt(params.desiredSupply)] : [],
-        params.desiredPrice ? [BigInt(params.desiredPrice)] : []
+        params.desiredPrice ? [BigInt(params.desiredPrice)] : [],
+        callerPrincipal
       );
 
       return Number(result);
@@ -127,8 +149,8 @@ class BackendService {
     }
 
     try {
-      // Demo mode mock data
-      if (user.walletType === 'demo') {
+      // Demo mode mock data - only for explicit demo users
+      if (user.walletType === 'demo' && user.principal.startsWith('demo-user-')) {
         return [
           {
             id: 1,
@@ -165,8 +187,8 @@ class BackendService {
     }
 
     try {
-      // Demo mode mock data
-      if (user.walletType === 'demo') {
+      // Demo mode mock data - only for explicit demo users
+      if (user.walletType === 'demo' && user.principal.startsWith('demo-user-')) {
         return {
           id: id,
           name: 'Demo Company',
@@ -203,13 +225,15 @@ class BackendService {
 
     try {
       // Demo mode mock data
-      if (user.walletType === 'demo') {
+      if (user.walletType === 'demo' && user.principal.startsWith('demo-user-')) {
         return 5; // Mock holdings
       }
 
       // Real backend call
+      const { Principal } = await import('@dfinity/principal');
       const actor = await this.createActor();
-      const holdings = await actor.getMyHolding(companyId);
+      const callerPrincipal = Principal.fromText(user.principal);
+      const holdings = await actor.getMyHolding(companyId, callerPrincipal);
       return holdings as number;
     } catch (error) {
       console.error('Error getting user holdings:', error);
@@ -225,14 +249,16 @@ class BackendService {
 
     try {
       // Demo mode simulation
-      if (user.walletType === 'demo') {
+      if (user.walletType === 'demo' && user.principal.startsWith('demo-user-')) {
         console.log('Demo mode: Buying tokens:', { companyId, amount });
         return `Demo: Successfully bought ${amount} tokens`;
       }
 
-      // Real backend call
+      // Real backend call - import Principal for proper typing
+      const { Principal } = await import('@dfinity/principal');
       const actor = await this.createActor();
-      const result = await actor.buyTokens(companyId, amount);
+      const callerPrincipal = Principal.fromText(user.principal);
+      const result = await actor.buyTokens(companyId, amount, callerPrincipal);
       return result as string;
     } catch (error) {
       console.error('Error buying tokens:', error);
@@ -254,8 +280,10 @@ class BackendService {
       }
 
       // Real backend call
+      const { Principal } = await import('@dfinity/principal');
       const actor = await this.createActor();
-      const result = await actor.sellTokens(companyId, amount);
+      const callerPrincipal = Principal.fromText(user.principal);
+      const result = await actor.sellTokens(companyId, amount, callerPrincipal);
       return result as string;
     } catch (error) {
       console.error('Error selling tokens:', error);
@@ -372,11 +400,6 @@ class BackendService {
       console.error('Error getting token balance:', error);
       throw error;
     }
-  }
-
-  // Utility method to clear cache when user logs out
-  disconnect() {
-    this.clearCache();
   }
 }
 

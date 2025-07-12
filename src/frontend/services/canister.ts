@@ -1,7 +1,7 @@
 // services/canister.ts
 
 import { Actor, HttpAgent } from "@dfinity/agent";
-import { idlFactory } from "../declarations/arks-rwa-backend";
+import { idlFactory } from "../../declarations/arks-rwa-backend";
 import { getCanisterId, HOST, isLocal } from "../config/canister";
 
 // Create agent for the appropriate environment

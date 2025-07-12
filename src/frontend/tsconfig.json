@@ -25,6 +25,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@declarations/*": [
+        "../declarations/*"
       ]
     }
   },
@@ -33,7 +36,9 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    "build/types/**/*.ts"
+    "build/types/**/*.ts",
+    "../declarations/**/*.ts",
+    "../declarations/**/*.d.ts"
   ],
   "exclude": [
     "node_modules"

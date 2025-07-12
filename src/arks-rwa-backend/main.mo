@@ -11,10 +11,13 @@ import HashMap "mo:base/HashMap";
 import Iter "mo:base/Iter";
 import Hash "mo:base/Hash";
 
-actor class ARKSRWA() = this {
+actor class ARKSRWA(init_admin: ?Principal) = this {
 
-  // dfx identity get-principal
-  let admin : Principal = Principal.fromText("o6dtt-od7eq-p5tmn-yilm3-4v453-v64p5-ep4q6-hxoeq-jhygx-u5dz7-aqe");
+  // Admin principal - configurable via constructor parameter
+  let admin : Principal = switch(init_admin) {
+    case (?p) p;
+    case null Principal.fromText("o6dtt-od7eq-p5tmn-yilm3-4v453-v64p5-ep4q6-hxoeq-jhygx-u5dz7-aqe"); // fallback for local dev
+  };
 
   type Company = {
     id : Nat;
@@ -36,6 +39,11 @@ actor class ARKSRWA() = this {
     companyId : Nat;
     investor : Principal;
     amount : Nat;
+  };
+
+  type AccountType = {
+    #CompanyOwner;
+    #Investor;
   };
 
   type Account = {
@@ -76,12 +84,102 @@ actor class ARKSRWA() = this {
   var minValuationE8s : Nat = 10_000_000;
   var transactionCount : Nat = 0;
 
+  // Enhanced pricing configuration
+  let bondingCurveExponent : Float = 1.5;
+  let volumeThreshold : Nat = 50;
+  let volumeMultiplier : Float = 1.1;
+  let velocityBonus : Float = 1.05;
+  let scarcityThreshold : Float = 0.1;  // 10%
+  let scarcityMultiplier : Float = 2.0;
+  let defaultTokenPrice : Nat = 1_000_000;
+
   func getMinValuationE8s() : Nat {
     minValuationE8s;
   };
 
-  public func createCompany(name : Text, symbol : Text, logo_url : Text, description : Text, valuation : Nat, desiredSupply : ?Nat, desiredPrice : ?Nat) : async Nat {
-    let caller = Principal.fromActor(this);
+  // Enhanced pricing helper functions
+  func safeDivide(numerator : Nat, denominator : Nat) : Nat {
+    if (denominator == 0) {
+      0; // Return 0 for division by zero to prevent traps
+    } else {
+      numerator / denominator;
+    };
+  };
+
+  func powerFloat(base : Float, exponent : Float) : Float {
+    // Simple power function for bonding curve
+    // For base^exponent, we use: e^(exponent * ln(base))
+    if (base <= 0.0) {
+      1.0; // Return 1.0 for invalid base to prevent traps
+    } else {
+      // Simplified implementation - in production, use proper math library
+      if (exponent == 1.0) { base }
+      else if (exponent == 1.5) { base * Float.sqrt(base) }
+      else if (exponent == 2.0) { base * base }
+      else { base * base }; // fallback to square for other exponents
+    };
+  };
+
+  func calculateBondingCurvePrice(basePrice : Nat, sold : Nat, supply : Nat) : Nat {
+    if (supply == 0) {
+      basePrice; // Return base price if supply is zero
+    } else {
+      let soldRatio = Float.fromInt(sold) / Float.fromInt(supply);
+      let priceMultiplier = powerFloat(1.0 + soldRatio, bondingCurveExponent);
+      let newPrice = Float.fromInt(basePrice) * priceMultiplier;
+      
+      // Apply bounds checking
+      let minPrice = Float.fromInt(basePrice) * 0.5;
+      let maxPrice = Float.fromInt(basePrice) * 10.0;
+      
+      if (newPrice < minPrice) {
+        Int.abs(Float.toInt(minPrice));
+      } else if (newPrice > maxPrice) {
+        Int.abs(Float.toInt(maxPrice));
+      } else {
+        Int.abs(Float.toInt(newPrice));
+      };
+    };
+  };
+
+  func applyVolumeMultiplier(price : Nat, amount : Nat) : Nat {
+    if (amount >= volumeThreshold) {
+      let multipliedPrice = Float.fromInt(price) * volumeMultiplier;
+      Int.abs(Float.toInt(multipliedPrice));
+    } else {
+      price;
+    };
+  };
+
+  func applyScarcityMultiplier(price : Nat, remaining : Nat, supply : Nat) : Nat {
+    if (supply == 0) {
+      price;
+    } else {
+      let remainingRatio = Float.fromInt(remaining) / Float.fromInt(supply);
+      if (remainingRatio < scarcityThreshold) {
+        let multipliedPrice = Float.fromInt(price) * scarcityMultiplier;
+        Int.abs(Float.toInt(multipliedPrice));
+      } else {
+        price;
+      };
+    };
+  };
+
+  func calculateEnhancedPrice(basePrice : Nat, sold : Nat, supply : Nat, purchaseAmount : Nat) : Nat {
+    // Step 1: Calculate base bonding curve price
+    var enhancedPrice = calculateBondingCurvePrice(basePrice, sold, supply);
+    
+    // Step 2: Apply volume multiplier for large purchases
+    enhancedPrice := applyVolumeMultiplier(enhancedPrice, purchaseAmount);
+    
+    // Step 3: Apply scarcity multiplier if supply is low
+    let remaining = supply - sold;
+    enhancedPrice := applyScarcityMultiplier(enhancedPrice, remaining, supply);
+    
+    enhancedPrice;
+  };
+
+  public func createCompany(name : Text, symbol : Text, logo_url : Text, description : Text, valuation : Nat, desiredSupply : ?Nat, desiredPrice : ?Nat, caller : Principal) : async Nat {
     let created_at = Int.abs(Time.now());
 
     if (valuation < getMinValuationE8s()) {
@@ -101,16 +199,16 @@ actor class ARKSRWA() = this {
       case (?supplyInput, null) {
         if (supplyInput == 0) { throw Error.reject("Supply must be > 0") };
         supply := supplyInput;
-        token_price := valuation / supply;
+        token_price := if (supply == 0) { defaultTokenPrice } else { valuation / supply };
       };
       case (null, ?priceInput) {
         if (priceInput == 0) { throw Error.reject("Price must be > 0") };
         token_price := priceInput;
-        supply := valuation / token_price;
+        supply := if (token_price == 0) { 1 } else { valuation / token_price };
       };
       case (null, null) {
-        token_price := 1_000_000;
-        supply := valuation / token_price;
+        token_price := defaultTokenPrice;
+        supply := if (token_price == 0) { 1 } else { valuation / token_price };
       };
       case (?_, ?_) {
         throw Error.reject("Set either supply or price, not both.");
@@ -155,8 +253,7 @@ actor class ARKSRWA() = this {
     return allHolders;
   };
 
-  public query func getMyHolding(companyId : Nat) : async Nat {
-    let caller = Principal.fromActor(this);
+  public query func getMyHolding(companyId : Nat, caller : Principal) : async Nat {
     switch (holdings.get(caller)) {
       case (null) { return 0 };
       case (?personalHoldings) {
@@ -165,8 +262,7 @@ actor class ARKSRWA() = this {
     };
   };
 
-  public func buyTokens(companyId : Nat, amount : Nat) : async Text {
-    let caller = Principal.fromActor(this);
+  public func buyTokens(companyId : Nat, amount : Nat, caller : Principal) : async Text {
 
     let company = switch (companies.get(companyId)) {
       case (?c) { c };
@@ -179,8 +275,9 @@ actor class ARKSRWA() = this {
 
     let updatedRemaining = company.remaining - amount;
     let sold = company.supply - updatedRemaining;
-    let newPriceFloat = Float.fromInt(company.base_price) * (1.0 + Float.fromInt(sold) / Float.fromInt(company.supply));
-    let newTokenPrice : Nat = Int.abs(Float.toInt(newPriceFloat));
+    
+    // Use enhanced pricing calculation
+    let newTokenPrice = calculateEnhancedPrice(company.base_price, sold, company.supply, amount);
 
     let updatedCompany : Company = {
       company with token_price = newTokenPrice;
@@ -196,8 +293,7 @@ actor class ARKSRWA() = this {
     return "Purchase successful. New price: " # Nat.toText(newTokenPrice);
   };
 
-  public func sellTokens(companyId : Nat, amount : Nat) : async Text {
-    let caller = Principal.fromActor(this);
+  public func sellTokens(companyId : Nat, amount : Nat, caller : Principal) : async Text {
     let company = switch (companies.get(companyId)) {
       case (?c) { c };
       case (null) { throw Error.reject("Invalid company ID") };
@@ -227,8 +323,9 @@ actor class ARKSRWA() = this {
 
         let updatedRemaining = company.remaining + amount;
         let sold = company.supply - updatedRemaining;
-        let newPriceFloat = Float.fromInt(company.base_price) * (1.0 + Float.fromInt(sold) / Float.fromInt(company.supply));
-        let newTokenPrice : Nat = Int.abs(Float.toInt(newPriceFloat));
+        
+        // Use enhanced pricing calculation
+        let newTokenPrice = calculateEnhancedPrice(company.base_price, sold, company.supply, amount);
 
         let updatedCompany : Company = {
           company with token_price = newTokenPrice;
@@ -241,6 +338,76 @@ actor class ARKSRWA() = this {
     };
   };
 
+  // Price simulation functions for frontend integration
+  public query func simulatePurchasePrice(companyId : Nat, amount : Nat) : async {
+    #ok : { newPrice : Nat; priceImpact : Nat; totalCost : Nat };
+    #err : Text;
+  } {
+    switch (companies.get(companyId)) {
+      case (null) { #err("Invalid company ID") };
+      case (?company) {
+        if (company.remaining < amount) {
+          #err("Not enough tokens available");
+        } else {
+          let currentPrice = company.token_price;
+          let updatedRemaining = company.remaining - amount;
+          let sold = company.supply - updatedRemaining;
+          let newPrice = calculateEnhancedPrice(company.base_price, sold, company.supply, amount);
+          let priceImpact = if (newPrice > currentPrice) { newPrice - currentPrice } else { 0 };
+          let totalCost = (currentPrice + newPrice) * amount / 2; // Average price approximation
+          #ok({ newPrice = newPrice; priceImpact = priceImpact; totalCost = totalCost });
+        };
+      };
+    };
+  };
+
+  public query func simulateSellPrice(companyId : Nat, amount : Nat) : async {
+    #ok : { newPrice : Nat; priceImpact : Nat; totalReturn : Nat };
+    #err : Text;
+  } {
+    switch (companies.get(companyId)) {
+      case (null) { #err("Invalid company ID") };
+      case (?company) {
+        let currentPrice = company.token_price;
+        let updatedRemaining = company.remaining + amount;
+        let sold = company.supply - updatedRemaining;
+        let newPrice = calculateEnhancedPrice(company.base_price, sold, company.supply, amount);
+        let priceImpact = if (currentPrice > newPrice) { currentPrice - newPrice } else { 0 };
+        let totalReturn = (currentPrice + newPrice) * amount / 2; // Average price approximation
+        #ok({ newPrice = newPrice; priceImpact = priceImpact; totalReturn = totalReturn });
+      };
+    };
+  };
+
+  public query func getPricingParameters() : async {
+    bondingCurveExponent : Float;
+    volumeThreshold : Nat;
+    volumeMultiplier : Float;
+    scarcityThreshold : Float;
+    scarcityMultiplier : Float;
+    defaultTokenPrice : Nat;
+  } {
+    {
+      bondingCurveExponent = bondingCurveExponent;
+      volumeThreshold = volumeThreshold;
+      volumeMultiplier = volumeMultiplier;
+      scarcityThreshold = scarcityThreshold;
+      scarcityMultiplier = scarcityMultiplier;
+      defaultTokenPrice = defaultTokenPrice;
+    };
+  };
+
+  // User type detection for role-based access
+  public query func getUserType(caller : Principal) : async AccountType {
+    // Check if caller owns any companies
+    for (company in companies.vals()) {
+      if (company.owner == caller) {
+        return #CompanyOwner;
+      }
+    };
+    return #Investor;
+  };
+
   public func setMinValuationE8s(newMin : Nat, caller : Principal) : async () {
     if (caller != admin) {
       throw Error.reject("Authorization failed: Only admin can perform this action.");
@@ -248,8 +415,7 @@ actor class ARKSRWA() = this {
     minValuationE8s := newMin;
   };
 
-  public func updateCompanyDescription(companyId : Nat, newDescription : Text) : async () {
-    let caller = Principal.fromActor(this);
+  public func updateCompanyDescription(companyId : Nat, newDescription : Text, caller : Principal) : async () {
     let company = switch (companies.get(companyId)) {
       case (?c) { c };
       case (null) { throw Error.reject("Invalid company ID") };

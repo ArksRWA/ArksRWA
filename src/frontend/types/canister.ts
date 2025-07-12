@@ -8,7 +8,7 @@ export type {
   TransferResult,
   TransferError,
   _SERVICE
-} from '../declarations/arks-rwa-backend/arks-rwa-backend.did';
+} from '../../declarations/arks-rwa-backend/arks-rwa-backend.did';
 
 // Frontend-friendly types that convert bigint to number for easier use
 export interface Company {
@@ -44,7 +44,7 @@ export interface CreateCompanyParams {
 }
 
 // Utility functions to convert between Candid and frontend types
-export const candidCompanyToFrontend = (candidCompany: import('../declarations/arks-rwa-backend/arks-rwa-backend.did').Company): Company => {
+export const candidCompanyToFrontend = (candidCompany: import('../../declarations/arks-rwa-backend/arks-rwa-backend.did').Company): Company => {
   return {
     id: Number(candidCompany.id),
     name: candidCompany.name,
@@ -62,7 +62,7 @@ export const candidCompanyToFrontend = (candidCompany: import('../declarations/a
   };
 };
 
-export const candidTokenHolderToFrontend = (candidHolder: import('../declarations/arks-rwa-backend/arks-rwa-backend.did').TokenHolder): TokenHolder => {
+export const candidTokenHolderToFrontend = (candidHolder: import('../../declarations/arks-rwa-backend/arks-rwa-backend.did').TokenHolder): TokenHolder => {
   return {
     amount: Number(candidHolder.amount),
     investor: candidHolder.investor.toString(),

@@ -2,7 +2,8 @@
   "canisters": {
     "arks-rwa-backend": {
       "main": "src/arks-rwa-backend/main.mo",
-      "type": "motoko"
+      "type": "motoko",
+      "init_arg": "(null)"
     },
     "frontend": {
       "dependencies": ["arks-rwa-backend"],
@@ -13,6 +14,16 @@
       "type": "custom",
       "candid": "https://raw.githubusercontent.com/dfinity/internet-identity/main/src/internet_identity/internet_identity.did",
       "wasm": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity_dev.wasm.gz"
+    }
+  },
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:4943",
+      "type": "ephemeral"
+    },
+    "ic": {
+      "providers": ["https://icp-api.io"],
+      "type": "persistent"
     }
   },
   "defaults": {

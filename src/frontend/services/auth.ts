@@ -123,6 +123,19 @@ class AuthServiceImpl implements AuthService {
   isAuthenticated(): boolean {
     return this.currentUser !== null && this.currentUser.isConnected;
   }
+
+  // Demo mode function for testing without wallet
+  async connectDemo(): Promise<AuthUser> {
+    const demoUser: AuthUser = {
+      principal: "demo-user-" + Math.random().toString(36).substring(2, 11),
+      isConnected: true,
+      walletType: 'demo'
+    };
+
+    this.currentUser = demoUser;
+    console.log("Demo mode activated:", demoUser.principal);
+    return demoUser;
+  }
 }
 
 // Export singleton instance

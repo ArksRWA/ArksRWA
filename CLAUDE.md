@@ -39,7 +39,7 @@ dfx deploy arks-rwa-backend --argument '(opt principal "YOUR_ADMIN_PRINCIPAL")'
 
 # Test backend functions
 dfx canister call arks-rwa-backend listCompanies
-dfx canister call arks-rwa-backend getUserType '(principal "YOUR_PRINCIPAL")'
+dfx canister call arks-rwa-backend getUserType '(principal "YOUR_PRINCIPAL")'  # Returns #company or #user
 
 # Check canister status
 dfx canister status arks-rwa-backend
@@ -172,7 +172,7 @@ export const candidCompanyToFrontend = (candidCompany: CandidCompany): Company =
 # Test enhanced pricing
 dfx canister call arks-rwa-backend simulatePurchasePrice '(0, 50)'
 
-# Test account types
+# Test account types (returns #company or #user)
 dfx canister call arks-rwa-backend getUserType '(principal "YOUR_PRINCIPAL")'
 
 # Test company operations

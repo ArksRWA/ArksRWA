@@ -42,8 +42,8 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
   };
 
   type AccountType = {
-    #CompanyOwner;
-    #Investor;
+    #company;
+    #user;
   };
 
   type Account = {
@@ -83,6 +83,9 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
   var companyCount : Nat = 0;
   var minValuationE8s : Nat = 10_000_000;
   var transactionCount : Nat = 0;
+  
+  // Account type overrides - allows users to manually set their account type
+  var accountTypeOverrides : HashMap.HashMap<Principal, AccountType> = HashMap.HashMap(0, Principal.equal, Principal.hash);
 
   // Enhanced pricing configuration
   let bondingCurveExponent : Float = 1.5;
@@ -399,13 +402,37 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
 
   // User type detection for role-based access
   public query func getUserType(caller : Principal) : async AccountType {
-    // Check if caller owns any companies
-    for (company in companies.vals()) {
-      if (company.owner == caller) {
-        return #CompanyOwner;
-      }
+    // First check for manual account type override
+    switch (accountTypeOverrides.get(caller)) {
+      case (?accountType) { return accountType; };
+      case null {
+        // Fall back to company ownership detection
+        for (company in companies.vals()) {
+          if (company.owner == caller) {
+            return #company;
+          }
+        };
+        return #user;
+      };
     };
-    return #Investor;
+  };
+
+  // Set account type manually - users can set their own account type
+  public func setAccountType(accountType : AccountType, caller : Principal) : async () {
+    accountTypeOverrides.put(caller, accountType);
+  };
+
+  // Reset account type to automatic detection based on company ownership
+  public func resetAccountType(caller : Principal) : async () {
+    accountTypeOverrides.delete(caller);
+  };
+
+  // Check if account type is manually set or derived from company ownership
+  public query func getAccountTypeSource(caller : Principal) : async Text {
+    switch (accountTypeOverrides.get(caller)) {
+      case (?_) { "manual" };
+      case null { "derived" };
+    };
   };
 
   public func setMinValuationE8s(newMin : Nat, caller : Principal) : async () {

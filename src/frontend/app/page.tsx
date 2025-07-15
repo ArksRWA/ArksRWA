@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { authService, AuthUser } from '../services/auth';
+import CompanyList from './components/CompanyList';
 
 export default function HomePage() {
   const router = useRouter();
@@ -121,6 +122,9 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+
+      {/* Companies Section */}
+      <CompanyList />
 
       {/* Features Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">

@@ -29,112 +29,17 @@ export default function CompanyList({
     try {
       setLoading(true);
       setError('');
-      
       // Check if user is authenticated
       const user = authService.getCurrentUser();
       setCurrentUser(user);
-      
-      // For non-authenticated users, show demo data
       if (!user || !user.isConnected) {
-        const demoCompanies: Company[] = [
-          {
-            id: 1,
-            name: 'TechCorp Solutions',
-            symbol: 'TECH',
-            owner: 'demo-owner-1',
-            valuation: 75_000_000,
-            base_price: 1_500_000,
-            token_price: 1_500_000,
-            supply: 50,
-            remaining: 35,
-            minimum_purchase: 7_500_000,
-            logo_url: '',
-            description: 'Leading technology solutions provider specializing in AI and blockchain innovations.',
-            created_at: Date.now() - 86400000 * 30 // 30 days ago
-          },
-          {
-            id: 2,
-            name: 'GreenEnergy Inc',
-            symbol: 'GREEN',
-            owner: 'demo-owner-2',
-            valuation: 120_000_000,
-            base_price: 2_400_000,
-            token_price: 2_600_000,
-            supply: 50,
-            remaining: 20,
-            minimum_purchase: 12_000_000,
-            logo_url: '',
-            description: 'Renewable energy company focused on solar and wind power solutions for sustainable future.',
-            created_at: Date.now() - 86400000 * 15 // 15 days ago
-          },
-          {
-            id: 3,
-            name: 'HealthTech Innovations',
-            symbol: 'HLTH',
-            owner: 'demo-owner-3',
-            valuation: 90_000_000,
-            base_price: 1_800_000,
-            token_price: 1_950_000,
-            supply: 50,
-            remaining: 42,
-            minimum_purchase: 9_000_000,
-            logo_url: '',
-            description: 'Revolutionary healthcare technology company developing next-generation medical devices.',
-            created_at: Date.now() - 86400000 * 7 // 7 days ago
-          },
-          {
-            id: 4,
-            name: 'FinanceFlow',
-            symbol: 'FLOW',
-            owner: 'demo-owner-4',
-            valuation: 60_000_000,
-            base_price: 1_200_000,
-            token_price: 1_320_000,
-            supply: 50,
-            remaining: 28,
-            minimum_purchase: 6_000_000,
-            logo_url: '',
-            description: 'Digital payment solutions and financial services platform for modern businesses.',
-            created_at: Date.now() - 86400000 * 45 // 45 days ago
-          },
-          {
-            id: 5,
-            name: 'EduTech Global',
-            symbol: 'EDU',
-            owner: 'demo-owner-5',
-            valuation: 45_000_000,
-            base_price: 900_000,
-            token_price: 990_000,
-            supply: 50,
-            remaining: 38,
-            minimum_purchase: 4_500_000,
-            logo_url: '',
-            description: 'Online education platform providing cutting-edge learning experiences worldwide.',
-            created_at: Date.now() - 86400000 * 20 // 20 days ago
-          },
-          {
-            id: 6,
-            name: 'FoodChain Logistics',
-            symbol: 'FOOD',
-            owner: 'demo-owner-6',
-            valuation: 85_000_000,
-            base_price: 1_700_000,
-            token_price: 1_785_000,
-            supply: 50,
-            remaining: 15,
-            minimum_purchase: 8_500_000,
-            logo_url: '',
-            description: 'Supply chain management and food distribution network leveraging blockchain technology.',
-            created_at: Date.now() - 86400000 * 10 // 10 days ago
-          }
-        ];
-        
-        setCompanies(demoCompanies.slice(0, maxCompanies));
-      } else {
-        // For authenticated users, fetch real data
-        const companiesList = await backendService.listCompanies();
-        setCompanies(companiesList.slice(0, maxCompanies));
+        setError('You must be logged in to view companies.');
+        setCompanies([]);
+        return;
       }
+      // For authenticated users, fetch real data
+      const companiesList = await backendService.listCompanies();
+      setCompanies(companiesList.slice(0, maxCompanies));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load companies');
     } finally {

@@ -59,16 +59,14 @@ export default function TransactionsPage() {
     try {
       setLoading(true);
       setError('');
-      
+
       // Load companies for reference
       const companiesList = await backendService.listCompanies();
       setCompanies(companiesList);
-      
-      // Since the backend doesn't have transaction history yet, we'll generate mock data
-      // In a real implementation, this would call something like backendService.getTransactionHistory()
-      const mockTransactions = await generateMockTransactions(companiesList);
-      setTransactions(mockTransactions);
-      
+
+      // No transactions to load - real implementation would call backendService.getTransactionHistory()
+      setTransactions([]);
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load transaction data');
     } finally {
@@ -76,36 +74,7 @@ export default function TransactionsPage() {
     }
   };
 
-  // Generate mock transaction data for demonstration
-  const generateMockTransactions = async (companiesList: Company[]): Promise<Transaction[]> => {
-    const mockTransactions: Transaction[] = [];
-    
-    if (companiesList.length === 0) return mockTransactions;
-    
-    // Generate some sample transactions
-    for (let i = 0; i < 15; i++) {
-      const company = companiesList[Math.floor(Math.random() * companiesList.length)];
-      const type = Math.random() > 0.5 ? 'buy' : 'sell';
-      const amount = Math.floor(Math.random() * 10) + 1;
-      const pricePerToken = company.token_price + (Math.random() - 0.5) * 100000;
-      const totalValue = amount * pricePerToken;
-      const timestamp = Date.now() - Math.floor(Math.random() * 30 * 24 * 60 * 60 * 1000); // Last 30 days
-      
-      mockTransactions.push({
-        id: `tx_${i}_${Date.now()}`,
-        type,
-        company,
-        amount,
-        pricePerToken,
-        totalValue,
-        timestamp,
-        status: Math.random() > 0.9 ? 'failed' : 'completed',
-        txHash: `0x${Math.random().toString(16).substr(2, 8)}...`
-      });
-    }
-    
-    return mockTransactions.sort((a, b) => b.timestamp - a.timestamp);
-  };
+
 
   const applyFiltersAndSort = () => {
     let filtered = [...transactions];

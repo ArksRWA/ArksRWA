@@ -88,7 +88,7 @@ export default function CreateCompanyPage() {
       });
 
       console.log('Company created successfully with ID:', companyId);
-      router.push('/');
+      router.push('/companies');
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');

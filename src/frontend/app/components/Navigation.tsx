@@ -3,6 +3,7 @@
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { authService, AuthUser } from '../../services/auth';
+import LoginModal from './LoginModal';
 
 interface NavigationProps {
   className?: string;
@@ -13,17 +14,22 @@ export default function Navigation({ className = '' }: NavigationProps) {
   const pathname = usePathname();
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [userRole, setUserRole] = useState<'user' | 'company' | undefined>(undefined);
 
   useEffect(() => {
     const checkAuth = () => {
       const user = authService.getCurrentUser();
       const authenticated = authService.isAuthenticated();
+      const role = authService.getUserRole();
       setCurrentUser(user);
       setIsAuthenticated(authenticated);
+      setUserRole(role);
     };
 
     checkAuth();
-    
+
     // Check auth state periodically
     const interval = setInterval(checkAuth, 1000);
     return () => clearInterval(interval);
@@ -34,6 +40,52 @@ export default function Navigation({ className = '' }: NavigationProps) {
     setCurrentUser(null);
     setIsAuthenticated(false);
     router.push('/');
+  };
+
+  const handleShowLoginModal = () => {
+    setShowLoginModal(true);
+  };
+
+  const handleCloseLoginModal = () => {
+    setShowLoginModal(false);
+  };
+
+  const handleLoginAsUser = async () => {
+    setIsConnecting(true);
+    try {
+      const user = await authService.connectPlug();
+      // Set role as user
+      authService.setUserRole('user');
+      const userWithRole = { ...user, role: 'user' as const };
+      setCurrentUser(userWithRole);
+      setIsAuthenticated(true);
+      setUserRole('user');
+      setShowLoginModal(false);
+      router.push('/dashboard');
+    } catch (err) {
+      console.error('Failed to connect:', err);
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleLoginAsCompany = async () => {
+    setIsConnecting(true);
+    try {
+      const user = await authService.connectPlug();
+      // Set role as company
+      authService.setUserRole('company');
+      const userWithRole = { ...user, role: 'company' as const };
+      setCurrentUser(userWithRole);
+      setIsAuthenticated(true);
+      setUserRole('company');
+      setShowLoginModal(false);
+      router.push('/create-company');
+    } catch (err) {
+      console.error('Failed to connect:', err);
+    } finally {
+      setIsConnecting(false);
+    }
   };
 
   const isActivePath = (path: string) => {
@@ -176,16 +228,19 @@ export default function Navigation({ className = '' }: NavigationProps) {
                   Transfer
                 </NavLink>
                 
-                <NavLink
-                  href="/create-company"
-                  icon={
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                  }
-                >
-                  Create Company
-                </NavLink>
+                {/* Only show Create Company for company role */}
+                {userRole !== 'user' && (
+                  <NavLink
+                    href="/create-company"
+                    icon={
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                    }
+                  >
+                    Create Company
+                  </NavLink>
+                )}
 
                 <div className="w-px h-6 bg-gray-700 mx-2"></div>
                 
@@ -193,18 +248,28 @@ export default function Navigation({ className = '' }: NavigationProps) {
               </>
             ) : (
               <button
-                onClick={() => router.push('/')}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                onClick={handleShowLoginModal}
+                disabled={isConnecting}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                 </svg>
-                Connect Wallet
+                {isConnecting ? 'Connecting...' : 'Connect Wallet'}
               </button>
             )}
           </div>
         </div>
       </div>
+
+      {/* Login Modal */}
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={handleCloseLoginModal}
+        onLoginAsUser={handleLoginAsUser}
+        onLoginAsCompany={handleLoginAsCompany}
+        isConnecting={isConnecting}
+      />
     </nav>
   );
 }

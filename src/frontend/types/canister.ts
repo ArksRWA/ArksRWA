@@ -98,6 +98,7 @@ export interface AuthUser {
   agent?: any;
   isConnected: boolean;
   walletType: 'plug' | 'internet-identity' | 'demo';
+  role?: 'user' | 'company';
 }
 
 export interface AuthService {
@@ -106,4 +107,6 @@ export interface AuthService {
   disconnect(): void;
   getCurrentUser(): AuthUser | null;
   isAuthenticated(): boolean;
+  setUserRole(role: 'user' | 'company'): void;
+  getUserRole(): 'user' | 'company' | undefined;
 }

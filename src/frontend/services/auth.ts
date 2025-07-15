@@ -22,6 +22,7 @@ class AuthServiceImpl implements AuthService {
   private currentUser: AuthUser | null = null;
   private readonly canisterId = getCanisterId('arks_rwa_backend');
   private readonly host = HOST;
+  private userRole: 'user' | 'company' | undefined = undefined;
 
   async connectPlug(): Promise<AuthUser> {
     try {
@@ -107,8 +108,17 @@ class AuthServiceImpl implements AuthService {
 
   disconnect(): void {
     this.currentUser = null;
+    this.userRole = undefined;
     console.log("User disconnected");
-    
+
+    // Clear any stored session data
+    try {
+      localStorage.removeItem('arks-rwa-auth');
+      localStorage.removeItem('arks-rwa-role');
+    } catch (e) {
+      console.warn('Failed to clear local storage:', e);
+    }
+
     // Clear backend service cache when user disconnects
     // We need to import this dynamically to avoid circular dependency
     import('./backend').then(({ backendService }) => {
@@ -117,11 +127,46 @@ class AuthServiceImpl implements AuthService {
   }
 
   getCurrentUser(): AuthUser | null {
+    if (this.currentUser && !this.currentUser.role) {
+      // Add role to current user if not present
+      const role = this.getUserRole();
+      if (role) {
+        this.currentUser.role = role;
+      }
+    }
     return this.currentUser;
   }
 
   isAuthenticated(): boolean {
     return this.currentUser !== null && this.currentUser.isConnected;
+  }
+
+  setUserRole(role: 'user' | 'company'): void {
+    this.userRole = role;
+    if (this.currentUser) {
+      this.currentUser.role = role;
+    }
+
+    try {
+      localStorage.setItem('arks-rwa-role', role);
+    } catch (e) {
+      console.warn('Failed to store role in local storage:', e);
+    }
+  }
+
+  getUserRole(): 'user' | 'company' | undefined {
+    if (!this.userRole) {
+      try {
+        const storedRole = localStorage.getItem('arks-rwa-role') as 'user' | 'company' | null;
+        if (storedRole) {
+          this.userRole = storedRole;
+        }
+      } catch (e) {
+        console.warn('Failed to get role from local storage:', e);
+      }
+    }
+
+    return this.userRole;
   }
 
   // Demo mode function for testing without wallet

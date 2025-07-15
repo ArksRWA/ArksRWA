@@ -4,26 +4,46 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { authService, AuthUser } from '../services/auth';
 import CompanyList from './components/CompanyList';
+import LoginModal from './components/LoginModal';
 
 export default function HomePage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState('');
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loginType, setLoginType] = useState<'user' | 'company' | null>(null);
 
   useEffect(() => {
     const user = authService.getCurrentUser();
     if (user && user.isConnected) {
       setCurrentUser(user);
+      // Redirect to dashboard immediately if user is already logged in
+      router.push('/dashboard');
     }
-  }, []);
+  }, [router]);
 
-  const handleConnectPlug = async () => {
+  const handleShowLoginModal = () => {
+    setShowLoginModal(true);
+    setError('');
+  };
+
+  const handleCloseLoginModal = () => {
+    setShowLoginModal(false);
+    setLoginType(null);
+  };
+
+  const handleLoginAsUser = async () => {
+    setLoginType('user');
     setIsConnecting(true);
     setError('');
     try {
       const user = await authService.connectPlug();
-      setCurrentUser(user);
+      // Set role as user
+      const userWithRole = { ...user, role: 'user' as const };
+      authService.setUserRole('user');
+      setCurrentUser(userWithRole);
+      setShowLoginModal(false);
       router.push('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect');
@@ -32,13 +52,18 @@ export default function HomePage() {
     }
   };
 
-  const handleConnectII = async () => {
+  const handleLoginAsCompany = async () => {
+    setLoginType('company');
     setIsConnecting(true);
     setError('');
     try {
-      const user = await authService.connectInternetIdentity();
-      setCurrentUser(user);
-      router.push('/dashboard');
+      const user = await authService.connectPlug();
+      // Set role as company
+      const userWithRole = { ...user, role: 'company' as const };
+      authService.setUserRole('company');
+      setCurrentUser(userWithRole);
+      setShowLoginModal(false);
+      router.push('/create-company');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect');
     } finally {
@@ -60,21 +85,7 @@ export default function HomePage() {
     }
   };
 
-  if (currentUser && currentUser.isConnected) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-white mb-4">Welcome back!</div>
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-          >
-            Go to Dashboard
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // If user is already logged in, they will be redirected in the useEffect
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
@@ -96,7 +107,7 @@ export default function HomePage() {
             {/* Connection Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
               <button
-                onClick={handleConnectPlug}
+                onClick={handleShowLoginModal}
                 disabled={isConnecting}
                 className="flex items-center gap-3 px-8 py-4 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[200px]"
               >
@@ -107,7 +118,7 @@ export default function HomePage() {
               </button>
 
               <button
-                onClick={handleConnectII}
+                onClick={handleShowLoginModal}
                 disabled={isConnecting}
                 className="flex items-center gap-3 px-8 py-4 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[200px]"
               >
@@ -192,23 +203,31 @@ export default function HomePage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
-                onClick={handleConnectPlug}
+                onClick={handleShowLoginModal}
                 disabled={isConnecting}
                 className="px-8 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
-                Connect with Plug
+                Get Started
               </button>
               <button
-                onClick={handleConnectII}
-                disabled={isConnecting}
-                className="px-8 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
+                onClick={() => router.push('/companies')}
+                className="px-8 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
               >
-                Internet Identity
+                Explore Demo
               </button>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Login Modal */}
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={handleCloseLoginModal}
+        onLoginAsUser={handleLoginAsUser}
+        onLoginAsCompany={handleLoginAsCompany}
+        isConnecting={isConnecting}
+      />
     </div>
   );
 }

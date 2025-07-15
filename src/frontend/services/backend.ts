@@ -29,11 +29,6 @@ class BackendService {
     this.actorCache = null;
 
     try {
-      // For demo mode, we don't need a real actor
-      if (user.walletType === 'demo') {
-        return null; // Demo mode doesn't use real actor
-      }
-
       // Only import when needed for real backend calls
       const { Actor, HttpAgent } = await import('@dfinity/agent');
       
@@ -103,23 +98,6 @@ class BackendService {
     }
 
     try {
-      // Demo mode simulation - only for explicit demo users
-      if (user.walletType === 'demo' && user.principal.startsWith('demo-user-')) {
-        console.log('Demo mode: Creating company with params:', params);
-        
-        // Simulate validation
-        if (params.valuation < 10_000_000) {
-          throw new Error('Valuation too low.');
-        }
-        if (params.symbol.length < 3 || params.symbol.length > 5) {
-          throw new Error('Symbol must be 3-5 characters.');
-        }
-        
-        const simulatedId = Math.floor(Math.random() * 1000);
-        console.log('Demo company created with ID:', simulatedId);
-        return simulatedId;
-      }
-
       // Real backend call
       const { Principal } = await import('@dfinity/principal');
       const actor = await this.createActor();
@@ -149,27 +127,6 @@ class BackendService {
     }
 
     try {
-      // Demo mode mock data - only for explicit demo users
-      if (user.walletType === 'demo' && user.principal.startsWith('demo-user-')) {
-        return [
-          {
-            id: 1,
-            name: 'Demo Company',
-            symbol: 'DEMO',
-            owner: user.principal,
-            valuation: 50_000_000,
-            base_price: 1_000_000,
-            token_price: 1_000_000,
-            supply: 50,
-            remaining: 30,
-            minimum_purchase: 5_000_000,
-            logo_url: '',
-            description: 'A demo company for testing',
-            created_at: Date.now()
-          }
-        ];
-      }
-
       // Real backend call
       const actor = await this.createActor();
       const companies = await actor.listCompanies();
@@ -187,25 +144,6 @@ class BackendService {
     }
 
     try {
-      // Demo mode mock data - only for explicit demo users
-      if (user.walletType === 'demo' && user.principal.startsWith('demo-user-')) {
-        return {
-          id: id,
-          name: 'Demo Company',
-          symbol: 'DEMO',
-          owner: user.principal,
-          valuation: 50_000_000,
-          base_price: 1_000_000,
-          token_price: 1_200_000,
-          supply: 50,
-          remaining: 30,
-          minimum_purchase: 5_000_000,
-          logo_url: '',
-          description: 'A demo company for testing the RWA platform. This company provides various services and has been growing steadily.',
-          created_at: Date.now()
-        };
-      }
-
       // Real backend call
       const actor = await this.createActor();
       const company = await actor.getCompanyById(id);
@@ -224,11 +162,6 @@ class BackendService {
     }
 
     try {
-      // Demo mode mock data
-      if (user.walletType === 'demo' && user.principal.startsWith('demo-user-')) {
-        return 5; // Mock holdings
-      }
-
       // Real backend call
       const { Principal } = await import('@dfinity/principal');
       const actor = await this.createActor();
@@ -248,12 +181,6 @@ class BackendService {
     }
 
     try {
-      // Demo mode simulation
-      if (user.walletType === 'demo' && user.principal.startsWith('demo-user-')) {
-        console.log('Demo mode: Buying tokens:', { companyId, amount });
-        return `Demo: Successfully bought ${amount} tokens`;
-      }
-
       // Real backend call - import Principal for proper typing
       const { Principal } = await import('@dfinity/principal');
       const actor = await this.createActor();
@@ -273,12 +200,6 @@ class BackendService {
     }
 
     try {
-      // Demo mode simulation
-      if (user.walletType === 'demo') {
-        console.log('Demo mode: Selling tokens:', { companyId, amount });
-        return `Demo: Successfully sold ${amount} tokens`;
-      }
-
       // Real backend call
       const { Principal } = await import('@dfinity/principal');
       const actor = await this.createActor();
@@ -298,12 +219,6 @@ class BackendService {
     }
 
     try {
-      // Demo mode simulation
-      if (user.walletType === 'demo') {
-        console.log('Demo mode: Updating company description:', { companyId, newDescription });
-        return `Demo: Successfully updated company description`;
-      }
-
       // Real backend call
       const actor = await this.createActor();
       await actor.updateCompanyDescription(companyId, newDescription);
@@ -321,12 +236,6 @@ class BackendService {
     }
 
     try {
-      // Demo mode simulation
-      if (user.walletType === 'demo') {
-        console.log('Demo mode: Transferring tokens:', { companyId, recipient, amount, memo });
-        return `Demo: Successfully transferred ${amount} tokens to ${recipient.slice(0, 10)}...`;
-      }
-
       // Real backend call
       const actor = await this.createActor();
       
@@ -375,11 +284,6 @@ class BackendService {
     }
 
     try {
-      // Demo mode simulation
-      if (user.walletType === 'demo') {
-        return 5; // Mock balance
-      }
-
       // Real backend call
       const actor = await this.createActor();
       const account = {

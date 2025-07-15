@@ -70,21 +70,7 @@ export default function HomePage() {
       setIsConnecting(false);
     }
   };
-
-  const handleDemoMode = async () => {
-    setIsConnecting(true);
-    setError('');
-    try {
-      const user = await authService.connectDemo();
-      setCurrentUser(user);
-      router.push('/dashboard');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start demo mode');
-    } finally {
-      setIsConnecting(false);
-    }
-  };
-
+  
   // If user is already logged in, they will be redirected in the useEffect
 
   return (

@@ -7,7 +7,11 @@ export const metadata: Metadata = {
   description: 'Tokenize Real World Assets on the Internet Computer. Create, trade, and manage tokenized companies with full transparency and security.',
   keywords: 'RWA, Real World Assets, Tokenization, Internet Computer, DeFi, Trading',
   authors: [{ name: 'ARKS RWA Team' }],
-  viewport: 'width=device-width, initial-scale=1',
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
   themeColor: '#3B82F6',
 };
 

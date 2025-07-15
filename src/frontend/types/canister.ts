@@ -97,7 +97,7 @@ export interface AuthUser {
   principal: string;
   agent?: any;
   isConnected: boolean;
-  walletType: 'plug' | 'internet-identity' | 'demo';
+  walletType: 'plug' | 'internet-identity';
   role?: 'user' | 'company';
 }
 

@@ -18,7 +18,7 @@ interface Transaction {
 }
 
 type FilterType = 'all' | 'buy' | 'sell';
-type SortOption = 'timestamp' | 'amount' | 'value' | 'company';
+type SortOption = 'timestamp' | 'amount' | 'totalValue' | 'company';
 type SortDirection = 'asc' | 'desc';
 
 export default function TransactionsPage() {
@@ -101,12 +101,15 @@ export default function TransactionsPage() {
 
     // Apply sorting
     filtered.sort((a, b) => {
-      let aValue: any = a[sortBy];
-      let bValue: any = b[sortBy];
+      let aValue: any;
+      let bValue: any;
 
       if (sortBy === 'company') {
         aValue = a.company.name.toLowerCase();
         bValue = b.company.name.toLowerCase();
+      } else {
+        aValue = a[sortBy as keyof Transaction];
+        bValue = b[sortBy as keyof Transaction];
       }
 
       if (sortDirection === 'asc') {
@@ -303,7 +306,7 @@ export default function TransactionsPage() {
                 <option value="timestamp">Date</option>
                 <option value="company">Company</option>
                 <option value="amount">Amount</option>
-                <option value="value">Value</option>
+                <option value="totalValue">Value</option>
               </select>
             </div>
           </div>
@@ -365,11 +368,11 @@ export default function TransactionsPage() {
                     <th className="text-right py-4 px-6 text-gray-300 font-medium">Price</th>
                     <th className="text-right py-4 px-6 text-gray-300 font-medium">
                       <button
-                        onClick={() => handleSort('value')}
+                        onClick={() => handleSort('totalValue')}
                         className="flex items-center gap-2 hover:text-white ml-auto"
                       >
                         Total Value
-                        {sortBy === 'value' && (
+                        {sortBy === 'totalValue' && (
                           <span>{sortDirection === 'asc' ? '↑' : '↓'}</span>
                         )}
                       </button>

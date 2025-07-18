@@ -7,6 +7,8 @@ import {
   candidTokenHolderToFrontend,
   CanisterCallError
 } from '../types/canister';
+// REMOVE BELOW CODE IF TRIGGER ERROR
+import * as declarations from '../declarations/arks-rwa-backend/index.js';
 
 // Re-export types for convenience
 export type { Company, CreateCompanyParams } from '../types/canister';
@@ -19,9 +21,9 @@ class BackendService {
   private actorCache: any = null;
   private agentCache: any = null;
 
-  private async createActor() {
+  private async createActor(requireAuth = true) {
     const user = authService.getCurrentUser();
-    if (!user || !user.isConnected) {
+    if (requireAuth && (!user || !user.isConnected)) {
       throw new Error('User not authenticated');
     }
 
@@ -39,7 +41,7 @@ class BackendService {
       }
 
       // If user has an agent (from wallet connection), try to use it
-      if (user.agent) {
+      if (user && user.agent) {
         console.log('User agent available from wallet, checking if it has the right interface...');
         
         // Check if the agent has the expected methods
@@ -52,14 +54,7 @@ class BackendService {
         }
       }
 
-      // Import declarations - try alias first, fallback to relative path
-      let declarations;
-      try {
-        declarations = await import('@declarations/arks-rwa-backend');
-      } catch (e) {
-        console.log('Alias import failed, trying relative path...');
-        declarations = await import('../../declarations/arks-rwa-backend');
-      }
+      // Remove the dynamic import logic and use the imported declarations directly
       const idlFactory = declarations.idlFactory;
 
       this.actorCache = Actor.createActor(idlFactory, {
@@ -121,14 +116,9 @@ class BackendService {
   }
 
   async listCompanies(): Promise<Company[]> {
-    const user = authService.getCurrentUser();
-    if (!user || !user.isConnected) {
-      throw new Error('User not authenticated');
-    }
-
     try {
-      // Real backend call
-      const actor = await this.createActor();
+      // Real backend call - no authentication required for public data
+      const actor = await this.createActor(false);
       const companies = await actor.listCompanies();
       return (companies as any[]).map(candidCompanyToFrontend);
     } catch (error) {
@@ -138,14 +128,9 @@ class BackendService {
   }
 
   async getCompanyById(id: number): Promise<Company | null> {
-    const user = authService.getCurrentUser();
-    if (!user || !user.isConnected) {
-      throw new Error('User not authenticated');
-    }
-
     try {
-      // Real backend call
-      const actor = await this.createActor();
+      // Real backend call - no authentication required for public data
+      const actor = await this.createActor(false);
       const company = await actor.getCompanyById(id);
       const companyResult = company as any[];
       return companyResult[0] ? candidCompanyToFrontend(companyResult[0]) : null;

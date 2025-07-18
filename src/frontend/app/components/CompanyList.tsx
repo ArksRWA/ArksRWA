@@ -29,15 +29,11 @@ export default function CompanyList({
     try {
       setLoading(true);
       setError('');
-      // Check if user is authenticated
+      // Check if user is authenticated (optional for display purposes)
       const user = authService.getCurrentUser();
       setCurrentUser(user);
-      if (!user || !user.isConnected) {
-        setError('You must be logged in to view companies.');
-        setCompanies([]);
-        return;
-      }
-      // For authenticated users, fetch real data
+      
+      // Fetch companies data - no authentication required
       const companiesList = await backendService.listCompanies();
       setCompanies(companiesList.slice(0, maxCompanies));
     } catch (err) {
@@ -48,12 +44,7 @@ export default function CompanyList({
   };
 
   const handleViewAll = () => {
-    // If user is not authenticated, redirect to login first
-    if (!currentUser || !currentUser.isConnected) {
-      router.push('/companies');
-    } else {
-      router.push('/companies');
-    }
+    router.push('/companies');
   };
 
   if (loading) {
@@ -191,7 +182,7 @@ export default function CompanyList({
             </div>
           </div>
 
-          {showViewAllButton && (
+          {showViewAllButton && currentUser && currentUser.isConnected && (
             <div className="text-center">
               <button
                 onClick={handleViewAll}
@@ -205,7 +196,7 @@ export default function CompanyList({
       ) : (
         <div className="text-center py-12">
           <div className="text-gray-400 mb-4">No companies available at the moment</div>
-          {showViewAllButton && (
+          {showViewAllButton && currentUser && currentUser.isConnected && (
             <button
               onClick={handleViewAll}
               className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"

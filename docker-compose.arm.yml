@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  dfx-replica:
+    platform: linux/amd64
+    image: ubuntu:22.04
+    container_name: arks-dfx-replica
+    ports:
+      - "4943:4943"
+      - "8000:8000"
+    volumes:
+      - dfx_data:/root/.cache/dfinity # Corrected path for root user
+      - ./.dfx:/workspace/.dfx
+      - ./:/workspace
+    working_dir: /workspace
+    environment:
+      - DFXVM_INIT_YES=true
+    command: >
+      sh -c "
+        set -e &&
+        export DEBIAN_FRONTEND=noninteractive && 
+        apt-get update && 
+        apt-get install -y curl bash ca-certificates && 
+        sh -c \"\$(curl -fsSL https://sdk.dfinity.org/install.sh)\" && 
+        # FIX: Use '.' instead of 'source' for POSIX compatibility
+        . \"/root/.local/share/dfx/env\" &&
+        dfx start --clean --background --host 0.0.0.0:4943 --replica-port 8000 &&
+        tail -f /dev/null
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/status"]
+      interval: 10s
+      timeout: 10s
+      retries: 30 # Increased retries as dfx start can be slow
+    networks:
+      - arks-network
+
+
+  # Motoko backend service  
+  motoko-backend:
+    platform: linux/amd64
+    image: ubuntu:22.04
+    container_name: arks-motoko-backend
+    depends_on:
+      dfx-replica:
+        condition: service_healthy
+    volumes:
+      - ./:/workspace
+      - dfx_data:/root/.cache/dfinity # Corrected path for root user
+    working_dir: /workspace
+    environment:
+      - DFX_NETWORK=local
+      - DFXVM_INIT_YES=true
+      # This variable points to the internal Docker network service name and port
+      - DFX_REPLICA_HOST=http://dfx-replica:8000
+    command: >
+      sh -c "
+        set -e &&
+        export DEBIAN_FRONTEND=noninteractive && 
+        apt-get update && 
+        apt-get install -y curl bash nodejs npm ca-certificates && 
+        # FIX: Removed the '-i' flag to prevent interactive mode
+        sh -c \"\$(curl -fsSL https://sdk.dfinity.org/install.sh)\" && 
+        export PATH=\"/root/.local/share/dfx/bin:\$PATH\" &&
+        source "$HOME/.local/share/dfx/env" &&
+        # Use the DFX_REPLICA_HOST env var for network commands
+        dfx deploy &&
+        dfx generate arks-rwa-backend &&
+        tail -f /dev/null
+      "
+    networks:
+      - arks-network
+
+  # Next.js frontend service
+  nextjs-frontend:
+    image: node:18
+    container_name: arks-nextjs-frontend
+    depends_on:
+      - motoko-backend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./:/workspace
+      - node_modules:/workspace/src/frontend/node_modules
+    working_dir: /workspace/src/frontend
+    environment:
+      - NODE_ENV=development
+      # This should point to the port exposed on your local machine, which is 8000
+      - NEXT_PUBLIC_IC_HOST=http://localhost:8000
+    command: >
+      sh -c "
+        set -e &&
+        # Wait for declarations to be generated
+        while [ ! -f ../declarations/arks-rwa-backend/arks-rwa-backend.did.js ]; do
+          echo 'Waiting for backend declarations...'
+          sleep 2
+        done &&
+        echo 'Declarations found. Starting frontend.' &&
+        npm install &&
+        # Ensure the declarations directory exists before copying
+        mkdir -p ./declarations &&
+        cp -R ../declarations/arks-rwa-backend ./declarations/ &&
+        npm run dev
+      "
+    networks:
+      - arks-network
+
+volumes:
+  dfx_data:
+    driver: local
+  node_modules:
+    driver: local
+
+networks:
+  arks-network:
+    driver: bridge

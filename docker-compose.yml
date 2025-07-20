@@ -17,7 +17,7 @@ services:
       sh -c "
         apt-get update && 
         apt-get install -y curl bash && 
-        sh -ci \"\$(curl -fsSL https://sdk.dfinity.org/install.sh)\" && 
+        sh -ci \"\$(curl -fsSL https://sdk.dfinity.org/install.sh)\"  && 
         export PATH=\"/root/.local/share/dfx/bin:\$PATH\" &&
         dfx start --clean --background --host 0.0.0.0:4943 --replica-port 8000 &&
         tail -f /dev/null

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { backendService, Company } from '../../services/backend';
 import { authService, AuthUser } from '../../services/auth';
@@ -18,7 +18,8 @@ interface TransferFormData {
   memo: string;
 }
 
-export default function TransferPage() {
+// Component that uses useSearchParams - must be wrapped in Suspense
+function TransferPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -69,11 +70,31 @@ export default function TransferPage() {
       // Load user holdings for each company
       const holdingsPromises = companiesList.map(async (company) => {
         const amount = await backendService.getUserHoldings(company.id);
+        
+        // DEBUG: Log data types to identify BigInt mixing
+        console.log('DEBUG - getUserHoldings result:', {
+          companyId: company.id,
+          companyIdType: typeof company.id,
+          amount: amount,
+          amountType: typeof amount,
+          tokenPrice: company.token_price,
+          tokenPriceType: typeof company.token_price
+        });
+        
         if (amount > 0) {
-          const currentValue = amount * company.token_price;
+          // Convert BigInt to number if needed
+          const numericAmount = typeof amount === 'bigint' ? Number(amount) : amount;
+          const currentValue = numericAmount * company.token_price;
+          
+          console.log('DEBUG - Calculation result:', {
+            numericAmount,
+            currentValue,
+            currentValueType: typeof currentValue
+          });
+          
           return {
             company,
-            amount,
+            amount: numericAmount,
             currentValue
           };
         }
@@ -87,6 +108,17 @@ export default function TransferPage() {
       // Check for pre-selected company from URL params
       const companyParam = searchParams.get('company');
       if (companyParam && validHoldings.length > 0) {
+        // DEBUG: Log company ID comparison types
+        console.log('DEBUG - URL param company selection:', {
+          companyParam,
+          companyParamType: typeof companyParam,
+          holdingsIds: validHoldings.map(h => ({
+            id: h.company.id,
+            idType: typeof h.company.id,
+            toString: h.company.id.toString()
+          }))
+        });
+        
         const preSelectedHolding = validHoldings.find(h => h.company.id.toString() === companyParam);
         if (preSelectedHolding) {
           setFormData(prev => ({ ...prev, companyId: companyParam }));
@@ -111,6 +143,22 @@ export default function TransferPage() {
 
     // Update selected company and holding when company changes
     if (name === 'companyId') {
+      // DEBUG: Log company selection types
+      console.log('DEBUG - Company selection in form:', {
+        selectedValue: value,
+        selectedValueType: typeof value,
+        companiesIds: companies.map(c => ({
+          id: c.id,
+          idType: typeof c.id,
+          toString: c.id.toString()
+        })),
+        holdingsIds: holdings.map(h => ({
+          id: h.company.id,
+          idType: typeof h.company.id,
+          toString: h.company.id.toString()
+        }))
+      });
+      
       const company = companies.find(c => c.id.toString() === value);
       const holding = holdings.find(h => h.company.id.toString() === value);
       setSelectedCompany(company || null);
@@ -348,7 +396,21 @@ export default function TransferPage() {
                       <div className="flex justify-between">
                         <span className="text-gray-400">Current Value:</span>
                         <span className="text-white">
-                          {(parseInt(formData.amount || '0') * selectedCompany.token_price).toLocaleString()}
+                          {(() => {
+                            const amount = parseInt(formData.amount || '0');
+                            const price = selectedCompany.token_price;
+                            
+                            // DEBUG: Log calculation types
+                            console.log('DEBUG - Transfer summary calculation:', {
+                              amount,
+                              amountType: typeof amount,
+                              price,
+                              priceType: typeof price,
+                              calculation: amount * price
+                            });
+                            
+                            return (amount * price).toLocaleString();
+                          })()}
                         </span>
                       </div>
                     </div>
@@ -469,7 +531,21 @@ export default function TransferPage() {
               <div className="flex justify-between">
                 <span className="text-gray-400">Value:</span>
                 <span className="text-white">
-                  {(parseInt(formData.amount) * selectedCompany.token_price).toLocaleString()}
+                  {(() => {
+                    const amount = parseInt(formData.amount);
+                    const price = selectedCompany.token_price;
+                    
+                    // DEBUG: Log confirmation modal calculation types
+                    console.log('DEBUG - Confirmation modal calculation:', {
+                      amount,
+                      amountType: typeof amount,
+                      price,
+                      priceType: typeof price,
+                      calculation: amount * price
+                    });
+                    
+                    return (amount * price).toLocaleString();
+                  })()}
                 </span>
               </div>
               {formData.memo && (
@@ -499,5 +575,23 @@ export default function TransferPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// Loading component for Suspense fallback
+function TransferPageLoading() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+      <div className="text-white">Loading transfer page...</div>
+    </div>
+  );
+}
+
+// Main component wrapped with Suspense boundary
+export default function TransferPage() {
+  return (
+    <Suspense fallback={<TransferPageLoading />}>
+      <TransferPageContent />
+    </Suspense>
   );
 }

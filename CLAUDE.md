@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**ARKS RWA** is a Real World Asset tokenization platform built on the Internet Computer Protocol (ICP). It features a Motoko backend canister with sophisticated bonding curve pricing and a Next.js frontend with multi-wallet authentication support.
+**ARKS RWA** is a Real World Asset tokenization platform built on the Internet Computer Protocol (ICP). It features a Motoko backend canister with sophisticated bonding curve pricing and a Next.js frontend with multi-wallet authentication support including Plug wallet and Internet Identity.
 
 ## Essential Development Commands
 
@@ -17,7 +17,7 @@ npm run dev                    # Runs deploy-local.sh script
 dfx start --background         # Start local IC replica
 dfx deploy arks-rwa-backend   # Deploy backend canister
 dfx generate arks-rwa-backend # Generate TypeScript declarations
-cd src/frontend && npm run dev # Start frontend dev server
+cd src/frontend && npm run dev # Start frontend dev server (with Turbopack enabled)
 ```
 
 ### Build and Deploy
@@ -29,7 +29,7 @@ npm run deploy:local          # Full local deployment with environment setup
 npm run deploy:production     # Deploy to IC mainnet
 
 # Frontend only
-cd src/frontend && npm run build  # Build and export static assets
+cd src/frontend && npm run build  # Build and export static assets to build/ directory
 ```
 
 ### Backend Development
@@ -40,6 +40,13 @@ dfx deploy arks-rwa-backend --argument '(opt principal "YOUR_ADMIN_PRINCIPAL")'
 # Test backend functions
 dfx canister call arks-rwa-backend listCompanies
 dfx canister call arks-rwa-backend getUserType '(principal "YOUR_PRINCIPAL")'  # Returns #company or #user
+dfx canister call arks-rwa-backend simulatePurchasePrice '(0, 10)'  # Test pricing simulation
+dfx canister call arks-rwa-backend getPricingParameters  # Get current pricing config
+
+# Test ICRC-1 compliance
+dfx canister call arks-rwa-backend icrc1_name '(0)'
+dfx canister call arks-rwa-backend icrc1_symbol '(0)'
+dfx canister call arks-rwa-backend icrc1_balance_of '(0, record{owner=principal "YOUR_PRINCIPAL"; subaccount=null})'
 
 # Check canister status
 dfx canister status arks-rwa-backend
@@ -48,7 +55,7 @@ dfx canister status arks-rwa-backend
 ### Frontend Development
 ```bash
 cd src/frontend
-npm run dev                   # Start with Turbopack
+npm run dev                   # Start with Turbopack (configurable)
 npm run lint                  # Run ESLint
 npx tsc --noEmit             # Type checking
 ```
@@ -64,9 +71,11 @@ npx tsc --noEmit             # Type checking
 
 ### Frontend (Next.js + TypeScript)
 - **Framework**: Next.js 15.3.4 with App Router
-- **Styling**: Tailwind CSS 4.0
-- **Authentication**: Multi-wallet (Plug, Internet Identity, Demo mode)
+- **Styling**: Tailwind CSS 4.0  
+- **Authentication**: Multi-wallet (Plug, Internet Identity)
 - **ICP Integration**: @dfinity/agent with automatic type generation
+- **Build Output**: Static assets exported to `src/frontend/build/`
+- **Auth Library**: ic-auth for wallet connections
 
 ### Critical Architecture Patterns
 
@@ -81,6 +90,7 @@ public func functionName(param1: Type1, param2: Type2, caller: Principal) : asyn
 - **Pattern**: Always pass caller principal to backend functions
 - **Type Conversion**: BigInt ↔ Number conversion for UI compatibility
 - **Error Handling**: Comprehensive try-catch with user-friendly messages
+- **Authentication**: `src/frontend/services/auth.ts` handles multi-wallet connections
 
 #### Module Resolution
 - **Declarations Path**: `../../declarations/arks-rwa-backend` (relative imports)
@@ -90,24 +100,41 @@ public func functionName(param1: Type1, param2: Type2, caller: Principal) : asyn
 ## Enhanced Pricing System
 
 ### Core Implementation
-The platform uses a sophisticated bonding curve pricing model that replaces linear pricing:
+The platform uses a sophisticated bonding curve pricing model with modular helper functions:
 
-- **Bonding Curve**: Exponential price growth based on token sales ratio
-- **Volume Multipliers**: 10% premium for large purchases (≥50 tokens)
-- **Scarcity Multipliers**: 2x acceleration when supply <10% remaining
-- **Price Bounds**: 0.5x to 10x base price limits
+- **Bonding Curve**: Exponential price growth using formula `Price = Base_Price × (1 + Sold_Ratio)^1.5`
+- **Scarcity Multiplier**: Gradual increase as supply decreases: `max(1.0, 2.0 - scarcityRatio)`
+- **Volume Multiplier**: Gradual increase with purchase amount: `min(1.5, 1.0 + amount/100.0)`
+- **Combined Effect**: Multipliers applied multiplicatively for compound pricing impact
+- **Price Bounds**: 0.5x to 10x base price limits with safe Float/Int conversion
+
+### Pricing Architecture (main.mo:127-182)
+**Helper Functions**:
+- `calculateBaseBondingCurvePrice()`: Pure bonding curve calculation with bounds checking
+- `calculateCombinedMultiplier()`: Combines scarcity and volume effects into single multiplier
+- `calculateEnhancedPrice()`: Clean main function using helper functions (no in-place assignments)
+
+**Safety Features**:
+- **Bounds Checking**: Price limits prevent extreme movements (0.5x to 10x base price)
+- **Underflow Protection**: `simulateSellPrice` handles edge cases with proper error messages
+- **Zero Division**: Safe division functions prevent mathematical traps
 
 ### Economic Impact
-- **Early Adopters**: Minimal price impact (110% at 10% sold)
-- **Late Investors**: Significant scarcity premium (387% at 90% sold)
-- **Revenue Increase**: 55% higher total revenue vs linear pricing
+- **Small Purchases**: Minimal volume impact (10 tokens ≈ 10% increase)
+- **Large Purchases**: Significant volume premium (50 tokens ≈ 50% increase)
+- **Supply Scarcity**: Exponential price acceleration as remaining supply decreases
+- **Combined Effects**: Scarcity and volume multipliers compound for maximum price discovery
 
 ## Authentication & Wallet Integration
 
 ### Multi-Wallet Support
-1. **Plug Wallet**: Browser extension with full backend connectivity
-2. **Internet Identity**: Native ICP authentication
-3. **Demo Mode**: Wallet-free testing with simulated data
+1. **Plug Wallet**: Browser extension with full backend connectivity using ic-auth library
+2. **Internet Identity**: Native ICP authentication using ic-auth library
+
+### Authentication Flow
+- **ic-auth Library**: Used for both Plug and Internet Identity connections
+- **Role Management**: Support for both company and user roles with localStorage persistence
+- **Authentication Required**: All backend operations require wallet connection
 
 ### Critical Authentication Pattern
 ```typescript
@@ -120,14 +147,17 @@ const result = await actor.functionName(param1, param2, callerPrincipal);
 ## Development Environment Configuration
 
 ### Network Configuration
-- **Local**: `127.0.0.1:4943` (dfx local replica)
-- **Production**: `icp-api.io` (IC mainnet)
-- **Auto-detection**: Environment-based canister ID resolution
+- **Local**: `http://localhost:4943` (dfx local replica)
+- **Production**: `https://icp-api.io` (IC mainnet)
+- **Auto-detection**: Environment-based canister ID resolution via `NEXT_PUBLIC_DFX_NETWORK`
 
 ### Canister IDs Management
 - **Config File**: `src/frontend/config/canister.ts`
 - **Local IDs**: Hardcoded for development consistency
-- **Production IDs**: Environment variable based
+  - Backend: `uxrrr-q7777-77774-qaaaq-cai`
+  - Internet Identity: `vpyes-67777-77774-qaaeq-cai`
+  - Frontend: `vizcg-th777-77774-qaaea-cai`
+- **Production IDs**: Environment variable based (`CANISTER_ID_ARKS_RWA_BACKEND`)
 
 ## Type Safety & Declarations
 
@@ -169,36 +199,69 @@ export const candidCompanyToFrontend = (candidCompany: CandidCompany): Company =
 
 ### Backend Testing
 ```bash
-# Test enhanced pricing
-dfx canister call arks-rwa-backend simulatePurchasePrice '(0, 50)'
+# Test enhanced pricing with volume effects
+dfx canister call arks-rwa-backend simulatePurchasePrice '(0, 50)'  # Large volume
+dfx canister call arks-rwa-backend simulatePurchasePrice '(0, 10)'  # Small volume
+dfx canister call arks-rwa-backend simulateSellPrice '(0, 5)'  # Test sell price simulation
+
+# Test pricing parameters
+dfx canister call arks-rwa-backend getPricingParameters
 
 # Test account types (returns #company or #user)
 dfx canister call arks-rwa-backend getUserType '(principal "YOUR_PRINCIPAL")'
+dfx canister call arks-rwa-backend setAccountType '(#company, principal "YOUR_PRINCIPAL")' # Set account type manually
+dfx canister call arks-rwa-backend getAccountTypeSource '(principal "YOUR_PRINCIPAL")' # Check if manual or derived
 
 # Test company operations
 dfx canister call arks-rwa-backend buyTokens '(0, 15, principal "YOUR_PRINCIPAL")'
+dfx canister call arks-rwa-backend sellTokens '(0, 5, principal "YOUR_PRINCIPAL")'
+
+# Test ICRC-1 token transfers
+dfx canister call arks-rwa-backend icrc1_transfer '(0, record{from_subaccount=null; to=record{owner=principal "RECIPIENT_PRINCIPAL"; subaccount=null}; amount=10; fee=null; memo=null; created_at_time=null}, principal "SENDER_PRINCIPAL")'
+
+# Test company management
+dfx canister call arks-rwa-backend updateCompanyDescription '(0, "Updated description", principal "COMPANY_OWNER_PRINCIPAL")'
 ```
 
 ### Frontend Testing
-- **Demo Mode**: Test all functionality without wallet connection
 - **Type Checking**: Run `npx tsc --noEmit` before commits
-- **Wallet Integration**: Test with actual Plug wallet on localhost
+- **Wallet Integration**: Test with actual Plug wallet and Internet Identity on localhost
+- **Authentication Required**: All features require wallet connection for testing
 
 ## Key Files & Responsibilities
 
 ### Backend Core
-- `src/arks-rwa-backend/main.mo`: Complete canister implementation
+- `src/arks-rwa-backend/main.mo`: Complete canister implementation with modular pricing system
+  - **Pricing Functions**: Lines 127-182 contain refactored pricing logic
+  - **Helper Functions**: `calculateBaseBondingCurvePrice`, `calculateCombinedMultiplier`
+  - **Main Function**: `calculateEnhancedPrice` with clean, step-by-step structure
+  - **ICRC-1 Functions**: Full token standard compliance with transfer, balance, and metadata functions
+  - **Account Management**: User type detection and manual account type overrides
 - `src/arks-rwa-backend/docs/token-pricing-analysis.md`: Pricing system documentation
 
 ### Frontend Core
-- `src/frontend/services/backend.ts`: Backend integration service
-- `src/frontend/types/canister.ts`: Type definitions and conversions
+- `src/frontend/services/backend.ts`: Backend integration service with full wallet integration
+- `src/frontend/services/auth.ts`: Authentication service with multi-wallet support
+- `src/frontend/types/canister.ts`: Type definitions and Candid conversions
 - `src/frontend/config/canister.ts`: Network and canister configuration
+- `src/frontend/app/layout.tsx`: Root layout with Navigation component
+
+### Frontend Pages & Components
+- `src/frontend/app/page.tsx`: Landing page
+- `src/frontend/app/companies/page.tsx`: Company listing page
+- `src/frontend/app/company/[id]/page.tsx`: Individual company details
+- `src/frontend/app/create-company/page.tsx`: Company creation form
+- `src/frontend/app/dashboard/page.tsx`: User dashboard
+- `src/frontend/app/manage-company/[id]/page.tsx`: Company management interface
+- `src/frontend/app/transfer/page.tsx`: Token transfer interface
+- `src/frontend/app/transactions/page.tsx`: Transaction history
+- `src/frontend/app/components/`: Reusable UI components (Navigation, CompanyCard, etc.)
 
 ### Deployment & Scripts
-- `scripts/deploy-local.sh`: Complete local environment setup
-- `scripts/deploy-production.sh`: Production deployment automation
-- `dfx.json`: Canister configuration and network settings
+- `scripts/deploy-local.sh`: Complete local environment setup with Internet Identity
+- `scripts/deploy-production.sh`: Production deployment with confirmation prompts
+- `dfx.json`: Canister configuration including Internet Identity
+- `package.json`: Root project scripts and metadata
 
 ## Production Deployment Notes
 

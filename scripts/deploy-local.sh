@@ -9,7 +9,7 @@ echo "🚀 Starting local deployment..."
 
 # Load local environment variables
 if [ -f .env.local ]; then
-    export $(cat .env.local | xargs)
+    export $(cat .env.local | grep -v '^#' | grep -v '^$' | xargs)
     echo "✅ Loaded local environment variables"
 else
     echo "⚠️  .env.local file not found, using defaults"

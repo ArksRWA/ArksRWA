@@ -14,7 +14,14 @@
       "Bash(/dev/null)",
       "Bash(ls:*)",
       "Bash(export:*)",
-      "Bash(ln:*)"
+      "Bash(ln:*)",
+      "Bash(npm run build:*)",
+      "Bash(find:*)",
+      "Bash(next build)",
+      "Bash(npx next:*)",
+      "Bash(cp:*)",
+      "Bash(source:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }

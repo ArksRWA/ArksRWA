@@ -123,7 +123,8 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
     };
   };
 
-  func calculateBondingCurvePrice(basePrice : Nat, sold : Nat, supply : Nat) : Nat {
+  // Calculate base bonding curve price without additional multipliers
+  func calculateBaseBondingCurvePrice(basePrice : Nat, sold : Nat, supply : Nat) : Nat {
     if (supply == 0) {
       basePrice; // Return base price if supply is zero
     } else {
@@ -131,7 +132,7 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
       let priceMultiplier = powerFloat(1.0 + soldRatio, bondingCurveExponent);
       let newPrice = Float.fromInt(basePrice) * priceMultiplier;
       
-      // Apply bounds checking
+      // Apply bounds checking to prevent extreme price movements
       let minPrice = Float.fromInt(basePrice) * 0.5;
       let maxPrice = Float.fromInt(basePrice) * 10.0;
       
@@ -145,41 +146,39 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
     };
   };
 
-  func applyVolumeMultiplier(price : Nat, amount : Nat) : Nat {
-    if (amount >= volumeThreshold) {
-      let multipliedPrice = Float.fromInt(price) * volumeMultiplier;
-      Int.abs(Float.toInt(multipliedPrice));
-    } else {
-      price;
-    };
-  };
-
-  func applyScarcityMultiplier(price : Nat, remaining : Nat, supply : Nat) : Nat {
+  // Calculate combined multiplier for scarcity and volume effects
+  func calculateCombinedMultiplier(remaining : Nat, supply : Nat, amount : Nat) : Float {
+    // Handle edge case where supply is zero
     if (supply == 0) {
-      price;
-    } else {
-      let remainingRatio = Float.fromInt(remaining) / Float.fromInt(supply);
-      if (remainingRatio < scarcityThreshold) {
-        let multipliedPrice = Float.fromInt(price) * scarcityMultiplier;
-        Int.abs(Float.toInt(multipliedPrice));
-      } else {
-        price;
-      };
+      return 1.0;
     };
+    
+    // Calculate scarcity factor - gradual increase as remaining supply decreases
+    // scarcityRatio ranges from 1.0 (full supply) to 0.0 (no remaining)
+    let scarcityRatio = Float.fromInt(remaining) / Float.fromInt(supply);
+    let scarcityFactor = Float.max(1.0, 2.0 - scarcityRatio);
+    
+    // Calculate volume factor - gradual increase with purchase amount
+    // Starts at 1.0 for small purchases, increases gradually, capped at 1.5
+    let volumeFactor = Float.min(1.5, 1.0 + Float.fromInt(amount) / 100.0);
+    
+    // Combine factors multiplicatively for compound effect
+    scarcityFactor * volumeFactor;
   };
 
+
+  // Enhanced price calculation with clean, modular structure
   func calculateEnhancedPrice(basePrice : Nat, sold : Nat, supply : Nat, purchaseAmount : Nat) : Nat {
     // Step 1: Calculate base bonding curve price
-    var enhancedPrice = calculateBondingCurvePrice(basePrice, sold, supply);
+    let baseBondingPrice = calculateBaseBondingCurvePrice(basePrice, sold, supply);
     
-    // Step 2: Apply volume multiplier for large purchases
-    enhancedPrice := applyVolumeMultiplier(enhancedPrice, purchaseAmount);
-    
-    // Step 3: Apply scarcity multiplier if supply is low
+    // Step 2: Calculate combined multiplier for scarcity and volume effects
     let remaining = supply - sold;
-    enhancedPrice := applyScarcityMultiplier(enhancedPrice, remaining, supply);
+    let combinedMultiplier = calculateCombinedMultiplier(remaining, supply, purchaseAmount);
     
-    enhancedPrice;
+    // Step 3: Apply multiplier and convert safely back to Nat
+    let finalPrice = Float.fromInt(baseBondingPrice) * combinedMultiplier;
+    Int.abs(Float.toInt(finalPrice));
   };
 
   public func createCompany(name : Text, symbol : Text, logo_url : Text, description : Text, valuation : Nat, desiredSupply : ?Nat, desiredPrice : ?Nat, caller : Principal) : async Nat {
@@ -373,11 +372,17 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
       case (?company) {
         let currentPrice = company.token_price;
         let updatedRemaining = company.remaining + amount;
-        let sold = company.supply - updatedRemaining;
-        let newPrice = calculateEnhancedPrice(company.base_price, sold, company.supply, amount);
-        let priceImpact = if (currentPrice > newPrice) { currentPrice - newPrice } else { 0 };
-        let totalReturn = (currentPrice + newPrice) * amount / 2; // Average price approximation
-        #ok({ newPrice = newPrice; priceImpact = priceImpact; totalReturn = totalReturn });
+        
+        // Handle potential underflow - if selling would result in more remaining than supply
+        if (updatedRemaining > company.supply) {
+          #err("Cannot sell more tokens than were originally sold");
+        } else {
+          let sold = company.supply - updatedRemaining;
+          let newPrice = calculateEnhancedPrice(company.base_price, sold, company.supply, amount);
+          let priceImpact = if (currentPrice > newPrice) { currentPrice - newPrice } else { 0 };
+          let totalReturn = (currentPrice + newPrice) * amount / 2; // Average price approximation
+          #ok({ newPrice = newPrice; priceImpact = priceImpact; totalReturn = totalReturn });
+        };
       };
     };
   };

@@ -11,11 +11,21 @@
     "stop": "dfx stop",
     "clean": "dfx start --clean"
   },
-  "keywords": ["blockchain", "tokenization", "real-world-assets", "internet-computer"],
+  "keywords": [
+    "blockchain",
+    "tokenization",
+    "real-world-assets",
+    "internet-computer"
+  ],
   "author": "ARKS RWA Team",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/your-org/arks-rwa"
+  },
+  "dependencies": {
+    "@dfinity/agent": "^2.4.1",
+    "@dfinity/candid": "^2.4.1",
+    "@dfinity/principal": "^2.4.1"
   }
 }

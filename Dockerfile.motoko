@@ -1,0 +1,34 @@
+# Use minimal Alpine image with DFX SDK
+FROM alpine:latest
+
+# Install dependencies
+RUN apk add --no-cache \
+    curl \
+    bash \
+    nodejs \
+    npm \
+    git \
+    ca-certificates \
+    openssl
+
+# Install DFX SDK
+RUN sh -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
+
+# Add DFX to PATH
+ENV PATH="/root/.local/share/dfx/bin:${PATH}"
+
+# Set working directory
+WORKDIR /workspace
+
+# Copy project files
+COPY dfx.json .
+COPY src ./src
+
+# Create .dfx directory
+RUN mkdir -p .dfx
+
+# Expose DFX port
+EXPOSE 4943
+
+# Default command
+CMD ["bash"]

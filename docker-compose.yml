@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  # Use official DFX image if available, fallback to Ubuntu
+  dfx-replica:
+    image: ubuntu:22.04
+    container_name: arks-dfx-replica
+    ports:
+      - "4943:4943"
+      - "8000:8000"
+    volumes:
+      - dfx_data:/home/dfx/.cache/dfinity
+      - ./.dfx:/workspace/.dfx
+      - ./:/workspace
+    working_dir: /workspace
+    command: >
+      sh -c "
+        apt-get update && 
+        apt-get install -y curl bash && 
+        sh -ci \"\$(curl -fsSL https://sdk.dfinity.org/install.sh)\" && 
+        export PATH=\"/root/.local/share/dfx/bin:\$PATH\" &&
+        dfx start --clean --background --host 0.0.0.0:4943 --replica-port 8000 &&
+        tail -f /dev/null
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4943"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - arks-network
+
+  # Motoko backend service  
+  motoko-backend:
+    image: ubuntu:22.04
+    container_name: arks-motoko-backend
+    depends_on:
+      dfx-replica:
+        condition: service_healthy
+    volumes:
+      - ./:/workspace
+      - dfx_data:/home/dfx/.cache/dfinity
+    working_dir: /workspace
+    environment:
+      - DFX_NETWORK=local
+      - REPLICA_HOST=dfx-replica
+    command: >
+      sh -c "
+        apt-get update && 
+        apt-get install -y curl bash nodejs npm && 
+        sh -ci \"\$(curl -fsSL https://sdk.dfinity.org/install.sh)\" && 
+        export PATH=\"/root/.local/share/dfx/bin:\$PATH\" &&
+        export DFX_NETWORK_HOST=http://dfx-replica:4943 &&
+        dfx canister create arks-rwa-backend --network local &&
+        dfx deploy arks-rwa-backend --network local &&
+        dfx generate arks-rwa-backend &&
+        tail -f /dev/null
+      "
+    networks:
+      - arks-network
+
+  # Next.js frontend service
+  nextjs-frontend:
+    image: node:18
+    container_name: arks-nextjs-frontend
+    depends_on:
+      - motoko-backend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./:/workspace
+      - node_modules:/workspace/src/frontend/node_modules
+    working_dir: /workspace/src/frontend
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_DFX_NETWORK=local
+      - NEXT_PUBLIC_IC_HOST=http://localhost:4943
+    command: >
+      sh -c "
+        npm install &&
+        cp -R ../declarations/arks-rwa-backend ./declarations/ &&
+        npm run build &&
+        npm run start
+      "
+    networks:
+      - arks-network
+
+volumes:
+  dfx_data:
+    driver: local
+  node_modules:
+    driver: local
+
+networks:
+  arks-network:
+    driver: bridge

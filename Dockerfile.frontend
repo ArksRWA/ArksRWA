@@ -1,0 +1,28 @@
+# Use minimal Node.js Alpine image
+FROM node:18-alpine3.18
+
+# Install dependencies for building
+RUN apk add --no-cache \
+    bash \
+    curl
+
+# Set working directory
+WORKDIR /workspace
+
+# Copy package files first (for better caching)
+COPY src/frontend/package*.json ./src/frontend/
+
+# Install npm dependencies
+RUN cd src/frontend && npm install
+
+# Copy the rest of the project
+COPY src ./src
+
+# Create declarations directory
+RUN mkdir -p src/frontend/declarations
+
+# Expose Next.js port
+EXPOSE 3000
+
+# Default command
+CMD ["bash"]

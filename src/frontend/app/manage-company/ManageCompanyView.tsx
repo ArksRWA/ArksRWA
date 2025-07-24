@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import { backendService, Company } from '../../../services/backend';
-import { authService } from '../../../services/auth';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { backendService, Company } from '../../services/backend';
+import { authService } from '../../services/auth';
 
-export default function ManageCompanyPage() {
+function ManageCompanyContent() {
   const router = useRouter();
-  const params = useParams();
-  const companyId = params.id as string;
+  const searchParams = useSearchParams();
+  const companyId = searchParams.get('id');
 
   const [company, setCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,13 +39,20 @@ export default function ManageCompanyPage() {
         return;
       }
       
-      loadCompanyData();
+      if (companyId) {
+        loadCompanyData();
+      } else {
+        setError("No company ID provided.");
+        setLoading(false);
+      }
     };
     
     checkAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, companyId]);
 
   const loadCompanyData = async () => {
+    if (!companyId) return;
     try {
       setLoading(true);
       setError('');
@@ -66,6 +73,8 @@ export default function ManageCompanyPage() {
       const user = authService.getCurrentUser();
       if (user && user.principal === companyData.owner) {
         setIsOwner(true);
+      } else {
+        setError("You are not authorized to manage this company.");
       }
       
     } catch (err) {
@@ -85,7 +94,7 @@ export default function ManageCompanyPage() {
 
   const handleUpdateDescription = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!company) return;
+    if (!company || !companyId) return;
 
     setUpdateLoading(true);
     setUpdateError('');
@@ -178,7 +187,7 @@ export default function ManageCompanyPage() {
           <div className="text-red-400 mb-4">You are not authorized to manage this company</div>
           <p className="text-gray-400 mb-6">Only the company owner can manage company details</p>
           <button
-            onClick={() => router.push(`/company/${companyId}`)}
+            onClick={() => router.push(`/company?id=${companyId}`)}
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
           >
             View Company Profile
@@ -195,7 +204,7 @@ export default function ManageCompanyPage() {
         <div className="mb-8">
           <div className="flex items-center gap-4 mb-4">
             <button
-              onClick={() => router.push(`/company/${companyId}`)}
+              onClick={() => router.push(`/company?id=${companyId}`)}
               className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -355,4 +364,12 @@ export default function ManageCompanyPage() {
       </div>
     </div>
   );
+}
+
+export default function ManageCompanyView() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ManageCompanyContent />
+    </Suspense>
+  )
 }

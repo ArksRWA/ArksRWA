@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  dfx:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dfx
+    ports:
+      - "4943:4943"
+      - "3000:3000"
+    volumes:
+      - dfx_state:/home/node/.local/share/dfx
+    working_dir: /app
+    command:
+      - /bin/bash
+      - -c
+      - |
+        echo "🧠 Starting replica..." && \
+        dfx stop || true && \
+        dfx start --background --clean --host 0.0.0.0:4943 --domain localhost && \
+        echo "⏳ Waiting for replica..." && \
+        until curl -sf http://localhost:4943/api/v2/status; do sleep 1; done && \
+        echo "✅ Replica ready!" && \
+        dfx identity new default --storage-mode=plaintext || true && \
+        dfx identity use default && \
+        echo "🚀 Deploying canisters..." && \
+        dfx deploy --network local && \
+        echo "✅ Canisters ready!" && \
+        tail -f /dev/null
+
+volumes:
+  dfx_state:

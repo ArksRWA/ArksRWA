@@ -33,10 +33,12 @@ class BackendService {
     try {
       // Only import when needed for real backend calls
       const { Actor, HttpAgent } = await import('@dfinity/agent');
-      
+      const canisterHost = isLocal()
+        ? `http://${this.canisterId}.localhost:4943`
+        : `https://${this.canisterId}.icp0.io`;
       // Create agent (reuse if possible)
       if (!this.agentCache) {
-        this.agentCache = new HttpAgent({ host: this.host });
+        this.agentCache = new HttpAgent({ host: canisterHost });
         await this.agentCache.fetchRootKey(); // For local development
       }
 
@@ -102,9 +104,9 @@ class BackendService {
         params.symbol,
         params.logoUrl,
         params.description,
-        BigInt(params.valuation),
-        params.desiredSupply ? [BigInt(params.desiredSupply)] : [],
-        params.desiredPrice ? [BigInt(params.desiredPrice)] : [],
+        params.valuation,
+        params.desiredSupply ? [params.desiredSupply] : [],
+        params.desiredPrice ? [params.desiredPrice] : [],
         callerPrincipal
       );
 

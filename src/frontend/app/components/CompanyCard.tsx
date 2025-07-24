@@ -19,12 +19,12 @@ export default function CompanyCard({
   const router = useRouter();
 
   const handleCardClick = () => {
-    router.push(`/company/${company.id}`);
+    router.push(`/company?id=${company.id}`);
   };
 
   const handleManageClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    router.push(`/manage-company/${company.id}`);
+    router.push(`/manage-company?id=${company.id}`);
   };
 
   return (

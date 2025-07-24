@@ -1,23 +1,25 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import { backendService, Company } from '../../../services/backend';
-import { authService } from '../../../services/auth';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Company, backendService } from '../../services/backend';
+import { authService } from '../../services/auth';
 
-export default function CompanyDetailsPage() {
+interface Props {
+  company: Company;
+  companyId: number;
+}
+
+function ClientViewContent({ company: initialCompany, companyId }: Props) {
   const router = useRouter();
-  const params = useParams();
-  const companyId = params.id as string;
 
-  const [company, setCompany] = useState<Company | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [company, setCompany] = useState<Company>(initialCompany);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userHoldings, setUserHoldings] = useState(0);
   const [isOwner, setIsOwner] = useState(false);
-  
-  // Trading states
+
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
   const [tradeAmount, setTradeAmount] = useState('');
   const [tradeLoading, setTradeLoading] = useState(false);
@@ -25,89 +27,84 @@ export default function CompanyDetailsPage() {
   const [tradeSuccess, setTradeSuccess] = useState('');
 
   useEffect(() => {
-    const checkAuth = () => {
-      const authenticated = authService.isAuthenticated();
-      setIsAuthenticated(authenticated);
-      if (!authenticated) {
-        router.push('/');
-        return;
-      }
-      loadCompanyData();
-    };
-    
-    checkAuth();
-  }, [router, companyId]);
+    const authenticated = authService.isAuthenticated();
+    setIsAuthenticated(authenticated);
+    if (!authenticated) {
+      router.push('/');
+      return;
+    }
+    loadUserSpecificData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId, router]);
 
-  const loadCompanyData = async () => {
+  const loadUserSpecificData = async () => {
     try {
       setLoading(true);
       setError('');
-      
-      const [companyData, holdings] = await Promise.all([
-        backendService.getCompanyById(parseInt(companyId)),
-        backendService.getUserHoldings(parseInt(companyId))
-      ]);
-      
-      if (!companyData) {
-        throw new Error('Company not found');
-      }
-      
-      setCompany(companyData);
+      const holdings = await backendService.getUserHoldings(companyId);
       setUserHoldings(holdings);
-      
-      // Check if current user is the owner
+
       const user = authService.getCurrentUser();
-      if (user && user.principal === companyData.owner) {
+      if (user?.principal === company.owner) {
         setIsOwner(true);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load company data');
+      setError(err instanceof Error ? err.message : 'Failed to load user data');
     } finally {
       setLoading(false);
     }
   };
+  
+  const reloadCompanyAndUserData = async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      const [companyData, holdings] = await Promise.all([
+        backendService.getCompanyById(companyId),
+        backendService.getUserHoldings(companyId),
+      ]);
+
+      if (!companyData) throw new Error('Company not found');
+
+      setCompany(companyData);
+      setUserHoldings(holdings);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reload data');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const handleTrade = async () => {
-    if (!company || !tradeAmount) return;
-    
+    if (tradeLoading || !tradeAmount || !company) return;
+
     setTradeLoading(true);
     setTradeError('');
     setTradeSuccess('');
-    
+
     try {
-      const amount = parseInt(tradeAmount);
-      if (isNaN(amount) || amount <= 0) {
-        throw new Error('Please enter a valid amount');
-      }
-      
+      const amount = parseInt(tradeAmount, 10);
+      if (isNaN(amount) || amount <= 0) throw new Error('Invalid amount');
+
       if (tradeType === 'buy') {
-        const totalCost = Number(amount) * Number(company.token_price);
-        if (totalCost < Number(company.minimum_purchase)) {
-          throw new Error(`Minimum purchase is ${Number(company.minimum_purchase).toLocaleString()}`);
+        const total = amount * Number(company.token_price);
+        if (total < Number(company.minimum_purchase)) {
+          throw new Error(`Minimum purchase ${company.minimum_purchase}`);
         }
         if (amount > Number(company.remaining)) {
-          throw new Error('Not enough tokens available');
+          throw new Error('Not enough tokens');
         }
-        
-        const result = await backendService.buyTokens(parseInt(companyId), amount);
-        setTradeSuccess(result);
-        
-        // Reload company data to get updated prices and holdings
-        await loadCompanyData();
-        
+        const res = await backendService.buyTokens(companyId, amount);
+        setTradeSuccess(res);
       } else {
-        // Sell tokens
-        if (amount > userHoldings) {
-          throw new Error('Not enough tokens to sell');
-        }
-        
-        const result = await backendService.sellTokens(parseInt(companyId), amount);
-        setTradeSuccess(result);
-        
-        // Reload company data to get updated prices and holdings
-        await loadCompanyData();
+        if (amount > userHoldings) throw new Error('Not enough tokens');
+        const res = await backendService.sellTokens(companyId, amount);
+        setTradeSuccess(res);
       }
-      
+
+      await reloadCompanyAndUserData();
       setTradeAmount('');
     } catch (err) {
       setTradeError(err instanceof Error ? err.message : 'Trade failed');
@@ -118,7 +115,7 @@ export default function CompanyDetailsPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-white">Checking authentication...</div>
       </div>
     );
@@ -126,36 +123,20 @@ export default function CompanyDetailsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
-        <div className="text-white">Loading company details...</div>
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-white">Loading...</div>
       </div>
     );
   }
-
+  
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <div className="text-red-400 mb-4">{error}</div>
           <button
             onClick={() => router.push('/')}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-          >
-            Back to Home
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!company) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-white mb-4">Company not found</div>
-          <button
-            onClick={() => router.push('/')}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+            className="px-4 py-2 bg-primary text-white rounded-lg"
           >
             Back to Home
           </button>
@@ -165,14 +146,14 @@ export default function CompanyDetailsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4 pt-20">
+     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4 pt-20">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-6">
           {isOwner && (
             <div className="flex justify-end">
               <button
-                onClick={() => router.push(`/manage-company/${companyId}`)}
+                onClick={() => router.push(`/manage-company?id=${companyId}`)}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -337,4 +318,13 @@ export default function CompanyDetailsPage() {
       </div>
     </div>
   );
+}
+
+
+export default function ClientView(props: Props) {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ClientViewContent {...props} />
+    </Suspense>
+  )
 }

@@ -38,9 +38,9 @@ export interface CreateCompanyParams {
   symbol: string;
   logoUrl: string;
   description: string;
-  valuation: number;
-  desiredSupply?: number;
-  desiredPrice?: number;
+  valuation: bigint;
+  desiredSupply?: bigint;
+  desiredPrice?: bigint;
 }
 
 // Utility functions to convert between Candid and frontend types

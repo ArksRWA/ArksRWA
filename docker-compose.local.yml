@@ -25,7 +25,8 @@ services:
         dfx identity new default --storage-mode=plaintext || true && \
         dfx identity use default && \
         echo "🚀 Deploying canisters..." && \
-        dfx deploy --network local && \
+        [ ! -f .env ] || export $(grep -v '^#' .env | xargs) && \
+        dfx deploy --network local frontend && \
         echo "✅ Canisters ready!" && \
         tail -f /dev/null
 

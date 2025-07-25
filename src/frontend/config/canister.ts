@@ -2,14 +2,14 @@
 export const CANISTER_IDS = {
   local: {
     // Updated with current local deployment
-    arks_rwa_backend: "uxrrr-q7777-77774-qaaaq-cai",
+    arks_rwa_backend: process.env.CANISTER_ID_ARKS_RWA_BACKEND || "uxrrr-q7777-77774-qaaaq-cai",
     internet_identity: "vpyes-67777-77774-qaaeq-cai",
-    frontend: "vizcg-th777-77774-qaaea-cai"
+    frontend: process.env.CANISTER_ID_FRONTEND || "vizcg-th777-77774-qaaea-cai"
   },
   ic: {
-    arks_rwa_backend: process.env.CANISTER_ID_ARKS_RWA_BACKEND || "",
+    arks_rwa_backend: process.env.NEXT_PUBLIC_CANISTER_ID_ARKS_RWA_BACKEND || "",
     internet_identity: "rdmx6-jaaaa-aaaaa-aaadq-cai", // Official II canister
-    frontend: process.env.CANISTER_ID_FRONTEND || ""
+    frontend: process.env.NEXT_PUBLIC_CANISTER_ID_FRONTEND || ""
   }
 };
 

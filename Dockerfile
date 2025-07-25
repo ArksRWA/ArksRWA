@@ -29,10 +29,12 @@ RUN dfx generate arks-rwa-backend && \
     mkdir -p /app/src/frontend/declarations/arks-rwa-backend && \
     cp -r /app/src/declarations/arks-rwa-backend/* /app/src/frontend/declarations/arks-rwa-backend/
 
-
-# Install frontend deps & build
-WORKDIR /app/src/frontend
-RUN npm install && npm run build
+RUN dfx start --background --clean && \
+    dfx deploy arks-rwa-backend && \
+    . /app/.env && \
+    cd /app/src/frontend && \
+    npm install && \
+    npm run build
 
 # Go back to app root
 WORKDIR /app

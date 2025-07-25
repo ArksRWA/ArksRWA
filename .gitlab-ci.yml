@@ -73,23 +73,35 @@ dev-deploy:
     - echo "CI_REGISTRY=$CI_REGISTRY" >> .env
     - echo "TAG=$TAG" >> .env
     - source .env
-    - export FRONTEND_ID=$(grep CANISTER_ID_frontend shared_output/.env | cut -d '=' -f2)
-    - echo "Frontend Canister ID: $FRONTEND_ID"
-    # Replace placeholder in template
-    - sed "s|__CANISTER_ID__|$FRONTEND_ID|g" infra/nginx-template.conf > generated-nginx.conf
-
   script:
+    # Upload files to server
     - scp -i $ID_RSA -o StrictHostKeyChecking=no docker-compose.yml root@$SERVER_HOST:/home/arks/domains/dev.arks.web.id/public_html/
-    - scp -i $ID_RSA -o StrictHostKeyChecking=no generated-nginx.conf root@$SERVER_HOST:/etc/nginx/sites-available/dev.arks.web.id.conf
-
+    - scp -i $ID_RSA -o StrictHostKeyChecking=no infra/nginx-template.conf root@$SERVER_HOST:/home/arks/domains/dev.arks.web.id/public_html/
     - scp -i $ID_RSA -o StrictHostKeyChecking=no .env root@$SERVER_HOST:/home/arks/domains/dev.arks.web.id/public_html/
-    - ssh -i $ID_RSA -o StrictHostKeyChecking=no root@$SERVER_HOST "
-      sudo ln -sf /etc/nginx/sites-available/dev.arks.web.id.conf /etc/nginx/sites-enabled/ &&
-      sudo nginx -t && sudo systemctl reload nginx;
-      cd /home/arks/domains/dev.arks.web.id/public_html;
-      source .env;
-      docker compose -f docker-compose.yml pull dfx;
-      docker compose -f docker-compose.yml up -d --force-recreate
-      "
-    - rm -rf .env
 
+    # SSH into the server and handle everything
+    - ssh -i $ID_RSA -o StrictHostKeyChecking=no root@$SERVER_HOST "
+        set -e;
+
+        cd /home/arks/domains/dev.arks.web.id/public_html;
+
+        echo '[1/5] Docker Compose pull + up...';
+        docker compose -f docker-compose.yml pull dfx;
+        docker compose -f docker-compose.yml up -d --force-recreate;
+
+        echo '[2/5] Wait for canister deployment (.env)...';
+        until docker exec dfx test -f /app/.env; do echo 'Waiting for .env...'; sleep 2; done;
+
+        echo '[3/5] Extracting .env from container...';
+        docker cp dfx:/app/.env ./shared_output.env;
+
+        echo '[4/5] Parsing frontend canister ID...';
+        FRONTEND_ID=\$(grep CANISTER_ID_frontend shared_output.env | cut -d '=' -f2);
+        echo 'Found frontend ID:' \$FRONTEND_ID;
+
+        echo '[5/5] Generating and activating nginx config...';
+        sed \"s|__CANISTER_ID__|\$FRONTEND_ID|g\" nginx-template.conf > /etc/nginx/sites-available/dev.arks.web.id.conf;
+
+        ln -sf /etc/nginx/sites-available/dev.arks.web.id.conf /etc/nginx/sites-enabled/;
+        nginx -t && systemctl reload nginx;
+      "

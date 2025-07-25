@@ -99,17 +99,17 @@ dev-deploy:
         echo "--- .env from container ---"
         cat shared_output.env || { echo "❌ Failed to read shared_output.env"; exit 1; }
 
-        FRONTEND_ID=$(grep CANISTER_ID_frontend shared_output.env | cut -d '=' -f2)
+        BACKEND_ID=$(grep CANISTER_ID_ARKS_RWA_BACKEND shared_output.env | cut -d '=' -f2)
 
-        if [ -z "$FRONTEND_ID" ]; then
-          echo "❌ FRONTEND_ID is empty or not found in .env. Aborting."
+        if [ -z "$BACKEND_ID" ]; then
+          echo "❌ BACKEND_ID is empty or not found in .env. Aborting."
           exit 1
         fi
 
-        echo '✅ Found frontend ID $FRONTEND_ID'
+        echo '✅ Found frontend ID $BACKEND_ID'
 
         echo '[5/5] Generating and activating NGINX config...'
-        sed "s|__CANISTER_ID__|$FRONTEND_ID|g" nginx-template.conf > /etc/nginx/sites-available/dev.arks.web.id.conf
+        sed "s|__CANISTER_ID__|$BACKEND_ID|g" nginx-template.conf > /etc/nginx/sites-available/dev.arks.web.id.conf
 
         ln -sf /etc/nginx/sites-available/dev.arks.web.id.conf /etc/nginx/sites-enabled/
         nginx -t && systemctl reload nginx

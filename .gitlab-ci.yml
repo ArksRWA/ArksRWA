@@ -89,8 +89,18 @@ dev-deploy:
         docker compose -f docker-compose.yml pull dfx;
         docker compose -f docker-compose.yml up -d --force-recreate;
 
-        echo '[2/5] Wait for canister deployment (.env)...';
-        until docker exec dfx test -f /app/.env; do echo 'Waiting for .env...'; sleep 2; done;
+        echo '[2/5] Waiting for .env from dfx container...';
+        MAX_WAIT=60
+        ELAPSED=0
+        until docker exec dfx test -f /app/.env; do
+          if [ $ELAPSED -ge $MAX_WAIT ]; then
+            echo 'ERROR: .env not found after 60s.' >&2
+            exit 1
+          fi
+          echo 'Still waiting for .env...'
+          sleep 2
+          ELAPSED=$((ELAPSED + 2))
+        done
 
         echo '[3/5] Extracting .env from container...';
         docker cp dfx:/app/.env ./shared_output.env;

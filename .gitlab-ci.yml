@@ -2,13 +2,9 @@ stages:
   - dev-pre-merge
   - dev-build
   - dev-deploy
-  #- prod-pre-merge
-  #- prod-build
-  #- prod-deploy
 
 variables:
   DEV_TAG: "$GIT_COMMIT_TAG"
-
 
 dev-pre-merge:
   rules:
@@ -23,7 +19,7 @@ dev-pre-merge:
     - cp $DEV_ENV .env.local
     - cat .env.local
     - source .env.local
-    - export TAG="${MAJOR_VERSION}.${MINOR_VERSION}.$BUILD_NUMBER-dev"
+    - export TAG="${MAJOR_VERSION}.${MINOR_VERSION}.${BUILD_NUMBER}-dev"
   script:
     - docker build -t $CI_REGISTRY/odikk60/arks-rwa:$TAG .
 
@@ -46,7 +42,7 @@ dev-build:
   script:
     - git tag $TAG
     - git push origin $TAG
-    - echo 'Pushed new tag:' $TAG
+    - echo "Pushed new tag: $TAG"
     - docker build -t $CI_REGISTRY/odikk60/arks-rwa:$TAG .
     - docker push $CI_REGISTRY/odikk60/arks-rwa:$TAG
 
@@ -67,7 +63,7 @@ dev-deploy:
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
     - export TAG="$(git describe --tags --abbrev=0)"
-    - echo 'last tag:' $TAG
+    - echo "Last tag: $TAG"
     - rm -rf .env
     - cp $DEV_ENV .env
     - echo "CI_REGISTRY=$CI_REGISTRY" >> .env
@@ -79,17 +75,18 @@ dev-deploy:
     - scp -i $ID_RSA -o StrictHostKeyChecking=no infra/nginx-template.conf root@$SERVER_HOST:/home/arks/domains/dev.arks.web.id/public_html/
     - scp -i $ID_RSA -o StrictHostKeyChecking=no .env root@$SERVER_HOST:/home/arks/domains/dev.arks.web.id/public_html/
 
-    # SSH into the server and handle everything
-    - ssh -i $ID_RSA -o StrictHostKeyChecking=no root@$SERVER_HOST "
-        set -e;
+    # SSH into server to deploy and update nginx
+    - |
+      ssh -i $ID_RSA -o StrictHostKeyChecking=no root@$SERVER_HOST <<'EOF'
+        set -euo pipefail
 
-        cd /home/arks/domains/dev.arks.web.id/public_html;
+        cd /home/arks/domains/dev.arks.web.id/public_html
 
-        echo '[1/5] Docker Compose pull + up...';
-        docker compose -f docker-compose.yml pull dfx;
-        docker compose -f docker-compose.yml up -d --force-recreate;
+        echo '[1/5] Docker Compose pull + up...'
+        docker compose -f docker-compose.yml pull dfx
+        docker compose -f docker-compose.yml up -d --force-recreate --remove-orphans
 
-        echo '[2/5] Waiting for .env from dfx container...';
+        echo '[2/5] Waiting for .env from dfx container...'
         MAX_WAIT=60
         ELAPSED=0
         until docker exec dfx test -f /app/.env; do
@@ -102,16 +99,16 @@ dev-deploy:
           ELAPSED=$((ELAPSED + 2))
         done
 
-        echo '[3/5] Extracting .env from container...';
-        docker cp dfx:/app/.env ./shared_output.env;
+        echo '[3/5] Extracting .env from container...'
+        docker cp dfx:/app/.env ./shared_output.env
 
-        echo '[4/5] Parsing frontend canister ID...';
-        FRONTEND_ID=\$(grep CANISTER_ID_frontend shared_output.env | cut -d '=' -f2);
-        echo 'Found frontend ID:' \$FRONTEND_ID;
+        echo '[4/5] Parsing frontend canister ID...'
+        FRONTEND_ID=$(grep CANISTER_ID_frontend shared_output.env | cut -d '=' -f2)
+        echo "Found frontend ID: $FRONTEND_ID"
 
-        echo '[5/5] Generating and activating nginx config...';
-        sed \"s|__CANISTER_ID__|\$FRONTEND_ID|g\" nginx-template.conf > /etc/nginx/sites-available/dev.arks.web.id.conf;
+        echo '[5/5] Generating and activating NGINX config...'
+        sed "s|__CANISTER_ID__|$FRONTEND_ID|g" nginx-template.conf > /etc/nginx/sites-available/dev.arks.web.id.conf
 
-        ln -sf /etc/nginx/sites-available/dev.arks.web.id.conf /etc/nginx/sites-enabled/;
-        nginx -t && systemctl reload nginx;
-      "
+        ln -sf /etc/nginx/sites-available/dev.arks.web.id.conf /etc/nginx/sites-enabled/
+        nginx -t && systemctl reload nginx
+      EOF

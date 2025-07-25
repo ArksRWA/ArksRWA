@@ -42,7 +42,7 @@ dev-build:
   script:
     - git tag $TAG
     - git push origin $TAG
-    - echo "Pushed new tag: $TAG"
+    - echo "Pushed new tag $TAG"
     - docker build -t $CI_REGISTRY/odikk60/arks-rwa:$TAG .
     - docker push $CI_REGISTRY/odikk60/arks-rwa:$TAG
 
@@ -63,7 +63,7 @@ dev-deploy:
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
     - export TAG="$(git describe --tags --abbrev=0)"
-    - echo "Last tag: $TAG"
+    - echo "Last tag $TAG"
     - rm -rf .env
     - cp $DEV_ENV .env
     - echo "CI_REGISTRY=$CI_REGISTRY" >> .env

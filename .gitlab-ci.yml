@@ -96,12 +96,22 @@ dev-deploy:
         docker cp dfx:/app/.env ./shared_output.env
 
         echo '[4/5] Parsing frontend canister ID...'
+        echo "--- .env from container ---"
+        cat shared_output.env || { echo "❌ Failed to read shared_output.env"; exit 1; }
+
         FRONTEND_ID=$(grep CANISTER_ID_frontend shared_output.env | cut -d '=' -f2)
-        echo "Found frontend ID: $FRONTEND_ID"
+
+        if [ -z "$FRONTEND_ID" ]; then
+          echo "❌ FRONTEND_ID is empty or not found in .env. Aborting."
+          exit 1
+        fi
+
+        echo '✅ Found frontend ID $FRONTEND_ID'
 
         echo '[5/5] Generating and activating NGINX config...'
         sed "s|__CANISTER_ID__|$FRONTEND_ID|g" nginx-template.conf > /etc/nginx/sites-available/dev.arks.web.id.conf
 
         ln -sf /etc/nginx/sites-available/dev.arks.web.id.conf /etc/nginx/sites-enabled/
         nginx -t && systemctl reload nginx
+
       EOF

@@ -87,7 +87,7 @@ dev-deploy:
         docker compose -f docker-compose.yml up -d --force-recreate --remove-orphans
 
         echo '[2/5] Waiting for .env from dfx container...'
-        MAX_WAIT=60
+        MAX_WAIT=300
         ELAPSED=0
         until docker exec dfx test -f /app/.env; do
           if [ $ELAPSED -ge $MAX_WAIT ]; then

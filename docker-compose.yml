@@ -9,6 +9,7 @@ services:
       - "3000:3000"
     volumes:
       - dfx_state:/home/node/.local/share/dfx
+      - ./shared_output:/app/shared_output
     working_dir: /app
     command:
       - /bin/bash

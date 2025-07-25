@@ -31,6 +31,7 @@ RUN dfx generate arks-rwa-backend && \
 
 RUN dfx start --background --clean && \
     dfx deploy arks-rwa-backend && \
+    cp .env shared_output/ && \
     . /app/.env && \
     cd /app/src/frontend && \
     npm install && \

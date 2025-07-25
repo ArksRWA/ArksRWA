@@ -52,7 +52,7 @@ dev-build:
 
 dev-deploy:
   rules:
-    - if: '$CI_COMMIT_BRANCH == "dev"'
+    - if: '$CI_COMMIT_BRANCH == "feat/infra-enhancement"'
   image: docker:20.10.16
   environment:
     name: Development
@@ -73,10 +73,19 @@ dev-deploy:
     - echo "CI_REGISTRY=$CI_REGISTRY" >> .env
     - echo "TAG=$TAG" >> .env
     - source .env
+    - export FRONTEND_ID=$(grep CANISTER_ID_frontend shared_output/.env | cut -d '=' -f2)
+    - echo "Frontend Canister ID: $FRONTEND_ID"
+    # Replace placeholder in template
+    - sed "s|__CANISTER_ID__|$FRONTEND_ID|g" infra/nginx-template.conf > generated-nginx.conf
+
   script:
     - scp -i $ID_RSA -o StrictHostKeyChecking=no docker-compose.yml root@$SERVER_HOST:/home/arks/domains/dev.arks.web.id/public_html/
+    - scp -i $ID_RSA -o StrictHostKeyChecking=no generated-nginx.conf root@$SERVER_HOST:/etc/nginx/sites-available/dev.arks.web.id.conf
+
     - scp -i $ID_RSA -o StrictHostKeyChecking=no .env root@$SERVER_HOST:/home/arks/domains/dev.arks.web.id/public_html/
     - ssh -i $ID_RSA -o StrictHostKeyChecking=no root@$SERVER_HOST "
+      sudo ln -sf /etc/nginx/sites-available/dev.arks.web.id.conf /etc/nginx/sites-enabled/ &&
+      sudo nginx -t && sudo systemctl reload nginx;
       cd /home/arks/domains/dev.arks.web.id/public_html;
       source .env;
       docker compose -f docker-compose.yml pull dfx;

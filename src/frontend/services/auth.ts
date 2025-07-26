@@ -52,28 +52,6 @@ class AuthServiceImpl implements AuthService {
     }
   }
 
-  async connectInternetIdentity(): Promise<AuthUser> {
-    // Dynamic import to avoid SSR issues
-    const { IdentityLogin } = await import('ic-auth');
-
-    const user = await IdentityLogin(this.host);
-
-    if (user && user.principal) {
-      const authUser: AuthUser = {
-        principal: typeof user.principal === 'string' ? user.principal : String(user.principal),
-        agent: user.agent,
-        isConnected: true,
-        walletType: 'internet-identity'
-      };
-
-      this.currentUser = authUser;
-      console.log("Internet Identity connected successfully with ic-auth!");
-      return authUser;
-    } else {
-      throw new Error("Failed to get user object from Internet Identity");
-    }
-  }
-
   disconnect(): void {
     this.currentUser = null;
     this.userRole = undefined;

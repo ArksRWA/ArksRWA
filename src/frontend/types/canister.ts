@@ -38,9 +38,9 @@ export interface CreateCompanyParams {
   symbol: string;
   logoUrl: string;
   description: string;
-  valuation: number;
-  desiredSupply?: number;
-  desiredPrice?: number;
+  valuation: bigint;
+  desiredSupply?: bigint;
+  desiredPrice?: bigint;
 }
 
 // Utility functions to convert between Candid and frontend types
@@ -88,7 +88,7 @@ export class CanisterCallError extends Error implements CanisterError {
 }
 
 // Result types for better error handling
-export type Result<T, E = string> = 
+export type Result<T, E = string> =
   | { success: true; data: T }
   | { success: false; error: E };
 
@@ -97,13 +97,12 @@ export interface AuthUser {
   principal: string;
   agent?: any;
   isConnected: boolean;
-  walletType: 'plug' | 'internet-identity';
+  walletType: 'plug';
   role?: 'user' | 'company';
 }
 
 export interface AuthService {
   connectPlug(): Promise<AuthUser>;
-  connectInternetIdentity(): Promise<AuthUser>;
   disconnect(): void;
   getCurrentUser(): AuthUser | null;
   isAuthenticated(): boolean;

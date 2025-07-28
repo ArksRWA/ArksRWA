@@ -8,10 +8,15 @@ import Int "mo:base/Int";
 import Option "mo:base/Option";
 import Time "mo:base/Time";
 import HashMap "mo:base/HashMap";
-import Iter "mo:base/Iter";
 import Hash "mo:base/Hash";
+import Iter "mo:base/Iter";
 
 actor class ARKSRWA(init_admin: ?Principal) = this {
+
+  // Custom hash function for Nat to avoid deprecation warning
+  func natHash(n : Nat) : Hash.Hash {
+    Text.hash(Nat.toText(n));
+  };
 
   // Admin principal - configurable via constructor parameter
   let admin : Principal = switch(init_admin) {
@@ -76,7 +81,7 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
     #GenericError : { error_code : Nat; message : Text };
   };
 
-  var companies : HashMap.HashMap<Nat, Company> = HashMap.HashMap(0, Nat.equal, Hash.hash);
+  var companies : HashMap.HashMap<Nat, Company> = HashMap.HashMap(0, Nat.equal, natHash);
 
   var holdings : HashMap.HashMap<Principal, HashMap.HashMap<Nat, Nat>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
 
@@ -91,7 +96,6 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
   let bondingCurveExponent : Float = 1.5;
   let volumeThreshold : Nat = 50;
   let volumeMultiplier : Float = 1.1;
-  let velocityBonus : Float = 1.05;
   let scarcityThreshold : Float = 0.1;  // 10%
   let scarcityMultiplier : Float = 2.0;
   let defaultTokenPrice : Nat = 1_000_000;
@@ -101,11 +105,11 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
   };
 
   // Enhanced pricing helper functions
-  func safeDivide(numerator : Nat, denominator : Nat) : Nat {
-    if (denominator == 0) {
-      0; // Return 0 for division by zero to prevent traps
+  func safeSubtract(a : Nat, b : Nat) : Nat {
+    if (a >= b) {
+      a - b;
     } else {
-      numerator / denominator;
+      0; // Return 0 if subtraction would underflow
     };
   };
 
@@ -173,7 +177,7 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
     let baseBondingPrice = calculateBaseBondingCurvePrice(basePrice, sold, supply);
     
     // Step 2: Calculate combined multiplier for scarcity and volume effects
-    let remaining = supply - sold;
+    let remaining = safeSubtract(supply, sold);
     let combinedMultiplier = calculateCombinedMultiplier(remaining, supply, purchaseAmount);
     
     // Step 3: Apply multiplier and convert safely back to Nat
@@ -275,8 +279,8 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
       throw Error.reject("Not enough tokens available");
     };
 
-    let updatedRemaining = company.remaining - amount;
-    let sold = company.supply - updatedRemaining;
+    let updatedRemaining = safeSubtract(company.remaining, amount);
+    let sold = safeSubtract(company.supply, updatedRemaining);
     
     // Use enhanced pricing calculation
     let newTokenPrice = calculateEnhancedPrice(company.base_price, sold, company.supply, amount);
@@ -287,7 +291,7 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
     };
     companies.put(companyId, updatedCompany);
 
-    let personalHoldings = Option.get(holdings.get(caller), HashMap.HashMap<Nat, Nat>(0, Nat.equal, Hash.hash));
+    let personalHoldings = Option.get(holdings.get(caller), HashMap.HashMap<Nat, Nat>(0, Nat.equal, natHash));
     let currentAmount = Option.get(personalHoldings.get(companyId), 0);
     personalHoldings.put(companyId, currentAmount + amount);
     holdings.put(caller, personalHoldings);
@@ -309,7 +313,7 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
           throw Error.reject("Not enough tokens to sell");
         };
 
-        let newAmount = currentAmount - amount;
+        let newAmount = safeSubtract(currentAmount, amount);
 
         if (newAmount == 0) {
           let _ = personalHoldings.remove(companyId);
@@ -324,7 +328,7 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
         };
 
         let updatedRemaining = company.remaining + amount;
-        let sold = company.supply - updatedRemaining;
+        let sold = safeSubtract(company.supply, updatedRemaining);
         
         // Use enhanced pricing calculation
         let newTokenPrice = calculateEnhancedPrice(company.base_price, sold, company.supply, amount);
@@ -352,10 +356,10 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
           #err("Not enough tokens available");
         } else {
           let currentPrice = company.token_price;
-          let updatedRemaining = company.remaining - amount;
-          let sold = company.supply - updatedRemaining;
+          let updatedRemaining = safeSubtract(company.remaining, amount);
+          let sold = safeSubtract(company.supply, updatedRemaining);
           let newPrice = calculateEnhancedPrice(company.base_price, sold, company.supply, amount);
-          let priceImpact = if (newPrice > currentPrice) { newPrice - currentPrice } else { 0 };
+          let priceImpact = if (newPrice > currentPrice) { safeSubtract(newPrice, currentPrice) } else { 0 };
           let totalCost = (currentPrice + newPrice) * amount / 2; // Average price approximation
           #ok({ newPrice = newPrice; priceImpact = priceImpact; totalCost = totalCost });
         };
@@ -377,9 +381,9 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
         if (updatedRemaining > company.supply) {
           #err("Cannot sell more tokens than were originally sold");
         } else {
-          let sold = company.supply - updatedRemaining;
+          let sold = safeSubtract(company.supply, updatedRemaining);
           let newPrice = calculateEnhancedPrice(company.base_price, sold, company.supply, amount);
-          let priceImpact = if (currentPrice > newPrice) { currentPrice - newPrice } else { 0 };
+          let priceImpact = if (currentPrice > newPrice) { safeSubtract(currentPrice, newPrice) } else { 0 };
           let totalReturn = (currentPrice + newPrice) * amount / 2; // Average price approximation
           #ok({ newPrice = newPrice; priceImpact = priceImpact; totalReturn = totalReturn });
         };
@@ -594,14 +598,14 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
         let fromPrincipal = caller;
         let toPrincipal = args.to.owner;
 
-        let fromHoldings = Option.get(holdings.get(fromPrincipal), HashMap.HashMap<Nat, Nat>(0, Nat.equal, Hash.hash));
+        let fromHoldings = Option.get(holdings.get(fromPrincipal), HashMap.HashMap<Nat, Nat>(0, Nat.equal, natHash));
         let currentBalance = Option.get(fromHoldings.get(companyId), 0);
 
         if (currentBalance < args.amount) {
           return #Err(#InsufficientFunds({ balance = currentBalance }));
         };
 
-        let newFromBalance = currentBalance - args.amount;
+        let newFromBalance = safeSubtract(currentBalance, args.amount);
 
         if (newFromBalance == 0) {
           let _ = fromHoldings.remove(companyId);
@@ -615,7 +619,7 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
           holdings.put(fromPrincipal, fromHoldings);
         };
 
-        let toHoldings = Option.get(holdings.get(toPrincipal), HashMap.HashMap<Nat, Nat>(0, Nat.equal, Hash.hash));
+        let toHoldings = Option.get(holdings.get(toPrincipal), HashMap.HashMap<Nat, Nat>(0, Nat.equal, natHash));
         let currentToBalance = Option.get(toHoldings.get(companyId), 0);
         toHoldings.put(companyId, currentToBalance + args.amount);
         holdings.put(toPrincipal, toHoldings);

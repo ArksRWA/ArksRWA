@@ -2,15 +2,14 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  distDir: 'build',
+  output: 'export',
+  distDir: '.next/build',
+  trailingSlash: true,      
   webpack: (config, { isServer }) => {
-    // Add alias for declarations
     config.resolve.alias = {
       ...config.resolve.alias,
       '@declarations': path.resolve(__dirname, '../declarations'),
     };
-    
     return config;
   },
 };

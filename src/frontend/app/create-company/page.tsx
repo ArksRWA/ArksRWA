@@ -77,8 +77,8 @@ export default function CreateCompanyPage() {
         throw new Error('Please fill in all required fields');
       }
 
-      const valuationNum = parseInt(valuation);
-      if (isNaN(valuationNum) || valuationNum < 10_000_000) {
+      const valuationBigInt = BigInt(valuation);
+      if (valuationBigInt < 10000000n) {
         throw new Error('Valuation must be at least 10,000,000');
       }
 
@@ -86,17 +86,17 @@ export default function CreateCompanyPage() {
         throw new Error('Symbol must be 3-5 characters');
       }
 
-      let supply: number | undefined = undefined;
-      let price: number | undefined = undefined;
+      let supply: bigint | undefined = undefined;
+      let price: bigint | undefined = undefined;
 
       if (supplyType === 'supply' && desiredSupply) {
-        supply = parseInt(desiredSupply);
-        if (isNaN(supply) || supply <= 0) {
+        supply = BigInt(desiredSupply);
+        if (supply <= 0n) {
           throw new Error('Supply must be a positive number');
         }
       } else if (supplyType === 'price' && desiredPrice) {
-        price = parseInt(desiredPrice);
-        if (isNaN(price) || price <= 0) {
+        price = BigInt(desiredPrice);
+        if (price <= 0n) {
           throw new Error('Price must be a positive number');
         }
       }
@@ -106,7 +106,7 @@ export default function CreateCompanyPage() {
         symbol: symbol.toUpperCase(),
         logoUrl,
         description,
-        valuation: valuationNum,
+        valuation: valuationBigInt,
         desiredSupply: supply,
         desiredPrice: price
       });

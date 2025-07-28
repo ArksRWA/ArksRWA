@@ -1,0 +1,26 @@
+# Ignore version control folders
+.git
+.github
+
+# Ignore local DFX state
+.dfx
+
+# Ignore Node.js dependencies, as they will be installed inside the container
+node_modules
+src/frontend/node_modules
+
+# Ignore build artifacts
+build
+.next
+src/frontend/.next
+src/frontend/build
+
+# Ignore local environment files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Ignore IDE and OS-specific files
+.vscode
+.DS_Store

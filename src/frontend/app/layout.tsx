@@ -4,8 +4,8 @@ import Navigation from './components/Navigation';
 
 export const metadata: Metadata = {
   title: 'ARKS RWA - Real World Asset Tokenization',
-  description: 'Tokenize Real World Assets on the Internet Computer. Create, trade, and manage tokenized companies with full transparency and security.',
-  keywords: 'RWA, Real World Assets, Tokenization, Internet Computer, DeFi, Trading',
+  description: 'Tokenize Real World Assets. Create, trade, and manage tokenized companies with full transparency and security.',
+  keywords: 'RWA, Real World Assets, Tokenization, DeFi, Trading, Plug Wallet',
   authors: [{ name: 'ARKS RWA Team' }],
 };
 

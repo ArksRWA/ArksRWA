@@ -1,0 +1,86 @@
+stages:
+  - dev-pre-merge
+  - dev-build
+  - dev-deploy
+  #- prod-pre-merge
+  #- prod-build
+  #- prod-deploy
+
+variables:
+  DEV_TAG: "$GIT_COMMIT_TAG"
+
+
+dev-pre-merge:
+  rules:
+    - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "dev" && $CI_PIPELINE_SOURCE == "merge_request_event"'
+  image: docker:20.10.16
+  stage: dev-pre-merge
+  services:
+    - docker:20.10.16-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - rm -rf .env.local
+    - cp $DEV_ENV .env.local
+    - cat .env.local
+    - source .env.local
+    - export TAG="${MAJOR_VERSION}.${MINOR_VERSION}.$BUILD_NUMBER-dev"
+  script:
+    - docker build -t $CI_REGISTRY/odikk60/arks-rwa:$TAG .
+
+dev-build:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+  image: docker:20.10.16
+  stage: dev-build
+  services:
+    - docker:20.10.16-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - apk add git
+    - rm -rf .env
+    - cp $DEV_ENV .env
+    - source .env
+    - export TAG="${MAJOR_VERSION}.${MINOR_VERSION}.${BUILD_NUMBER}-dev"
+    - git remote set-url origin ${CI_PROJECT_URL/gitlab.com/oauth2:${PERSONAL_ACCESS_TOKEN}@gitlab.com}.git
+    - git remote -v
+  script:
+    - git tag $TAG
+    - git push origin $TAG
+    - echo 'Pushed new tag:' $TAG
+    - docker build -t $CI_REGISTRY/odikk60/arks-rwa:$TAG .
+    - docker push $CI_REGISTRY/odikk60/arks-rwa:$TAG
+
+dev-deploy:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+  image: docker:20.10.16
+  environment:
+    name: Development
+    url: https://api.dev.cosrent.id
+  services:
+    - docker:20.10.16-dind
+  stage: dev-deploy
+  before_script:
+    - apk add openssh-client git
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - export TAG="$(git describe --tags --abbrev=0)"
+    - echo 'last tag:' $TAG
+    - rm -rf .env
+    - cp $DEV_ENV .env
+    - echo "CI_REGISTRY=$CI_REGISTRY" >> .env
+    - echo "TAG=$TAG" >> .env
+    - source .env
+  script:
+    - scp -i $ID_RSA -o StrictHostKeyChecking=no docker-compose.yml root@$SERVER_HOST:/home/arks/domains/dev.arks.web.id/public_html/
+    - scp -i $ID_RSA -o StrictHostKeyChecking=no .env root@$SERVER_HOST:/home/arks/domains/dev.arks.web.id/public_html/
+    - ssh -i $ID_RSA -o StrictHostKeyChecking=no root@$SERVER_HOST "
+      cd /home/arks/domains/dev.arks.web.id/public_html;
+      source .env;
+      docker compose -f docker-compose.yml pull dfx;
+      docker compose -f docker-compose.yml up -d --force-recreate
+      "
+    - rm -rf .env
+

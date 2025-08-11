@@ -29,7 +29,7 @@ export default function CompanyCard({
 
   return (
     <div
-      className={`bg-card-bg border border-gray-700 rounded-lg p-6 hover:border-primary/50 transition-colors cursor-pointer group ${className}`}
+      className={`modern-card p-6 cursor-pointer group ${className}`}
       onClick={handleCardClick}
     >
       {/* Company Header */}
@@ -41,7 +41,7 @@ export default function CompanyCard({
             className="w-12 h-12 rounded-lg object-cover"
           />
         ) : (
-          <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center group-hover:bg-primary/30 transition-colors">
             <span className="text-xl font-bold text-primary">{company.symbol[0]}</span>
           </div>
         )}

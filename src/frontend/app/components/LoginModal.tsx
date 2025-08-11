@@ -20,15 +20,25 @@ export default function LoginModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 min-h-screen">
       {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+      <div
+        className="absolute inset-0"
+        style={{
+          background: 'linear-gradient(135deg, rgba(0, 0, 0, 0.85) 0%, rgba(17, 24, 39, 0.9) 50%, rgba(0, 0, 0, 0.85) 100%)',
+          zIndex: 1
+        }}
         onClick={onClose}
       />
       
       {/* Modal */}
-      <div className="relative bg-card-bg border border-gray-700 rounded-lg shadow-2xl p-8 max-w-lg w-full mx-4">
+      <div className="relative backdrop-blur-xl rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+           style={{
+             background: 'rgba(17, 24, 39, 0.95)',
+             border: '1px solid rgba(75, 85, 99, 0.5)',
+             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3)',
+             zIndex: 2
+           }}>
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -47,8 +57,8 @@ export default function LoginModal({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Choose Login Type</h2>
-          <p className="text-gray-400">Select how you want to access the platform</p>
+          <h3 className="text-2xl font-bold text-white mb-2">Choose Login Type</h3>
+          <p className="text-white-400">Select how you want to access the platform</p>
         </div>
 
         {/* Login Options */}
@@ -65,7 +75,7 @@ export default function LoginModal({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
               </div>
-              <h3 className="text-base font-semibold text-white mb-2">Login as User</h3>
+              <h4 className="text-xl font-semibold text-white mb-2">Login as User</h4>
               <p className="text-sm text-gray-400">
                 Browse and invest in tokenized companies
               </p>
@@ -84,7 +94,7 @@ export default function LoginModal({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
               </div>
-              <h3 className="text-base font-semibold text-white mb-2">Login as Company</h3>
+              <h4 className="text-xl font-semibold text-white mb-2">Login as Company</h4>
               <p className="text-sm text-gray-400">
                 Create and manage your tokenized company
               </p>
@@ -106,7 +116,7 @@ export default function LoginModal({
 
         {/* Footer */}
         <div className="mt-8 pt-6 border-t border-gray-700">
-          <p className="text-xs text-gray-500 text-center">
+          <p className="text-xs text-white-500 text-center">
             By connecting, you agree to our Terms of Service and Privacy Policy
           </p>
         </div>

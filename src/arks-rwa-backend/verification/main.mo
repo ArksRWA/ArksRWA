@@ -17,6 +17,7 @@ import Iter "mo:base/Iter";
 
 import Types "./types";
 import Core "./core";
+import Constants "./constants";
 
 // Verification Engine Module
 module {
@@ -43,6 +44,10 @@ module {
     private var verificationProfiles : HashMap.HashMap<Nat, VerificationProfile> = HashMap.HashMap(0, Nat.equal, natHash);
     private var verificationJobs : HashMap.HashMap<Nat, VerificationJob> = HashMap.HashMap(0, Nat.equal, natHash);
     private var jobCounter : Nat = 0;
+    
+    // Enhanced verification system storage (optional for future use)
+    private var performanceMetrics : ?Types.PerformanceMetrics = null;
+    private var weightSystemVersion : Text = "2.0.0-indonesian-enhanced";
 
     // Cache for recent search results (to avoid repeated API calls)
     private var searchCache : HashMap.HashMap<Text, (Int, Text)> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -349,6 +354,73 @@ module {
       };
       
       { entries = totalEntries; oldEntries = oldEntries };
+    };
+
+    // === ENHANCED VERIFICATION SYSTEM INTEGRATION ===
+    
+    // Get current weight system version
+    public func getWeightSystemVersion() : Text {
+      weightSystemVersion;
+    };
+    
+    // Get performance metrics (if available)
+    public func getPerformanceMetrics() : ?Types.PerformanceMetrics {
+      performanceMetrics;
+    };
+    
+    // Update performance metrics based on verification results
+    public func updatePerformanceMetrics(
+      verificationResults: [(VerificationProfile, Bool)], // (profile, isActuallyFraudulent)
+      processingTimes: [Int]
+    ) : Types.PerformanceMetrics {
+      let metrics = Core.calculatePerformanceMetrics(verificationResults, processingTimes);
+      performanceMetrics := ?metrics;
+      metrics;
+    };
+    
+    // Enhanced verification with context awareness (future integration point)
+    public func performEnhancedVerification(
+      companyId : Nat, 
+      companyName : Text, 
+      companyDescription : Text,
+      priority : JobPriority
+    ) : async Nat {
+      // For now, delegate to standard verification
+      // Future enhancement: build verification context and use enhanced weight system
+      await startVerification(companyId, companyName, priority);
+    };
+    
+    // Validate current weight configuration
+    public func validateWeights() : { isValid: Bool; warnings: [Text]; recommendations: [Text] } {
+      let weights = HashMap.HashMap<Text, Float>(6, Text.equal, Text.hash);
+      weights.put("fraud_keywords", Constants.FRAUD_KEYWORDS_WEIGHT);
+      weights.put("news_sentiment", Constants.NEWS_SENTIMENT_WEIGHT);
+      weights.put("business_registry", Constants.BUSINESS_REGISTRY_WEIGHT);
+      weights.put("authority_mentions", Constants.AUTHORITY_MENTIONS_WEIGHT);
+      weights.put("digital_footprint", Constants.DIGITAL_FOOTPRINT_WEIGHT);
+      weights.put("domain_age", Constants.DOMAIN_AGE_WEIGHT);
+      
+      Core.validateWeightConfiguration(weights);
+    };
+    
+    // Get weight optimization recommendations (if performance metrics available)
+    public func getWeightOptimizationRecommendations() : ?[(Text, Float)] {
+      switch (performanceMetrics) {
+        case (?currentMetrics) {
+          let targetMetrics : Types.PerformanceMetrics = {
+            falsePositiveRate = Constants.TARGET_FALSE_POSITIVE_RATE;
+            falseNegativeRate = Constants.TARGET_FALSE_NEGATIVE_RATE;
+            f1Score = Constants.TARGET_F1_SCORE;
+            accuracyScore = 0.85; // Target 85% accuracy
+            processingTime = Constants.MAX_PROCESSING_TIME_MS * 1_000_000; // Convert to nanoseconds
+            totalVerifications = 0; // Not used for recommendations
+            lastCalculated = Time.now();
+          };
+          
+          ?Core.recommendWeightAdjustments(currentMetrics, targetMetrics);
+        };
+        case (null) { null };
+      };
     };
 
     // System IC interface for HTTP requests

@@ -103,43 +103,4 @@ module {
     #cancelled;   // Cancelled by admin
   };
 
-  // Indonesian fraud detection keywords
-  public let INDONESIAN_FRAUD_KEYWORDS : [Text] = [
-    "penipuan",      // fraud
-    "scam", 
-    "penipu",        // fraudster
-    "gugatan",       // lawsuit
-    "ilegal",        // illegal
-    "tutup",         // closed
-    "bangkrut",      // bankrupt
-    "investasi bodong", // fraudulent investment
-    "money game",
-    "skema ponzi",   // ponzi scheme
-    "multi level marketing palsu", // fake MLM
-    "bermasalah",    // problematic
-    "tertipu",       // deceived
-    "kerugian",      // loss
-    "polisi",        // police
-    "kepolisian",    // police (formal)
-    "kejaksaan",     // prosecutor's office
-    "pengadilan",    // court
-    "sanksi",        // sanctions
-    "denda"          // fine
-  ];
-
-  // Indonesian legitimacy indicators
-  public let INDONESIAN_LEGITIMACY_KEYWORDS : [Text] = [
-    "OJK",           // Financial Services Authority
-    "Kementerian",   // Ministry
-    "resmi",         // official
-    "terdaftar",     // registered
-    "izin",          // permit/license
-    "sertifikat",    // certificate
-    "akreditasi",    // accreditation
-    "audit",         // audit
-    "ISO",           // ISO certification
-    "NPWP",          // Tax ID
-    "NIB",           // Business ID Number
-    "OSS"            // Online Single Submission
-  ];
 }

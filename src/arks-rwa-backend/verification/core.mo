@@ -13,6 +13,7 @@ import Cycles "mo:base/ExperimentalCycles";
 import Char "mo:base/Char";
 
 import Types "./types";
+import Constants "./constants";
 import Iter "mo:base/Iter";
 
 module {
@@ -360,7 +361,7 @@ private func cleanUrl(url : Text) : Text {
 
     var foundKeywords : [Text] = [];
 
-    for (keyword in Types.INDONESIAN_FRAUD_KEYWORDS.vals()) {
+    for (keyword in Constants.INDONESIAN_FRAUD_KEYWORDS.vals()) {
       if (Text.contains(lowerText, #text keyword)) {
         foundKeywords := Array.append(foundKeywords, [keyword]);
       };
@@ -394,12 +395,12 @@ private func cleanUrl(url : Text) : Text {
   // Assign weights to different types of checks
   private func getCheckWeight(checkType : Text) : Float {
     switch (checkType) {
-      case ("fraud_keywords") { 3.0 };      // High weight for direct fraud indicators
-      case ("news_sentiment") { 2.5 };      // High weight for news analysis
-      case ("business_registry") { 2.0 };   // Important for legitimacy
-      case ("authority_mentions") { 2.0 };  // OJK, government mentions
-      case ("digital_footprint") { 1.5 };   // Medium weight for web presence
-      case ("domain_age") { 1.0 };          // Lower weight for technical factors
+      case ("fraud_keywords") { Constants.FRAUD_KEYWORDS_WEIGHT };
+      case ("news_sentiment") { Constants.NEWS_SENTIMENT_WEIGHT };
+      case ("business_registry") { Constants.BUSINESS_REGISTRY_WEIGHT };
+      case ("authority_mentions") { Constants.AUTHORITY_MENTIONS_WEIGHT };
+      case ("digital_footprint") { Constants.DIGITAL_FOOTPRINT_WEIGHT };
+      case ("domain_age") { Constants.DOMAIN_AGE_WEIGHT };
       case (_) { 1.0 };                     // Default weight
     };
   };
@@ -408,8 +409,8 @@ private func cleanUrl(url : Text) : Text {
   public func determineVerificationStatus(score : Float, fraudKeywords : [Text]) : VerificationStatus {
     if (fraudKeywords.size() > 0) { return #failed };
 
-    if (score >= 80.0) { #verified }
-    else if (score >= 50.0) { #suspicious }
+    if (score >= Constants.VERIFIED_MIN_SCORE) { #verified }
+    else if (score >= Constants.SUSPICIOUS_MIN_SCORE) { #suspicious }
     else { #failed };
   };
 

@@ -11,6 +11,10 @@ import HashMap "mo:base/HashMap";
 import Hash "mo:base/Hash";
 import Iter "mo:base/Iter";
 
+// Import verification system
+import VerificationTypes "./verification/types";
+import VerificationEngine "./verification/main";
+
 actor class ARKSRWA(init_admin: ?Principal) = this {
 
   // Custom hash function for Nat to avoid deprecation warning
@@ -38,6 +42,11 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
     logo_url : Text;
     description : Text;
     created_at : Nat;
+    // Verification fields
+    verification_status : VerificationTypes.VerificationStatus;
+    verification_score : ?Float;
+    last_verified : ?Int;
+    verification_job_id : ?Nat;
   };
 
   type TokenHolder = {
@@ -91,6 +100,9 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
   
   // Account type overrides - allows users to manually set their account type
   var accountTypeOverrides : HashMap.HashMap<Principal, AccountType> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+
+  // Initialize verification engine
+  private let verificationEngine = VerificationEngine.createVerificationEngine();
 
   // Enhanced pricing configuration
   let bondingCurveExponent : Float = 1.5;
@@ -222,6 +234,13 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
     };
 
     let minTokens : Nat = if (supply < 5) { 1 } else { 5 };
+    // Start verification process
+    let verificationJobId = await verificationEngine.startVerification(
+      companyCount, 
+      name, 
+      #normal  // Normal priority for new companies
+    );
+
     let newCompany : Company = {
       id = companyCount;
       name = name;
@@ -236,6 +255,11 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
       logo_url = logo_url;
       description = description;
       created_at = created_at;
+      // Initialize verification fields
+      verification_status = #pending;
+      verification_score = null;
+      last_verified = null;
+      verification_job_id = ?verificationJobId;
     };
 
     companies.put(companyCount, newCompany);
@@ -627,6 +651,220 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
         transactionCount += 1;
         return #Ok(transactionCount);
       };
+    };
+  };
+
+  // ===== VERIFICATION SYSTEM FUNCTIONS =====
+
+  // Get verification status for a company
+  public query func getCompanyVerificationStatus(companyId : Nat) : async ?{
+    status : VerificationTypes.VerificationStatus;
+    score : ?Float;
+    lastVerified : ?Int;
+  } {
+    switch (companies.get(companyId)) {
+      case (?company) {
+        ?{
+          status = company.verification_status;
+          score = company.verification_score;
+          lastVerified = company.last_verified;
+        };
+      };
+      case null { null };
+    };
+  };
+
+  // Get detailed verification profile for a company
+  public query func getCompanyVerificationProfile(companyId : Nat) : async ?VerificationTypes.VerificationProfile {
+    verificationEngine.getVerificationProfile(companyId);
+  };
+
+  // Check if company needs reverification
+  public query func companyNeedsReverification(companyId : Nat) : async Bool {
+    verificationEngine.needsReverification(companyId);
+  };
+
+  // Get verification job status
+  public query func getVerificationJobStatus(jobId : Nat) : async ?VerificationTypes.VerificationJob {
+    verificationEngine.getJobStatus(jobId);
+  };
+
+  // Start manual verification for a company (admin only)
+  public func startManualVerification(companyId : Nat, priority : VerificationTypes.JobPriority, caller : Principal) : async ?Nat {
+    if (caller != admin) {
+      throw Error.reject("Authorization failed: Only admin can start manual verification.");
+    };
+
+    switch (companies.get(companyId)) {
+      case (?company) {
+        let jobId = await verificationEngine.startVerification(companyId, company.name, priority);
+        
+        // Update company with new verification job ID
+        let updatedCompany = {
+          company with
+          verification_status = #pending;
+          verification_job_id = ?jobId;
+        };
+        companies.put(companyId, updatedCompany);
+        
+        ?jobId;
+      };
+      case null { null };
+    };
+  };
+
+  // Process pending verification jobs (admin only)
+  public func processVerificationJobs(maxJobs : Nat, caller : Principal) : async Nat {
+    if (caller != admin) {
+      throw Error.reject("Authorization failed: Only admin can process verification jobs.");
+    };
+
+    let pendingJobs = verificationEngine.listPendingJobs();
+    var processedCount = 0;
+
+    for (job in pendingJobs.vals()) {
+      if (processedCount < maxJobs and job.status == #queued) {
+        let success = await verificationEngine.processVerificationJob(job.jobId);
+        if (success) {
+          processedCount += 1;
+          
+          // Update company verification status
+          await updateCompanyFromVerificationResult(job.companyId);
+        };
+      };
+    };
+
+    processedCount;
+  };
+
+  // Update company data from verification results
+  private func updateCompanyFromVerificationResult(companyId : Nat) : async () {
+    switch (companies.get(companyId)) {
+      case (?company) {
+        switch (verificationEngine.getVerificationProfile(companyId)) {
+          case (?profile) {
+            let updatedCompany = {
+              company with
+              verification_status = profile.verificationStatus;
+              verification_score = ?profile.overallScore;
+              last_verified = ?profile.lastVerified;
+            };
+            companies.put(companyId, updatedCompany);
+          };
+          case null { /* No profile available yet */ };
+        };
+      };
+      case null { /* Company not found */ };
+    };
+  };
+
+  // Get verification statistics for admin dashboard
+  public query func getVerificationStats(caller : Principal) : async ?{
+    totalCompanies : Nat;
+    verifiedCompanies : Nat;
+    pendingVerifications : Nat;
+    suspiciousCompanies : Nat;
+    failedVerifications : Nat;
+    averageScore : ?Float;
+  } {
+    if (caller != admin) {
+      return null; // Only admin can access stats
+    };
+
+    var verifiedCount = 0;
+    var pendingCount = 0;
+    var suspiciousCount = 0;
+    var failedCount = 0;
+    var totalScore : Float = 0.0;
+    var scoredCount = 0;
+
+    for (company in companies.vals()) {
+      switch (company.verification_status) {
+        case (#verified) { verifiedCount += 1 };
+        case (#pending) { pendingCount += 1 };
+        case (#suspicious) { suspiciousCount += 1 };
+        case (#failed) { failedCount += 1 };
+        case (#error) { failedCount += 1 };
+      };
+
+      switch (company.verification_score) {
+        case (?score) {
+          totalScore += score;
+          scoredCount += 1;
+        };
+        case null {};
+      };
+    };
+
+    let averageScore = if (scoredCount > 0) {
+      ?(totalScore / Float.fromInt(scoredCount));
+    } else {
+      null;
+    };
+
+    ?{
+      totalCompanies = companyCount;
+      verifiedCompanies = verifiedCount;
+      pendingVerifications = pendingCount;
+      suspiciousCompanies = suspiciousCount;
+      failedVerifications = failedCount;
+      averageScore = averageScore;
+    };
+  };
+
+  // Cancel verification job (admin only)
+  public func cancelVerificationJob(jobId : Nat, caller : Principal) : async Bool {
+    if (caller != admin) {
+      throw Error.reject("Authorization failed: Only admin can cancel verification jobs.");
+    };
+
+    verificationEngine.cancelJob(jobId);
+  };
+
+  // Cleanup verification cache (admin only)
+  public func cleanupVerificationCache(caller : Principal) : async Nat {
+    if (caller != admin) {
+      throw Error.reject("Authorization failed: Only admin can cleanup cache.");
+    };
+
+    verificationEngine.cleanupCache();
+  };
+
+  // Get cache statistics (admin only)
+  public query func getVerificationCacheStats(caller : Principal) : async ?{
+    entries : Nat;
+    oldEntries : Nat;
+  } {
+    if (caller != admin) {
+      return null;
+    };
+
+    ?verificationEngine.getCacheStats();
+  };
+
+  // Override verification status (admin emergency function)
+  public func overrideVerificationStatus(
+    companyId : Nat, 
+    newStatus : VerificationTypes.VerificationStatus, 
+    newScore : ?Float, 
+    caller : Principal
+  ) : async Bool {
+    if (caller != admin) {
+      throw Error.reject("Authorization failed: Only admin can override verification status.");
+    };
+
+    switch (companies.get(companyId)) {
+      case (?company) {
+        let updatedCompany = {
+          company with
+          verification_status = newStatus;
+          verification_score = newScore;
+          last_verified = ?Time.now();
+        };
+        companies.put(companyId, updatedCompany);
+        true;
+      };
+      case null { false };
     };
   };
 };

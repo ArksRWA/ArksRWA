@@ -15,7 +15,7 @@ import Iter "mo:base/Iter";
 import VerificationTypes "./verification/types";
 import VerificationEngine "./verification/main";
 
-actor class ARKSRWA(init_admin: ?Principal) = this {
+actor class ARKSRWA(init_admin: ?Principal, init_gemini_key: ?Text) = this {
 
   // Custom hash function for Nat to avoid deprecation warning
   func natHash(n : Nat) : Hash.Hash {
@@ -26,6 +26,13 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
   let admin : Principal = switch(init_admin) {
     case (?p) p;
     case null Principal.fromText("o6dtt-od7eq-p5tmn-yilm3-4v453-v64p5-ep4q6-hxoeq-jhygx-u5dz7-aqe"); // fallback for local dev
+  };
+
+  // Gemini API key - stored in stable variable for upgrade safety
+  private stable var gemini_api_key : ?Text = init_gemini_key;
+  private stable var api_key_created_at : ?Int = switch(init_gemini_key) {
+    case (?_) ?Time.now();
+    case null null;
   };
 
   type Company = {
@@ -234,11 +241,12 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
     };
 
     let minTokens : Nat = if (supply < 5) { 1 } else { 5 };
-    // Start verification process
-    let verificationJobId = await verificationEngine.startVerification(
+    // Start verification process with Gemini API key support
+    let verificationJobId = await verificationEngine.startVerificationWithApiKey(
       companyCount, 
       name, 
-      #normal  // Normal priority for new companies
+      #normal,  // Normal priority for new companies
+      getGeminiApiKey()  // Pass the API key if available
     );
 
     let newCompany : Company = {
@@ -259,7 +267,7 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
       verification_status = #pending;
       verification_score = null;
       last_verified = null;
-      verification_job_id = ?verificationJobId;
+      verification_job_id = verificationJobId;
     };
 
     companies.put(companyCount, newCompany);
@@ -830,7 +838,7 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
     verificationEngine.cleanupCache();
   };
 
-  // Get cache statistics (admin only)
+  // Get cache statistics (admin only) - Legacy search cache
   public query func getVerificationCacheStats(caller : Principal) : async ?{
     entries : Nat;
     oldEntries : Nat;
@@ -840,6 +848,70 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
     };
 
     ?verificationEngine.getCacheStats();
+  };
+  
+  // NEW: Get Scorer API verification cache statistics
+  public query func getScorerCacheStats(caller : Principal) : async ?{ entries : Nat; expiredEntries : Nat; hitRate : ?Float } {
+    // Only admin can access cache stats
+    if (caller != admin) {
+      return null;
+    };
+    
+    ?verificationEngine.getVerificationCacheStats();
+  };
+  
+  // NEW: Clean up expired Scorer API cache entries
+  public func cleanupScorerCache(caller : Principal) : async ?Nat {
+    // Only admin can clean cache
+    if (caller != admin) {
+      return null;
+    };
+    
+    ?verificationEngine.cleanupVerificationCache();
+  };
+  
+  // NEW: Test Scorer API verification directly (for testing the new architecture)
+  public func testScorerApiVerification(companyId : Nat, caller : Principal) : async ?VerificationTypes.VerificationProfile {
+    // Only admin can test Scorer API
+    if (caller != admin) {
+      return null;
+    };
+    
+    switch (companies.get(companyId)) {
+      case (?company) {
+        try {
+          let profile = await verificationEngine.performScorerApiVerification(
+            companyId, 
+            company.name, 
+            company.description
+          );
+          ?profile;
+        } catch (error) {
+          null; // Return null on error for testing
+        };
+      };
+      case (null) { null };
+    };
+  };
+  
+  // NEW: Force refresh company verification using new architecture
+  public func refreshCompanyVerificationScorer(companyId : Nat, caller : Principal) : async ?VerificationTypes.VerificationProfile {
+    // Only admin can force refresh
+    if (caller != admin) {
+      return null;
+    };
+    
+    switch (companies.get(companyId)) {
+      case (?company) {
+        try {
+          let profile = await verificationEngine.refreshCompanyVerification(companyId, company.name);
+          ?profile;
+        } catch (error) {
+          null;
+        };
+      };
+      case (null) { null };
+    };
   };
 
   // Override verification status (admin emergency function)
@@ -865,6 +937,65 @@ actor class ARKSRWA(init_admin: ?Principal) = this {
         true;
       };
       case null { false };
+    };
+  };
+
+  // ===== GEMINI API KEY MANAGEMENT (Admin Only) =====
+
+  // Update Gemini API key (admin only)
+  public func updateGeminiApiKey(newKey : Text, caller : Principal) : async Bool {
+    if (caller != admin) {
+      throw Error.reject("Authorization failed: Only admin can update Gemini API key.");
+    };
+    gemini_api_key := ?newKey;
+    api_key_created_at := ?Time.now();
+    true;
+  };
+
+  // Remove Gemini API key (admin only)
+  public func removeGeminiApiKey(caller : Principal) : async Bool {
+    if (caller != admin) {
+      throw Error.reject("Authorization failed: Only admin can remove Gemini API key.");
+    };
+    gemini_api_key := null;
+    api_key_created_at := null;
+    true;
+  };
+
+  // Check if Gemini API key is configured (admin only)
+  public query func hasGeminiApiKey(caller : Principal) : async Bool {
+    if (caller != admin) {
+      return false;
+    };
+    switch (gemini_api_key) {
+      case (?key) Text.size(key) > 0;
+      case null false;
+    };
+  };
+
+  // Get Gemini API key creation timestamp (admin only)
+  public query func getGeminiApiKeyInfo(caller : Principal) : async ?{ createdAt : Int; isConfigured : Bool } {
+    if (caller != admin) {
+      return null;
+    };
+    switch (api_key_created_at, gemini_api_key) {
+      case (?timestamp, ?key) {
+        ?{ createdAt = timestamp; isConfigured = Text.size(key) > 0 };
+      };
+      case (_, _) null;
+    };
+  };
+
+  // Private helper to get API key for internal use
+  private func getGeminiApiKey() : ?Text {
+    gemini_api_key;
+  };
+
+  // Private helper to validate API key
+  private func isGeminiApiKeyValid() : Bool {
+    switch (gemini_api_key) {
+      case (?key) Text.size(key) >= 10; // Basic validation
+      case null false;
     };
   };
 };

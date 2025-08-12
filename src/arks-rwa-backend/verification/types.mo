@@ -268,6 +268,65 @@ module {
     #cancelled;   // Cancelled by admin
   };
 
+  // === SCORER API TYPES ===
+  
+  // Scorer API request payload
+  public type ScorerRequest = {
+    companyName: Text;
+    description: Text;
+    industry: ?Text;
+    registrationYear: ?Int;
+    signals: [FraudSignal];
+    snippets: [EvidenceSnippet];
+    context: VerificationContext;
+  };
+
+  // Scorer API response
+  public type ScorerResponse = {
+    score: Float;          // 0-100 verification score
+    status: Text;          // "verified", "suspicious", "failed"
+    confidence: Float;     // 0-1 confidence level
+    reasons: [Text];       // Human-readable explanations
+    riskFactors: [Text];   // Identified risk factors
+    fraudKeywords: [Text]; // Fraud keywords found
+    processingTimeMs: Nat; // Processing time on scorer side
+  };
+
+  // Feature extraction types for Scorer API
+  public type FraudSignal = {
+    signalType: Text;      // "registry", "news", "authority", "digital"
+    value: Text;           // Signal content
+    confidence: Float;     // 0-1 confidence in this signal
+    source: Text;          // Source of this signal
+  };
+
+  public type EvidenceSnippet = {
+    text: Text;            // Text snippet
+    relevance: Float;      // 0-1 relevance score
+    sentiment: Float;      // -1 to 1 sentiment
+    source: Text;          // Source URL or identifier
+  };
+
+  // Cache entry for verification results
+  public type CachedVerification = {
+    profile: VerificationProfile;
+    cachedAt: Int;         // Timestamp when cached
+    ttl: Int;              // Time-to-live in nanoseconds
+  };
+
+  // Features extracted from company data for API
+  public type CompanyFeatures = {
+    companyId: Nat;
+    companyName: Text;
+    description: Text;
+    industry: ?IndustryType;
+    registrationYear: ?Int;
+    businessSize: ?BusinessSize;
+    signals: [FraudSignal];
+    snippets: [EvidenceSnippet];
+    extractedAt: Int;      // When features were extracted
+  };
+
   // === BACKWARD COMPATIBILITY ===
   
   // Legacy types maintained for existing code during transition

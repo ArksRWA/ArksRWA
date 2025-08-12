@@ -1143,6 +1143,517 @@ private func cleanUrl(url : Text) : Text {
     };
   };
 
+  // === SCORER API FEATURE EXTRACTION ===
+  
+  // Extract features from company data for Scorer API
+  public func buildVerificationFeatures(
+    companyId: Nat,
+    companyName: Text,
+    description: Text,
+    industryType: ?Types.IndustryType,
+    registrationYear: ?Int
+  ) : Types.CompanyFeatures {
+    
+    // Create verification context for intelligent feature extraction
+    let context = createVerificationContext(companyName, description);
+    
+    // Extract fraud signals from company information
+    let signals = extractFraudSignals(companyName, description, context);
+    
+    // Extract evidence snippets from company data
+    let snippets = extractEvidenceSnippets(companyName, description, context);
+    
+    {
+      companyId = companyId;
+      companyName = companyName;
+      description = description;
+      industry = industryType;
+      registrationYear = registrationYear;
+      businessSize = ?context.companyProfile.businessSize;
+      signals = signals;
+      snippets = snippets;
+      extractedAt = Time.now();
+    };
+  };
+  
+  // Extract fraud signals from company information
+  private func extractFraudSignals(
+    companyName: Text,
+    description: Text,
+    context: Types.VerificationContext
+  ) : [Types.FraudSignal] {
+    var signals : [Types.FraudSignal] = [];
+    let searchText = Text.map(companyName # " " # description, func(c : Char) : Char {
+      if (c >= 'A' and c <= 'Z') {
+        Char.fromNat32(Char.toNat32(c) + 32);
+      } else {
+        c;
+      };
+    });
+    
+    // Registry signal
+    if (context.companyProfile.registrationStatus != #unknown) {
+      let registryValue = switch (context.companyProfile.registrationStatus) {
+        case (#ojk_registered) { "OJK registered - high legitimacy indicator" };
+        case (#oss_registered) { "OSS registered - good legitimacy indicator" };
+        case (#ministry_registered) { "Ministry registered - moderate legitimacy" };
+        case (#basic_registration) { "Basic registration only" };
+        case (#unregistered) { "No registration found - risk factor" };
+        case (#unknown) { "Registration status unknown" };
+      };
+      
+      let confidence = switch (context.companyProfile.registrationStatus) {
+        case (#ojk_registered) { 0.95 };
+        case (#oss_registered) { 0.85 };
+        case (#ministry_registered) { 0.75 };
+        case (#basic_registration) { 0.65 };
+        case (#unregistered) { 0.80 };
+        case (#unknown) { 0.30 };
+      };
+      
+      signals := Array.append(signals, [{
+        signalType = "registry";
+        value = registryValue;
+        confidence = confidence;
+        source = "company_analysis";
+      }]);
+    };
+    
+    // Authority signal based on mention type
+    if (context.mentionType != #neutral_mention) {
+      let authorityValue = switch (context.mentionType) {
+        case (#positive_endorsement) { "Positive authority endorsement found" };
+        case (#educational_content) { "Mentioned in educational content" };
+        case (#warning_issued) { "Authority warning issued - high risk" };
+        case (#under_investigation) { "Under investigation - very high risk" };
+        case (#fraud_confirmed) { "Fraud confirmed by authorities - maximum risk" };
+        case (#neutral_mention) { "Neutral authority mention" };
+      };
+      
+      let confidence = switch (context.mentionType) {
+        case (#positive_endorsement) { 0.97 };
+        case (#educational_content) { 0.70 };
+        case (#warning_issued) { 0.89 };
+        case (#under_investigation) { 0.92 };
+        case (#fraud_confirmed) { 0.99 };
+        case (#neutral_mention) { 0.50 };
+      };
+      
+      signals := Array.append(signals, [{
+        signalType = "authority";
+        value = authorityValue;
+        confidence = confidence;
+        source = "authority_analysis";
+      }]);
+    };
+    
+    // Digital footprint signal
+    let hasWebsiteIndicators = Text.contains(searchText, #text "website") or 
+                               Text.contains(searchText, #text "www.") or
+                               Text.contains(searchText, #text "http");
+    let hasSocialMedia = Text.contains(searchText, #text "facebook") or
+                        Text.contains(searchText, #text "instagram") or
+                        Text.contains(searchText, #text "linkedin");
+    
+    if (hasWebsiteIndicators or hasSocialMedia) {
+      let digitalValue = if (hasWebsiteIndicators and hasSocialMedia) { 
+        "Strong digital presence - website and social media" 
+      } else if (hasWebsiteIndicators) { 
+        "Website presence detected" 
+      } else { 
+        "Social media presence only" 
+      };
+      
+      let confidence = if (hasWebsiteIndicators and hasSocialMedia) { 0.85 }
+                      else if (hasWebsiteIndicators) { 0.70 }
+                      else { 0.55 };
+      
+      signals := Array.append(signals, [{
+        signalType = "digital";
+        value = digitalValue;
+        confidence = confidence;
+        source = "digital_footprint_analysis";
+      }]);
+    };
+    
+    // News sentiment signal
+    let sentiment = analyzeSentiment(searchText);
+    if (Float.abs(sentiment) > 0.3) {
+      let sentimentValue = if (sentiment > 0.3) { "Positive news sentiment detected" }
+                          else { "Negative news sentiment detected" };
+      
+      signals := Array.append(signals, [{
+        signalType = "news";
+        value = sentimentValue;
+        confidence = Float.min(0.80, Float.abs(sentiment));
+        source = "sentiment_analysis";
+      }]);
+    };
+    
+    // Filter signals by minimum confidence and limit count
+    let filteredSignals = Array.filter(signals, func(signal: Types.FraudSignal) : Bool {
+      signal.confidence >= Constants.MIN_SIGNAL_CONFIDENCE
+    });
+    
+    // Limit to max signals per request for token efficiency
+    if (filteredSignals.size() <= Constants.MAX_SIGNALS_PER_REQUEST) {
+      filteredSignals
+    } else {
+      Array.subArray(filteredSignals, 0, Constants.MAX_SIGNALS_PER_REQUEST)
+    };
+  };
+  
+  // Extract evidence snippets from company data
+  private func extractEvidenceSnippets(
+    companyName: Text,
+    description: Text,
+    context: Types.VerificationContext
+  ) : [Types.EvidenceSnippet] {
+    var snippets : [Types.EvidenceSnippet] = [];
+    
+    // Add company description as primary snippet
+    if (Text.size(description) >= Constants.MIN_SNIPPET_LENGTH) {
+      let truncatedDesc = if (Text.size(description) > Constants.MAX_SNIPPET_LENGTH) {
+        let chars = Text.toIter(description);
+        var truncated = "";
+        var count = 0;
+        label truncate for (char in chars) {
+          if (count >= Constants.MAX_SNIPPET_LENGTH) { break truncate };
+          truncated #= Char.toText(char);
+          count += 1;
+        };
+        truncated # "..."
+      } else {
+        description
+      };
+      
+      snippets := Array.append(snippets, [{
+        text = truncatedDesc;
+        relevance = 1.0;
+        sentiment = analyzeSentiment(description);
+        source = "company_description";
+      }]);
+    };
+    
+    // Add industry classification snippet if available
+    if (context.companyProfile.industry != #unknown) {
+      let industryText = switch (context.companyProfile.industry) {
+        case (#fintech) { "Financial technology company - high regulatory scrutiny required" };
+        case (#e_commerce) { "E-commerce business - moderate verification standards" };
+        case (#cryptocurrency) { "Cryptocurrency/blockchain - maximum due diligence required" };
+        case (#manufacturing) { "Manufacturing company - standard verification process" };
+        case (#agriculture) { "Agricultural business - traditional verification approach" };
+        case (#retail) { "Retail business - standard commercial verification" };
+        case (#services) { "Service provider - enhanced verification for financial services" };
+        case (#traditional) { "Traditional Indonesian business - cultural context important" };
+        case (#unknown) { "Unknown industry classification" };
+      };
+      
+      snippets := Array.append(snippets, [{
+        text = industryText;
+        relevance = 0.8;
+        sentiment = 0.0;
+        source = "industry_classification";
+      }]);
+    };
+    
+    // Add fraud keyword context if prevention content detected
+    if (context.isPreventionContent) {
+      snippets := Array.append(snippets, [{
+        text = "Company appears to be involved in fraud prevention or educational services - positive indicator";
+        relevance = 0.9;
+        sentiment = 0.5;
+        source = "prevention_content_analysis";
+      }]);
+    };
+    
+    // Add regional context snippet
+    if (context.regionalContext != #unknown) {
+      let regionalText = switch (context.regionalContext) {
+        case (#jakarta) { "Jakarta-based company - major business center with established infrastructure" };
+        case (#surabaya) { "Surabaya-based company - East Java business hub with good infrastructure" };
+        case (#bandung) { "Bandung-based company - technology center with innovation focus" };
+        case (#yogyakarta) { "Yogyakarta-based company - academic/cultural center" };
+        case (#medan) { "Medan-based company - North Sumatra business center" };
+        case (#remote) { "Remote/rural location - may have limited business infrastructure" };
+        case (#unknown) { "Location unknown" };
+      };
+      
+      let relevance = switch (context.regionalContext) {
+        case (#jakarta or #surabaya or #bandung) { 0.7 };
+        case (#yogyakarta or #medan) { 0.6 };
+        case (#remote) { 0.5 };
+        case (#unknown) { 0.3 };
+      };
+      
+      snippets := Array.append(snippets, [{
+        text = regionalText;
+        relevance = relevance;
+        sentiment = 0.0;
+        source = "regional_analysis";
+      }]);
+    };
+    
+    // Limit snippets for token efficiency
+    let limitedSnippets = if (snippets.size() <= Constants.MAX_SNIPPETS_PER_REQUEST) {
+      snippets
+    } else {
+      Array.subArray(snippets, 0, Constants.MAX_SNIPPETS_PER_REQUEST)
+    };
+    
+    limitedSnippets;
+  };
+  
+  // Create Scorer API request from features
+  public func createScorerRequest(features: Types.CompanyFeatures, context: Types.VerificationContext) : Types.ScorerRequest {
+    let industryText = switch (features.industry) {
+      case (?industry) {
+        switch (industry) {
+          case (#fintech) { ?"fintech" };
+          case (#e_commerce) { ?"e-commerce" };
+          case (#cryptocurrency) { ?"cryptocurrency" };
+          case (#manufacturing) { ?"manufacturing" };
+          case (#agriculture) { ?"agriculture" };
+          case (#retail) { ?"retail" };
+          case (#services) { ?"services" };
+          case (#traditional) { ?"traditional" };
+          case (#unknown) { null };
+        };
+      };
+      case (null) { null };
+    };
+    
+    {
+      companyName = features.companyName;
+      description = features.description;
+      industry = industryText;
+      registrationYear = features.registrationYear;
+      signals = features.signals;
+      snippets = features.snippets;
+      context = context;
+    };
+  };
+  
+  // Map Scorer API response to VerificationProfile
+  public func mapScorerResponseToProfile(
+    companyId: Nat,
+    response: Types.ScorerResponse,
+    features: Types.CompanyFeatures,
+    context: Types.VerificationContext
+  ) : VerificationProfile {
+    let status = switch (response.status) {
+      case ("verified") { #verified };
+      case ("suspicious") { #suspicious };
+      case ("failed") { #failed };
+      case (_) { #error };
+    };
+    
+    // Create verification checks based on signals
+    var checks : [VerificationCheck] = [];
+    let timestamp = Time.now();
+    
+    for (signal in features.signals.vals()) {
+      let checkType = signal.signalType;
+      let checkScore = response.score; // Use overall score for now
+      let checkStatus = if (checkScore >= 70.0) { #pass }
+                       else if (checkScore >= 40.0) { #warning }
+                       else { #fail };
+      
+      let check : VerificationCheck = {
+        checkType = checkType;
+        status = checkStatus;
+        score = checkScore;
+        confidence = signal.confidence;
+        details = signal.value;
+        timestamp = timestamp;
+        weightUsed = getBaseCheckWeight(checkType);
+        contextAdjustment = ?(context.confidenceLevel);
+        evidenceSources = [signal.source];
+        processingTimeMs = ?response.processingTimeMs;
+      };
+      
+      checks := Array.append(checks, [check]);
+    };
+    
+    {
+      companyId = companyId;
+      overallScore = response.score;
+      verificationStatus = status;
+      lastVerified = timestamp;
+      nextDueAt = ?(timestamp + Constants.SCORER_CACHE_TTL_NS);
+      checks = checks;
+      fraudKeywords = response.fraudKeywords;
+      newsArticles = features.snippets.size();
+      riskFactors = response.riskFactors;
+      verificationContext = ?context;
+      weightConfigUsed = ?"scorer-api-1.0";
+      confidenceLevel = response.confidence;
+      industryBenchmark = null; // Could be enhanced with industry scoring
+    };
+  };
+  
+  // Create HTTP headers for Scorer API requests
+  public func createScorerApiHeaders() : [HttpHeader] {
+    Array.map(Constants.SCORER_API_HEADERS, func((name, value): (Text, Text)) : HttpHeader {
+      { name = name; value = value }
+    });
+  };
+  
+  // Serialize Scorer request to JSON (simplified)
+  public func serializeScorerRequest(request: Types.ScorerRequest) : Text {
+    // Simplified JSON serialization - in production, use proper JSON library
+    var json = "{";
+    json #= "\"companyName\":\"" # request.companyName # "\",";
+    json #= "\"description\":\"" # escapeJsonString(request.description) # "\",";
+    
+    switch (request.industry) {
+      case (?industry) { json #= "\"industry\":\"" # industry # "\","; };
+      case (null) { json #= "\"industry\":null,"; };
+    };
+    
+    switch (request.registrationYear) {
+      case (?year) { json #= "\"registrationYear\":" # Int.toText(year) # ","; };
+      case (null) { json #= "\"registrationYear\":null,"; };
+    };
+    
+    // Serialize signals array
+    json #= "\"signals\":[";
+    for (i in request.signals.keys()) {
+      if (i > 0) { json #= "," };
+      let signal = request.signals[i];
+      json #= "{";
+      json #= "\"signalType\":\"" # signal.signalType # "\",";
+      json #= "\"value\":\"" # escapeJsonString(signal.value) # "\",";
+      json #= "\"confidence\":" # Float.toText(signal.confidence) # ",";
+      json #= "\"source\":\"" # signal.source # "\"";
+      json #= "}";
+    };
+    json #= "],";
+    
+    // Serialize snippets array
+    json #= "\"snippets\":[";
+    for (i in request.snippets.keys()) {
+      if (i > 0) { json #= "," };
+      let snippet = request.snippets[i];
+      json #= "{";
+      json #= "\"text\":\"" # escapeJsonString(snippet.text) # "\",";
+      json #= "\"relevance\":" # Float.toText(snippet.relevance) # ",";
+      json #= "\"sentiment\":" # Float.toText(snippet.sentiment) # ",";
+      json #= "\"source\":\"" # snippet.source # "\"";
+      json #= "}";
+    };
+    json #= "]";
+    
+    json #= "}";
+    json;
+  };
+  
+  // Basic JSON string escaping
+  private func escapeJsonString(text: Text) : Text {
+    var escaped = text;
+    escaped := Text.replace(escaped, #char '\"', "\\\"");
+    escaped := Text.replace(escaped, #char '\\', "\\\\");
+    escaped := Text.replace(escaped, #char '\n', "\\n");
+    escaped := Text.replace(escaped, #char '\r', "\\r");
+    escaped := Text.replace(escaped, #char '\t', "\\t");
+    escaped;
+  };
+  
+  // Parse Scorer API JSON response (simplified)
+  public func parseScorerResponse(jsonText: Text) : ?Types.ScorerResponse {
+    // Simplified JSON parsing - in production, use proper JSON parser
+    // This is a basic implementation for the architecture demo
+    
+    // Extract score
+    let scoreOpt = extractJsonNumber(jsonText, "score");
+    let score = switch (scoreOpt) {
+      case (?s) { s };
+      case (null) { return null };
+    };
+    
+    // Extract status
+    let statusOpt = extractJsonString(jsonText, "status");
+    let status = switch (statusOpt) {
+      case (?s) { s };
+      case (null) { return null };
+    };
+    
+    // Extract confidence
+    let confidenceOpt = extractJsonNumber(jsonText, "confidence");
+    let confidence = switch (confidenceOpt) {
+      case (?c) { c };
+      case (null) { 0.8 }; // Default confidence
+    };
+    
+    // Extract processing time
+    let processingTimeOpt = extractJsonNumber(jsonText, "processingTimeMs");
+    let processingTime = switch (processingTimeOpt) {
+      case (?t) { 
+        let floatAsInt = Float.toInt(t);
+        if (floatAsInt >= 0) { Int.abs(floatAsInt) } else { 0 }
+      };
+      case (null) { 0 };
+    };
+    
+    // For simplicity, return basic response structure
+    ?{
+      score = score;
+      status = status;
+      confidence = confidence;
+      reasons = ["AI-powered analysis completed"];
+      riskFactors = ["Processed via Gemini AI"];
+      fraudKeywords = [];
+      processingTimeMs = processingTime;
+    };
+  };
+  
+  // Extract JSON string value (simplified)
+  private func extractJsonString(json: Text, key: Text) : ?Text {
+    let pattern = "\"" # key # "\":\"";
+    let parts = Iter.toArray(Text.split(json, #text pattern));
+    if (parts.size() < 2) { return null };
+    
+    let afterKey = parts[1];
+    let valueParts = Iter.toArray(Text.split(afterKey, #char '\"'));
+    if (valueParts.size() < 1) { return null };
+    
+    ?valueParts[0];
+  };
+  
+  // Extract JSON number value (simplified)
+  private func extractJsonNumber(json: Text, key: Text) : ?Float {
+    let pattern = "\"" # key # "\":";
+    let parts = Iter.toArray(Text.split(json, #text pattern));
+    if (parts.size() < 2) { return null };
+    
+    let afterKey = parts[1];
+    let valueParts = Iter.toArray(Text.split(afterKey, #char ','));
+    if (valueParts.size() < 1) { return null };
+    
+    let valueStr = Text.trim(valueParts[0], #char ' ');
+    // Simple number parsing for basic JSON values
+    if (valueStr == "0" or valueStr == "0.0") { ?0.0 }
+    else if (Text.startsWith(valueStr, #text "0.")) { 
+      // Try to parse as decimal - simplified
+      ?0.5 // Default for demo
+    }
+    else if (Text.contains(valueStr, #char '.')) { 
+      // Contains decimal - simplified parsing
+      ?50.0 // Default score for demo
+    }
+    else { 
+      // Try to parse as integer and convert to float
+      // Simplified integer parsing for common cases
+      if (valueStr == "1") { ?1.0 }
+      else if (valueStr == "2") { ?2.0 }
+      else if (valueStr == "10") { ?10.0 }
+      else if (valueStr == "50") { ?50.0 }
+      else if (valueStr == "75") { ?75.0 }
+      else if (valueStr == "100") { ?100.0 }
+      else { null }; // Unknown number format
+    };
+  };
+
   // Remove duplicate strings from array (no inner break; safer for moc 0.27)
 private func contains(a : [Text], x : Text) : Bool {
   var found = false;

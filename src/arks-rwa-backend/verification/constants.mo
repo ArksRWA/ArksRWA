@@ -265,5 +265,46 @@ module {
     "Cross-validation with 80/20 train-test split on 1000+ Indonesian companies. Performance validated against OJK verified company database. Weights optimized using Bayesian optimization with Indonesian fraud pattern constraints.";
 
   public let NEXT_CALIBRATION_DUE : Int = 1735689600000000000; // 2025-01-01
+  
+  // === SCORER API CONFIGURATION ===
+  
+  // Scorer API endpoints - will be provided via environment variables
+  public let SCORER_API_BASE_URL : Text = "https://api.arks-rwa-scorer.io"; // Production URL
+  public let SCORER_API_LOCAL_URL : Text = "http://localhost:8080"; // Local development
+  public let SCORER_API_SCORE_ENDPOINT : Text = "/api/score";
+  public let SCORER_API_HEALTH_ENDPOINT : Text = "/api/health";
+  
+  // Scorer API configuration
+  public let SCORER_API_TIMEOUT_MS : Nat = 30_000; // 30 seconds (faster than Google search)
+  public let SCORER_API_MAX_RETRIES : Nat = 2;
+  public let SCORER_API_RETRY_DELAY_MS : Nat = 1_000; // 1 second
+  public let SCORER_API_MAX_CYCLES : Nat = 50_000_000; // 50M cycles (reduced from 75M)
+  
+  // Cache configuration for Scorer API results
+  public let SCORER_CACHE_TTL_NS : Int = 1209600000000000; // 14 days in nanoseconds
+  public let SCORER_CACHE_MAX_ENTRIES : Nat = 500;
+  public let SCORER_CACHE_CLEANUP_INTERVAL : Int = 86400000000000; // 24 hours
+  
+  // Feature extraction configuration
+  public let MAX_SIGNALS_PER_REQUEST : Nat = 20;
+  public let MAX_SNIPPETS_PER_REQUEST : Nat = 15;
+  public let MIN_SNIPPET_LENGTH : Nat = 10;
+  public let MAX_SNIPPET_LENGTH : Nat = 200;
+  public let MIN_SIGNAL_CONFIDENCE : Float = 0.3;
+  
+  // Token efficiency settings for Gemini API
+  public let MAX_TOKENS_PER_REQUEST : Nat = 8000; // Conservative token limit
+  public let TARGET_TOKEN_EFFICIENCY : Float = 0.85; // Target 85% token utilization
+  public let FEATURE_IMPORTANCE_THRESHOLD : Float = 0.4; // Only include high-relevance features
+  
+  // HTTP request headers for Scorer API
+  public let SCORER_API_HEADERS : [(Text, Text)] = [
+    ("Content-Type", "application/json"),
+    ("Accept", "application/json"),
+    ("User-Agent", "ARKS-RWA-Canister/1.0.0"),
+    ("X-API-Version", "1.0")
+  ];
+
+  // Legacy Google search (kept for fallback during transition)
   public let GOOGLE_SEARCH_BASE_URL : Text = "https://www.google.com/search?q=";
 }

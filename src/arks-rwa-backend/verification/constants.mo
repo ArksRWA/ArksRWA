@@ -265,4 +265,5 @@ module {
     "Cross-validation with 80/20 train-test split on 1000+ Indonesian companies. Performance validated against OJK verified company database. Weights optimized using Bayesian optimization with Indonesian fraud pattern constraints.";
 
   public let NEXT_CALIBRATION_DUE : Int = 1735689600000000000; // 2025-01-01
+  public let GOOGLE_SEARCH_BASE_URL : Text = "https://www.google.com/search?q=";
 }

@@ -124,7 +124,7 @@ module {
 
   // Build Google search URL from query
   public func buildGoogleSearchURL(qry : IndonesianSearchQuery) : Text {
-    let baseURL = "https://www.google.com/search?q=";
+    let baseURL = Constants.GOOGLE_SEARCH_BASE_URL;
 
     // Create search string: "company name" + additional terms
     var searchTerms = "\"" # qry.companyName # "\"";

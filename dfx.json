@@ -3,7 +3,7 @@
     "arks-rwa-backend": {
       "main": "src/arks-rwa-backend/main.mo",
       "type": "motoko",
-      "init_arg": "(null)",
+      "init_arg": "(null, null, null)",
       "domains": ["*"]
     },
     "frontend": {

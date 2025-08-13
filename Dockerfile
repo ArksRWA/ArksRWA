@@ -30,7 +30,7 @@ RUN dfx generate arks-rwa-backend && \
     cp -r /app/src/declarations/arks-rwa-backend/* /app/src/frontend/declarations/arks-rwa-backend/
 
 RUN dfx start --background --clean && \
-    dfx deploy arks-rwa-backend --argument '(null, null)' && \
+    dfx deploy arks-rwa-backend --argument '(null, null, null)' && \
     . /app/.env && \
     cd /app/src/frontend && \
     npm install && \

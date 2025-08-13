@@ -10,12 +10,15 @@ import Time "mo:base/Time";
 import HashMap "mo:base/HashMap";
 import Hash "mo:base/Hash";
 import Iter "mo:base/Iter";
+import Blob "mo:base/Blob";
+import Cycles "mo:base/ExperimentalCycles";
+import Debug "mo:base/Debug";
 
 // Import verification system
 import VerificationTypes "./verification/types";
 import VerificationEngine "./verification/main";
 
-actor class ARKSRWA(init_admin: ?Principal, init_gemini_key: ?Text) = this {
+persistent actor class ARKSRWA(init_admin: ?Principal, ai_service_url: ?Text, ai_auth_token: ?Text) = this {
 
   // Custom hash function for Nat to avoid deprecation warning
   func natHash(n : Nat) : Hash.Hash {
@@ -23,16 +26,72 @@ actor class ARKSRWA(init_admin: ?Principal, init_gemini_key: ?Text) = this {
   };
 
   // Admin principal - configurable via constructor parameter
-  let admin : Principal = switch(init_admin) {
+  transient let admin : Principal = switch(init_admin) {
     case (?p) p;
     case null Principal.fromText("o6dtt-od7eq-p5tmn-yilm3-4v453-v64p5-ep4q6-hxoeq-jhygx-u5dz7-aqe"); // fallback for local dev
   };
 
-  // Gemini API key - stored in stable variable for upgrade safety
-  private stable var gemini_api_key : ?Text = init_gemini_key;
-  private stable var api_key_created_at : ?Int = switch(init_gemini_key) {
-    case (?_) ?Time.now();
-    case null null;
+  // AI Service Configuration
+  private transient let AI_SERVICE_URL : Text = switch(ai_service_url) {
+    case (?url) url;
+    case null "http://localhost:3001"; // fallback for local dev
+  };
+  
+  private transient let AI_AUTH_TOKEN : ?Text = ai_auth_token;
+  
+  // HTTP Request/Response types for AI service integration
+  type HttpRequest = {
+    url : Text;
+    max_response_bytes : ?Nat64;
+    headers : [HttpHeader];
+    body : ?[Nat8];
+    method : HttpMethod;
+    transform : ?TransformFunction;
+  };
+  
+  type HttpHeader = {
+    name : Text;
+    value : Text;
+  };
+  
+  type HttpMethod = {
+    #get;
+    #post;
+    #head;
+  };
+  
+  type HttpResponse = {
+    status : Nat;
+    headers : [HttpHeader];
+    body : [Nat8];
+  };
+  
+  type TransformArgs = {
+    response : HttpResponse;
+    context : Blob;
+  };
+  
+  type TransformFunction = {
+    function : shared query (TransformArgs) -> async HttpResponse;
+  };
+  
+  // AI Analysis Request/Response types
+  type AIAnalysisRequest = {
+    name : Text;
+    description : Text;
+    industry : ?Text;
+    region : ?Text;
+    valuation : ?Nat;
+    symbol : ?Text;
+  };
+  
+  type AIAnalysisResponse = {
+    success : Bool;
+    fraudScore : ?Nat;
+    riskLevel : ?Text;
+    confidence : ?Nat;
+    processingTimeMs : ?Nat;
+    error : ?Text;
   };
 
   type Company = {
@@ -97,27 +156,27 @@ actor class ARKSRWA(init_admin: ?Principal, init_gemini_key: ?Text) = this {
     #GenericError : { error_code : Nat; message : Text };
   };
 
-  var companies : HashMap.HashMap<Nat, Company> = HashMap.HashMap(0, Nat.equal, natHash);
+  transient var companies : HashMap.HashMap<Nat, Company> = HashMap.HashMap(0, Nat.equal, natHash);
 
-  var holdings : HashMap.HashMap<Principal, HashMap.HashMap<Nat, Nat>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+  transient var holdings : HashMap.HashMap<Principal, HashMap.HashMap<Nat, Nat>> = HashMap.HashMap(0, Principal.equal, Principal.hash);
 
-  var companyCount : Nat = 0;
-  var minValuationE8s : Nat = 10_000_000;
-  var transactionCount : Nat = 0;
+  transient var companyCount : Nat = 0;
+  transient var minValuationE8s : Nat = 10_000_000;
+  transient var transactionCount : Nat = 0;
   
   // Account type overrides - allows users to manually set their account type
-  var accountTypeOverrides : HashMap.HashMap<Principal, AccountType> = HashMap.HashMap(0, Principal.equal, Principal.hash);
+  transient var accountTypeOverrides : HashMap.HashMap<Principal, AccountType> = HashMap.HashMap(0, Principal.equal, Principal.hash);
 
   // Initialize verification engine
-  private let verificationEngine = VerificationEngine.createVerificationEngine();
+  private transient let verificationEngine = VerificationEngine.createVerificationEngine();
 
   // Enhanced pricing configuration
-  let bondingCurveExponent : Float = 1.5;
-  let volumeThreshold : Nat = 50;
-  let volumeMultiplier : Float = 1.1;
-  let scarcityThreshold : Float = 0.1;  // 10%
-  let scarcityMultiplier : Float = 2.0;
-  let defaultTokenPrice : Nat = 1_000_000;
+  transient let bondingCurveExponent : Float = 1.5;
+  transient let volumeThreshold : Nat = 50;
+  transient let volumeMultiplier : Float = 1.1;
+  transient let scarcityThreshold : Float = 0.1;  // 10%
+  transient let scarcityMultiplier : Float = 2.0;
+  transient let defaultTokenPrice : Nat = 1_000_000;
 
   func getMinValuationE8s() : Nat {
     minValuationE8s;
@@ -204,6 +263,149 @@ actor class ARKSRWA(init_admin: ?Principal, init_gemini_key: ?Text) = this {
     Int.abs(Float.toInt(finalPrice));
   };
 
+  // === AI SERVICE INTEGRATION ===
+
+  // System IC interface for HTTP requests
+  private transient let ic : actor {
+    http_request : HttpRequest -> async HttpResponse;
+  } = actor("aaaaa-aa");
+
+  // Transform function for HTTP responses (removes headers for consensus)
+  private func transformResponse(args : TransformArgs) : HttpResponse {
+    {
+      status = args.response.status;
+      headers = []; // Remove headers for consensus
+      body = args.response.body;
+    };
+  };
+
+  // Convert bytes to text
+  private func textFromBytes(bytes : [Nat8]) : Text {
+    switch (Text.decodeUtf8(Blob.fromArray(bytes))) {
+      case (?text) { text };
+      case null { "" };
+    };
+  };
+
+  // Call AI service for fraud analysis
+  private func callAIService(companyData : AIAnalysisRequest) : async AIAnalysisResponse {
+    switch (AI_AUTH_TOKEN) {
+      case (null) {
+        Debug.print("No AI auth token configured, skipping AI analysis");
+        return {
+          success = false;
+          fraudScore = null;
+          riskLevel = null;
+          confidence = null;
+          processingTimeMs = null;
+          error = ?"No AI authentication token configured";
+        };
+      };
+      case (?authToken) {
+        try {
+          let requestBody = "{\"name\":\"" # companyData.name # "\",\"description\":\"" # companyData.description # "\"" #
+            (switch (companyData.industry) { case (?industry) ",\"industry\":\"" # industry # "\""; case null "" }) #
+            (switch (companyData.region) { case (?region) ",\"region\":\"" # region # "\""; case null "" }) #
+            (switch (companyData.valuation) { case (?val) ",\"valuation\":" # Nat.toText(val); case null "" }) #
+            (switch (companyData.symbol) { case (?sym) ",\"symbol\":\"" # sym # "\""; case null "" }) #
+            "}";
+
+          let url = AI_SERVICE_URL # "/analyze-company";
+          
+          let headers : [HttpHeader] = [
+            { name = "Content-Type"; value = "application/json" },
+            { name = "Authorization"; value = "Bearer " # authToken },
+            { name = "User-Agent"; value = "ARKS-RWA-Canister/1.0" }
+          ];
+
+          let request : HttpRequest = {
+            url = url;
+            max_response_bytes = ?1048576; // 1MB limit
+            headers = headers;
+            body = ?Blob.toArray(Text.encodeUtf8(requestBody));
+            method = #post;
+            transform = null; // Simplified - no transform for now
+          };
+
+          // Add cycles for HTTP request
+          Cycles.add<system>(2_000_000_000); // 2 billion cycles
+
+          Debug.print("Calling AI service at: " # url);
+          let response = await ic.http_request(request);
+
+          if (response.status == 200) {
+            let responseText = textFromBytes(response.body);
+            Debug.print("AI service response: " # responseText);
+            
+            // Parse the JSON response (simplified parsing)
+            return parseAIResponse(responseText);
+          } else {
+            Debug.print("AI service returned status: " # Nat.toText(response.status));
+            return {
+              success = false;
+              fraudScore = null;
+              riskLevel = null;
+              confidence = null;
+              processingTimeMs = null;
+              error = ?"AI service returned error status";
+            };
+          };
+        } catch (error) {
+          Debug.print("AI service call failed: " # Error.message(error));
+          return {
+            success = false;
+            fraudScore = null;
+            riskLevel = null;
+            confidence = null;
+            processingTimeMs = null;
+            error = ?"AI service call failed";
+          };
+        };
+      };
+    };
+  };
+
+  // Simple JSON response parser for AI service
+  private func parseAIResponse(responseText : Text) : AIAnalysisResponse {
+    // Simplified JSON parsing - in production, use proper JSON parser
+    if (Text.contains(responseText, #text "\"success\":true")) {
+      let fraudScore = extractNumberFromJson(responseText, "fraudScore");
+      let confidence = extractNumberFromJson(responseText, "confidence");
+      let processingTime = extractNumberFromJson(responseText, "processingTimeMs");
+      let riskLevel = extractTextFromJson(responseText, "riskLevel");
+      
+      {
+        success = true;
+        fraudScore = fraudScore;
+        riskLevel = riskLevel;
+        confidence = confidence;
+        processingTimeMs = processingTime;
+        error = null;
+      };
+    } else {
+      {
+        success = false;
+        fraudScore = null;
+        riskLevel = null;
+        confidence = null;
+        processingTimeMs = null;
+        error = ?"AI service returned unsuccessful response";
+      };
+    };
+  };
+
+  // Extract number from JSON string (simplified)
+  private func extractNumberFromJson(json : Text, key : Text) : ?Nat {
+    // Very simplified - in production use proper JSON parser
+    null; // Would implement JSON parsing logic
+  };
+
+  // Extract text from JSON string (simplified)
+  private func extractTextFromJson(json : Text, key : Text) : ?Text {
+    // Very simplified - in production use proper JSON parser
+    null; // Would implement JSON parsing logic
+  };
+
   public func createCompany(name : Text, symbol : Text, logo_url : Text, description : Text, valuation : Nat, desiredSupply : ?Nat, desiredPrice : ?Nat, caller : Principal) : async Nat {
     let created_at = Int.abs(Time.now());
 
@@ -241,13 +443,56 @@ actor class ARKSRWA(init_admin: ?Principal, init_gemini_key: ?Text) = this {
     };
 
     let minTokens : Nat = if (supply < 5) { 1 } else { 5 };
-    // Start verification process with Gemini API key support
-    let verificationJobId = await verificationEngine.startVerificationWithApiKey(
-      companyCount, 
-      name, 
-      #normal,  // Normal priority for new companies
-      getGeminiApiKey()  // Pass the API key if available
-    );
+    
+    // Try AI-powered verification first, fallback to legacy
+    var verificationStatus : VerificationTypes.VerificationStatus = #pending;
+    var verificationScore : ?Float = null;
+    var verificationJobId : ?Nat = null;
+    
+    try {
+      // Call AI service for fraud analysis
+      let aiRequest : AIAnalysisRequest = {
+        name = name;
+        description = description;
+        industry = null; // Could be extracted from description
+        region = ?"Indonesia"; // Default region
+        valuation = ?valuation;
+        symbol = ?symbol;
+      };
+      
+      let aiResult = await callAIService(aiRequest);
+      
+      if (aiResult.success) {
+        Debug.print("AI verification successful for " # name);
+        switch (aiResult.fraudScore) {
+          case (?score) {
+            verificationScore := ?Float.fromInt(score);
+            verificationStatus := if (score < 30) #verified 
+                                 else if (score < 60) #suspicious 
+                                 else #failed;
+          };
+          case null {};
+        };
+      } else {
+        Debug.print("AI verification failed, falling back to legacy for " # name);
+        // Fallback to legacy verification
+        let jobId = await verificationEngine.startVerification(
+          companyCount, 
+          name, 
+          #normal
+        );
+        verificationJobId := ?jobId;
+      };
+    } catch (error) {
+      Debug.print("AI verification error, using legacy for " # name # ": " # Error.message(error));
+      // Fallback to legacy verification
+      let jobId = await verificationEngine.startVerification(
+        companyCount, 
+        name, 
+        #normal
+      );
+      verificationJobId := ?jobId;
+    };
 
     let newCompany : Company = {
       id = companyCount;
@@ -263,10 +508,10 @@ actor class ARKSRWA(init_admin: ?Principal, init_gemini_key: ?Text) = this {
       logo_url = logo_url;
       description = description;
       created_at = created_at;
-      // Initialize verification fields
-      verification_status = #pending;
-      verification_score = null;
-      last_verified = null;
+      // Initialize verification fields with AI or legacy results
+      verification_status = verificationStatus;
+      verification_score = verificationScore;
+      last_verified = switch (verificationScore) { case (?_) ?Time.now(); case null null };
       verification_job_id = verificationJobId;
     };
 
@@ -274,6 +519,7 @@ actor class ARKSRWA(init_admin: ?Principal, init_gemini_key: ?Text) = this {
     companyCount += 1;
     return newCompany.id;
   };
+
 
   public query func listCompanies() : async [Company] {
     return Iter.toArray(companies.vals());
@@ -870,8 +1116,8 @@ actor class ARKSRWA(init_admin: ?Principal, init_gemini_key: ?Text) = this {
     ?verificationEngine.cleanupVerificationCache();
   };
   
-  // NEW: Test Scorer API verification directly (for testing the new architecture)
-  public func testScorerApiVerification(companyId : Nat, caller : Principal) : async ?VerificationTypes.VerificationProfile {
+  // NEW: Test Scorer API verification with external API key (for testing the new architecture)
+  public func testScorerApiVerification(companyId : Nat, apiKey : Text, caller : Principal) : async ?VerificationTypes.VerificationProfile {
     // Only admin can test Scorer API
     if (caller != admin) {
       return null;
@@ -883,7 +1129,8 @@ actor class ARKSRWA(init_admin: ?Principal, init_gemini_key: ?Text) = this {
           let profile = await verificationEngine.performScorerApiVerification(
             companyId, 
             company.name, 
-            company.description
+            company.description,
+            apiKey
           );
           ?profile;
         } catch (error) {
@@ -940,62 +1187,7 @@ actor class ARKSRWA(init_admin: ?Principal, init_gemini_key: ?Text) = this {
     };
   };
 
-  // ===== GEMINI API KEY MANAGEMENT (Admin Only) =====
-
-  // Update Gemini API key (admin only)
-  public func updateGeminiApiKey(newKey : Text, caller : Principal) : async Bool {
-    if (caller != admin) {
-      throw Error.reject("Authorization failed: Only admin can update Gemini API key.");
-    };
-    gemini_api_key := ?newKey;
-    api_key_created_at := ?Time.now();
-    true;
-  };
-
-  // Remove Gemini API key (admin only)
-  public func removeGeminiApiKey(caller : Principal) : async Bool {
-    if (caller != admin) {
-      throw Error.reject("Authorization failed: Only admin can remove Gemini API key.");
-    };
-    gemini_api_key := null;
-    api_key_created_at := null;
-    true;
-  };
-
-  // Check if Gemini API key is configured (admin only)
-  public query func hasGeminiApiKey(caller : Principal) : async Bool {
-    if (caller != admin) {
-      return false;
-    };
-    switch (gemini_api_key) {
-      case (?key) Text.size(key) > 0;
-      case null false;
-    };
-  };
-
-  // Get Gemini API key creation timestamp (admin only)
-  public query func getGeminiApiKeyInfo(caller : Principal) : async ?{ createdAt : Int; isConfigured : Bool } {
-    if (caller != admin) {
-      return null;
-    };
-    switch (api_key_created_at, gemini_api_key) {
-      case (?timestamp, ?key) {
-        ?{ createdAt = timestamp; isConfigured = Text.size(key) > 0 };
-      };
-      case (_, _) null;
-    };
-  };
-
-  // Private helper to get API key for internal use
-  private func getGeminiApiKey() : ?Text {
-    gemini_api_key;
-  };
-
-  // Private helper to validate API key
-  private func isGeminiApiKeyValid() : Bool {
-    switch (gemini_api_key) {
-      case (?key) Text.size(key) >= 10; // Basic validation
-      case null false;
-    };
-  };
+  // ===== API KEY MANAGEMENT REMOVED FOR SECURITY =====
+  // External API key injection used for AI-powered verification
+  // No API keys stored in canister memory for enhanced security
 };

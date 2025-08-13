@@ -161,29 +161,9 @@ module {
       };
       
       // Step 2: No cache hit - proceed with new Scorer API architecture
-      try {
-        // Step 3: Build features from company data (replace multiple Google searches)
-        let features = await buildVerificationFeaturesFromCompanyData(companyId, companyName);
-        
-        // Step 4: Single efficient HTTPS outcall to Scorer API
-        let scorerResponse = await callScorerAPI(features, null); // Pass null for now, will be updated by main canister
-        
-        // Step 5: Map response to VerificationProfile
-        let profile = mapScorerResponseToProfile(companyId, scorerResponse, features);
-        
-        // Step 6: Cache result with TTL
-        cacheVerificationResult(companyId, profile);
-        
-        Debug.print("Verification completed for " # companyName # " with score: " # Float.toText(profile.overallScore));
-        return profile;
-        
-      } catch (error) {
-        Debug.print("Scorer API failed for " # companyName # ": " # Error.message(error));
-        
-        // Fallback to legacy Google search verification
-        Debug.print("Falling back to legacy verification for " # companyName);
-        return await performLegacyVerification(companyId, companyName);
-      };
+      // No API key available in legacy mode - go directly to legacy verification
+      Debug.print("No API key available - using legacy verification for " # companyName);
+      return await performLegacyVerification(companyId, companyName);
     };
     
     // NEW: Cache-first verification lookup (Step 1 of flowchart)
@@ -215,24 +195,18 @@ module {
     };
     
     // NEW: Single efficient API call to Scorer API (Step 3 of flowchart)
-    private func callScorerAPI(features : Types.CompanyFeatures, apiKey: ?Text) : async Types.ScorerResponse {
+    private func callScorerAPI(features : Types.CompanyFeatures, apiKey: Text) : async Types.ScorerResponse {
       let context = Core.createVerificationContext(features.companyName, features.description);
       let request = Core.createScorerRequest(features, context);
       let requestJson = Core.serializeScorerRequest(request);
       let requestBody = Text.encodeUtf8(requestJson);
       
-      // Create headers with optional Gemini API authentication
+      // Create headers with required Gemini API authentication
       let baseHeaders = Core.createScorerApiHeaders();
-      let headers = switch (apiKey) {
-        case (?key) {
-          // Add Authorization header for Gemini API
-          Array.append(baseHeaders, [{
-            name = "Authorization";
-            value = "Bearer " # key;
-          }]);
-        };
-        case (null) baseHeaders; // Use base headers without authentication
-      };
+      let headers = Array.append(baseHeaders, [{
+        name = "Authorization";
+        value = "Bearer " # apiKey;
+      }]);
       
       let scorerUrl = getScorerApiUrl();
       
@@ -593,13 +567,25 @@ module {
       await startVerification(companyId, companyName, priority);
     };
     
-    // NEW: Direct Scorer API verification (for testing and demonstration)
+    // NEW: Direct Scorer API verification with external API key
     public func performScorerApiVerification(
       companyId : Nat,
       companyName : Text,
-      companyDescription : Text
+      companyDescription : Text,
+      apiKey : Text
     ) : async VerificationProfile {
       Debug.print("Direct Scorer API verification for: " # companyName);
+      
+      // Check cache first
+      switch (getFromVerificationCache(companyId)) {
+        case (?cachedProfile) {
+          Debug.print("Using cached Scorer API result for " # companyName);
+          return cachedProfile;
+        };
+        case (null) {
+          // Continue with fresh verification
+        };
+      };
       
       // Build features with provided description
       let industryType = ?#services; // Would be determined from company data
@@ -607,8 +593,8 @@ module {
       let features = Core.buildVerificationFeatures(companyId, companyName, companyDescription, industryType, registrationYear);
       
       try {
-        // Call Scorer API directly
-        let scorerResponse = await callScorerAPI(features, null); // Pass null for now, will be updated by main canister
+        // Call Scorer API with provided key
+        let scorerResponse = await callScorerAPI(features, apiKey);
         
         // Map to verification profile
         let profile = mapScorerResponseToProfile(companyId, scorerResponse, features);
@@ -745,7 +731,10 @@ module {
         let features = await buildVerificationFeaturesFromCompanyData(companyId, companyName);
         
         // Step 4: Enhanced API call with Gemini authentication
-        let scorerResponse = await callScorerAPI(features, apiKey);
+        let scorerResponse = switch (apiKey) {
+          case (?key) { await callScorerAPI(features, key) };
+          case (null) { throw Error.reject("API key required for AI-powered verification") };
+        };
         
         // Step 5: Map response to VerificationProfile
         let profile = mapScorerResponseToProfile(companyId, scorerResponse, features);

@@ -405,7 +405,7 @@ Begin your analysis now:`;
    * Calculates OJK compliance score based on industry context
    */
   calculateOJKComplianceScore(companyData, legitimateCount) {
-    const { industry } = companyData;
+    const { industry, name, description } = companyData;
     
     // Industries that require OJK compliance
     const ojkRequiredIndustries = [
@@ -416,11 +416,42 @@ Begin your analysis now:`;
     const requiresOJK = ojkRequiredIndustries.includes(industry);
     
     if (requiresOJK) {
-      // For regulated industries, score based on compliance indicators
-      return legitimateCount > 0 ? 15 : 75; // High risk if no OJK indicators
+      // Count OJK-specific compliance indicators
+      const text = `${name} ${description}`.toLowerCase();
+      const ojkSpecificKeywords = ['ojk', 'terdaftar ojk', 'licensed', 'regulated', 'compliance', 'certified'];
+      let ojkIndicators = ojkSpecificKeywords.filter(keyword => text.includes(keyword)).length;
+      
+      // Add industry-specific compliance indicators
+      if (industry === 'banking') {
+        const bankingKeywords = [
+          // Strong banking legitimacy indicators
+          'state-owned bank', 'bank negara', 'bank rakyat', 'bank central asia',
+          'bank mandiri', 'bank bri', 'bank bni', 'bank bca',
+          // Moderate banking legitimacy indicators  
+          'indonesian bank', 'bank indonesia', 'cabang', 'branches',
+          'state bank', 'government bank', 'bumn bank'
+        ];
+        
+        const bankingIndicators = bankingKeywords.filter(keyword => text.includes(keyword)).length;
+        ojkIndicators += bankingIndicators;
+      } else if (industry === 'fintech') {
+        const fintechKeywords = [
+          'fintech terdaftar', 'payment institution', 'e-money license',
+          'digital banking', 'registered fintech', 'licensed payment'
+        ];
+        
+        const fintechIndicators = fintechKeywords.filter(keyword => text.includes(keyword)).length;
+        ojkIndicators += fintechIndicators;
+      }
+      
+      // Graduated scoring based on compliance strength
+      if (ojkIndicators >= 3) return 15; // Strong compliance
+      if (ojkIndicators === 2) return 25; // Moderate compliance  
+      if (ojkIndicators === 1) return 45; // Weak compliance
+      return 75; // No compliance indicators - high risk
     } else {
-      // For non-regulated industries (retail, manufacturing, etc.), low score is good
-      return 10; // Low risk - they don't need OJK compliance
+      // For non-regulated industries, OJK compliance is not applicable
+      return 0; // Not applicable - OJK compliance doesn't apply to this industry
     }
   }
 

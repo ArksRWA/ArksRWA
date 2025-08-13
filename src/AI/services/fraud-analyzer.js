@@ -11,19 +11,6 @@ class FraudAnalyzer {
     
     // Indonesian-specific configuration
     this.config = {
-      // Regional trust factors
-      regionMultipliers: {
-        'jakarta': 1.1,
-        'surabaya': 1.05,
-        'bandung': 1.0,
-        'yogyakarta': 1.0,
-        'semarang': 0.95,
-        'makassar': 0.9,
-        'palembang': 0.9,
-        'medan': 0.85,
-        'default': 0.8
-      },
-      
       // Industry risk profiles for Indonesian market
       industryRiskProfiles: {
         'fintech': { baseRisk: 40, digitalExpectation: 'high' },
@@ -108,8 +95,8 @@ class FraudAnalyzer {
     // Detect industry from name/description
     enhanced.industry = enhanced.industry || this.detectIndustry(enhanced.name, enhanced.description);
     
-    // Normalize region
-    enhanced.region = this.normalizeRegion(enhanced.region);
+    // Keep region for reference but don't use for scoring
+    enhanced.region = enhanced.region || 'Indonesia';
     
     // Add business entity type detection
     enhanced.entityType = this.detectEntityType(enhanced.name);
@@ -150,29 +137,6 @@ class FraudAnalyzer {
     return 'default';
   }
 
-  /**
-   * Normalizes Indonesian region names
-   */
-  normalizeRegion(region) {
-    if (!region) return 'default';
-    
-    const normalized = region.toLowerCase().trim();
-    
-    // Map common variations
-    const regionMappings = {
-      'dki jakarta': 'jakarta',
-      'jakarta raya': 'jakarta',
-      'jawa timur': 'surabaya',
-      'jawa barat': 'bandung',
-      'di yogyakarta': 'yogyakarta',
-      'jawa tengah': 'semarang',
-      'sulawesi selatan': 'makassar',
-      'sumatera selatan': 'palembang',
-      'sumatera utara': 'medan'
-    };
-    
-    return regionMappings[normalized] || normalized;
-  }
 
   /**
    * Detects Indonesian business entity type
@@ -230,19 +194,17 @@ class FraudAnalyzer {
       entityTypeScore: this.analyzeEntityType(companyData),
       languageScore: this.analyzeLanguageConsistency(companyData),
       industryRiskScore: this.analyzeIndustryRisk(companyData),
-      regionalScore: this.analyzeRegionalFactors(companyData),
       ojkComplianceScore: this.analyzeOJKCompliance(companyData),
       fraudKeywordScore: this.analyzeFraudKeywords(companyData),
       legitimacySignalScore: this.analyzeLegitimacySignals(companyData)
     };
     
-    // Calculate weighted overall score
+    // Calculate weighted overall score (redistributed regional weight)
     const weights = {
       entityTypeScore: 0.15,
       languageScore: 0.10,
-      industryRiskScore: 0.20,
-      regionalScore: 0.10,
-      ojkComplianceScore: 0.25,
+      industryRiskScore: 0.25,
+      ojkComplianceScore: 0.30,
       fraudKeywordScore: 0.15,
       legitimacySignalScore: 0.05
     };
@@ -279,12 +241,12 @@ class FraudAnalyzer {
    * Analyzes language consistency for Indonesian companies
    */
   analyzeLanguageConsistency(companyData) {
-    const { languageContext, region } = companyData;
+    const { languageContext } = companyData;
     
     // Indonesian companies should primarily use Indonesian
     if (languageContext === 'indonesian') return 20;
     if (languageContext === 'mixed') return 35;
-    if (languageContext === 'english' && region !== 'jakarta') return 55;
+    if (languageContext === 'english') return 50;
     
     return 40;
   }
@@ -298,16 +260,6 @@ class FraudAnalyzer {
     return profile.baseRisk;
   }
 
-  /**
-   * Analyzes regional trust factors
-   */
-  analyzeRegionalFactors(companyData) {
-    const { region } = companyData;
-    const multiplier = this.config.regionMultipliers[region] || this.config.regionMultipliers.default;
-    
-    // Convert multiplier to risk score (lower multiplier = higher risk)
-    return Math.round((2.0 - multiplier) * 40);
-  }
 
   /**
    * Analyzes OJK compliance requirements

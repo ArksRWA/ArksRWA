@@ -248,11 +248,34 @@ Begin your analysis now:`;
     const text = `${name} ${description}`.toLowerCase();
     
     // Detect suspicious patterns
-    const suspiciousKeywords = ['guaranteed', 'profit', 'ponzi', 'scam', 'money game', 'investasi bodong'];
-    const legitimateKeywords = ['ojk', 'registered', 'terdaftar', 'certified', 'iso', 'bank', 'fintech'];
+    const suspiciousKeywords = [
+      // Direct fraud terms
+      'guaranteed', 'profit', 'ponzi', 'scam', 'money game', 'investasi bodong',
+      // Financial distress indicators  
+      'dissolution', 'tutup', 'bangkrut', 'gagal', 'bermasalah', 'failed', 'closed',
+      'bankruptcy', 'insolvent', 'liquidation', 'shut down', 'ceased operations',
+      // Inflated claims indicators
+      'largest', 'terbesar', 'claimed', 'mengklaim', 'supposedly', 'allegedly',
+      'world\'s biggest', 'number one', 'market leader', 'dominate market'
+    ];
+    const legitimateKeywords = [
+      // Financial legitimacy
+      'ojk', 'registered', 'terdaftar', 'certified', 'iso', 'bank', 'fintech',
+      // Retail/Manufacturing legitimacy  
+      'amdk', 'kemasan', 'produksi', 'merek', 'pabrik', 'manufaktur', 'industri',
+      'air minum', 'minuman', 'makanan', 'consumer goods', 'fmcg',
+      // General business legitimacy (excluding PT/CV/TBK - handled separately)
+      'resmi', 'legal', 'licensed', 'perusahaan'
+    ];
     
     const suspiciousCount = suspiciousKeywords.filter(keyword => text.includes(keyword)).length;
-    const legitimateCount = legitimateKeywords.filter(keyword => text.includes(keyword)).length;
+    let legitimateCount = legitimateKeywords.filter(keyword => text.includes(keyword)).length;
+    
+    // Add entity type legitimacy only if it's at the start of company name
+    const nameUpper = name.toUpperCase();
+    if (nameUpper.startsWith('PT ') || nameUpper.startsWith('CV ') || nameUpper.includes(' TBK')) {
+      legitimateCount += 1;
+    }
     
     let fraudScore;
     let riskLevel;
@@ -287,7 +310,7 @@ Begin your analysis now:`;
       }
     }
     
-    // Base scoring logic
+    // Base scoring logic with industry awareness
     if (suspiciousCount > 1) {
       fraudScore = 75 + Math.random() * 20 + webResearchImpact;
       riskLevel = fraudScore > 80 ? 'critical' : 'high';
@@ -297,9 +320,11 @@ Begin your analysis now:`;
       riskLevel = fraudScore < 25 ? 'low' : 'medium';
       reasoning = `Strong legitimacy indicators found${webResearch ? ' supported by web research' : ''}, appears to be legitimate business`;
     } else {
-      fraudScore = 40 + Math.random() * 20 + webResearchImpact;
-      riskLevel = fraudScore > 60 ? 'high' : (fraudScore > 40 ? 'medium' : 'low');
-      reasoning = `Mixed signals detected${webResearch ? ' in both company data and web research' : ''}, requires further investigation`;
+      // Industry-aware base scoring for neutral cases
+      const baseScore = this.getIndustryBaseFraudScore(companyData);
+      fraudScore = baseScore + Math.random() * 15 + webResearchImpact;
+      riskLevel = fraudScore > 60 ? 'high' : (fraudScore > 35 ? 'medium' : 'low');
+      reasoning = `Industry-adjusted risk assessment${webResearch ? ' with web research findings' : ''}, standard verification recommended`;
     }
     
     // Ensure score stays within bounds
@@ -313,7 +338,7 @@ Begin your analysis now:`;
         confidence: 85,
         analysis: {
           ojkCompliance: {
-            score: legitimateCount > 0 ? 80 : 40,
+            score: this.calculateOJKComplianceScore(companyData, legitimateCount),
             issues: suspiciousCount > 0 ? ['Potential regulatory compliance concerns'] : [],
             positives: legitimateCount > 0 ? ['Proper registration indicated'] : []
           },
@@ -340,6 +365,63 @@ Begin your analysis now:`;
       rawResponse: '[MOCK RESPONSE]',
       timestamp: new Date().toISOString()
     };
+  }
+
+  /**
+   * Gets industry-appropriate base fraud score for neutral cases
+   */
+  getIndustryBaseFraudScore(companyData) {
+    const { industry } = companyData;
+    
+    // Industry-specific base fraud scores for neutral cases
+    const industryBaseScores = {
+      // Low-risk traditional industries
+      'retail': 20,
+      'manufacturing': 18,
+      'agriculture': 25, // Increased due to eFishery fraud case
+      'education': 20,
+      'healthcare': 22,
+      
+      // Medium-risk industries
+      'technology': 25,
+      'consulting': 30,
+      'ecommerce': 28,
+      
+      // Higher-risk financial industries
+      'fintech': 35,
+      'investment': 40,
+      'banking': 30,
+      'cryptocurrency': 45,
+      'lending': 38,
+      
+      // Default for unknown industries
+      'default': 30
+    };
+    
+    return industryBaseScores[industry] || industryBaseScores['default'];
+  }
+
+  /**
+   * Calculates OJK compliance score based on industry context
+   */
+  calculateOJKComplianceScore(companyData, legitimateCount) {
+    const { industry } = companyData;
+    
+    // Industries that require OJK compliance
+    const ojkRequiredIndustries = [
+      'fintech', 'banking', 'insurance', 'investment', 'payment',
+      'lending', 'crowdfunding', 'cryptocurrency', 'digital wallet'
+    ];
+    
+    const requiresOJK = ojkRequiredIndustries.includes(industry);
+    
+    if (requiresOJK) {
+      // For regulated industries, score based on compliance indicators
+      return legitimateCount > 0 ? 15 : 75; // High risk if no OJK indicators
+    } else {
+      // For non-regulated industries (retail, manufacturing, etc.), low score is good
+      return 10; // Low risk - they don't need OJK compliance
+    }
   }
 
   /**

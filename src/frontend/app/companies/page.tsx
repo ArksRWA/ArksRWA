@@ -258,7 +258,7 @@ export default function CompaniesPage() {
               <div
                 key={company.id}
                 className="bg-card-bg border border-gray-700 rounded-lg p-6 hover:border-primary/50 transition-colors cursor-pointer group"
-                onClick={() => router.push(`/company/${company.id}`)}
+                onClick={() => router.push(`/company?id=${company.id}`)}
               >
                 {/* Company Header */}
                 <div className="flex items-center gap-3 mb-4">

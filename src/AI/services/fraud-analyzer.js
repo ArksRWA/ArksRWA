@@ -279,7 +279,7 @@ class FraudAnalyzer {
       return hasOJKMention ? 15 : 75; // High risk if no OJK mention for regulated industry
     }
     
-    return 30; // Medium risk for non-regulated industries
+    return 10; // Low risk for non-regulated industries - they don't need OJK compliance
   }
 
   /**

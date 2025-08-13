@@ -257,7 +257,7 @@ export default function DashboardPage() {
                             Transfer
                           </button>
                           <button
-                            onClick={() => router.push(`/company/${holding.company.id}`)}
+                            onClick={() => router.push(`/company?id=${holding.company.id}`)}
                             className="px-2 py-1 bg-primary text-white rounded hover:bg-primary/90 transition-colors text-xs"
                           >
                             Trade
@@ -291,7 +291,7 @@ export default function DashboardPage() {
               <div
                 key={company.id}
                 className="bg-gray-800 border border-gray-600 rounded-lg p-4 hover:border-primary/50 transition-colors cursor-pointer"
-                onClick={() => router.push(`/company/${company.id}`)}
+                onClick={() => router.push(`/company?id=${company.id}`)}
               >
                 <div className="flex items-center gap-3 mb-3">
                   {company.logo_url ? (

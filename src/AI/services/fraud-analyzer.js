@@ -1,13 +1,17 @@
 import GeminiService from './gemini.js';
+import IntelligentRiskTriageService from './intelligent-triage.js';
+import ContextAwareWebScraper from './context-aware-scraper.js';
 
 /**
  * Indonesian Fraud Analysis Service
- * Combines AI analysis with rule-based fraud detection
+ * Stage 1 & 2 Enhanced: Combines intelligent triage with context-aware web scraping
  * Specialized for Indonesian business environment and regulations
  */
 class FraudAnalyzer {
   constructor() {
     this.geminiService = new GeminiService();
+    this.triageService = new IntelligentRiskTriageService(this.geminiService);
+    this.contextAwareScraper = new ContextAwareWebScraper();
     
     // Indonesian-specific configuration
     this.config = {
@@ -45,15 +49,22 @@ class FraudAnalyzer {
   }
 
   /**
-   * Main fraud analysis function
-   * Combines AI analysis with rule-based checks
+   * Main fraud analysis function - Enhanced with Stage 1 & 2 Intelligence
+   * Step 1: Intelligent Triage (determines analysis strategy)
+   * Step 2: Context-Aware Web Scraping (resource-optimized research)  
+   * Step 3: Combined AI and Rule-Based Analysis
    */
   async analyzeCompany(companyData) {
+    const analysisStart = Date.now();
+    
     try {
+      console.log(`🔍 Starting enhanced fraud analysis for: ${companyData.name}`);
+      
       // Check cache first
       const cacheKey = this.generateCacheKey(companyData);
       const cached = this.getFromCache(cacheKey);
       if (cached) {
+        console.log(`📋 Using cached analysis for: ${companyData.name}`);
         return {
           ...cached,
           source: 'cache',
@@ -61,28 +72,70 @@ class FraudAnalyzer {
         };
       }
 
-      // Prepare enhanced company data
-      const enhancedData = this.enhanceCompanyData(companyData);
+      // STAGE 1: Intelligent Risk Triage
+      console.log(`🧠 Stage 1: Performing intelligent triage...`);
+      const triageResults = await this.triageService.performInitialTriage(companyData);
       
-      // Run AI analysis
-      const aiAnalysis = await this.geminiService.analyzeCompanyFraud(enhancedData);
+      // STAGE 2: Context-Aware Web Scraping (based on triage strategy)
+      console.log(`🌐 Stage 2: Context-aware web scraping (${triageResults.scrapingStrategy.level} strategy)...`);
+      const intelligentWebResearch = await this.contextAwareScraper.scrapeWithIntelligence(
+        companyData, 
+        triageResults
+      );
+
+      // Prepare enhanced company data with triage insights
+      const enhancedData = this.enhanceCompanyDataWithTriage(companyData, triageResults);
       
-      // Run rule-based analysis
-      const ruleBasedAnalysis = this.performRuleBasedAnalysis(enhancedData);
+      // STAGE 3A: Enhanced AI Analysis (with web research and triage context)
+      console.log(`🤖 Stage 3A: AI analysis with intelligence context...`);
+      const aiAnalysis = await this.performEnhancedAIAnalysis(
+        enhancedData, 
+        intelligentWebResearch, 
+        triageResults
+      );
       
-      // Combine AI and rule-based results
-      const combinedAnalysis = this.combineAnalysisResults(aiAnalysis, ruleBasedAnalysis, enhancedData);
+      // STAGE 3B: Enhanced Rule-Based Analysis
+      console.log(`📊 Stage 3B: Rule-based analysis with triage insights...`);
+      const ruleBasedAnalysis = this.performEnhancedRuleBasedAnalysis(
+        enhancedData, 
+        intelligentWebResearch, 
+        triageResults
+      );
+      
+      // STAGE 4: Intelligent Result Combination
+      const combinedAnalysis = this.combineIntelligentAnalysisResults(
+        aiAnalysis, 
+        ruleBasedAnalysis, 
+        triageResults,
+        intelligentWebResearch,
+        enhancedData
+      );
+      
+      // Add performance metrics
+      const totalAnalysisTime = Date.now() - analysisStart;
+      combinedAnalysis.performance = {
+        totalTimeMs: totalAnalysisTime,
+        triageTimeMs: triageResults.processingTimeMs,
+        scrapingTimeMs: intelligentWebResearch.processingTimeMs,
+        efficiency: this.calculateEfficiencyScore(totalAnalysisTime, triageResults, intelligentWebResearch),
+        resourcesUsed: {
+          sources: intelligentWebResearch.sourcesScraped,
+          searchTerms: intelligentWebResearch.searchTermsUsed ? Object.values(intelligentWebResearch.searchTermsUsed).flat().length : 0,
+          earlyTermination: intelligentWebResearch.intelligence?.earlyTermination || false
+        }
+      };
       
       // Cache the result
       this.addToCache(cacheKey, combinedAnalysis);
       
+      console.log(`✅ Enhanced analysis completed in ${totalAnalysisTime}ms - Score: ${combinedAnalysis.fraudScore}, Efficiency: ${combinedAnalysis.performance.efficiency}`);
       return combinedAnalysis;
       
     } catch (error) {
-      console.error('Fraud analysis error:', error);
+      console.error('Enhanced fraud analysis error:', error);
       
-      // Return fallback analysis
-      return this.generateFallbackAnalysis(companyData, error);
+      // Return enhanced fallback analysis
+      return this.generateEnhancedFallbackAnalysis(companyData, error, Date.now() - analysisStart);
     }
   }
 
@@ -105,6 +158,199 @@ class FraudAnalyzer {
     enhanced.languageContext = this.analyzeLanguageContext(enhanced.description);
     
     return enhanced;
+  }
+
+  /**
+   * Enhances company data with triage insights for more informed analysis
+   */
+  enhanceCompanyDataWithTriage(companyData, triageResults) {
+    const enhanced = this.enhanceCompanyData(companyData);
+    
+    // Add triage intelligence
+    enhanced.triageInsights = {
+      initialRiskAssessment: triageResults.riskLevel,
+      identifiedRiskFactors: triageResults.riskFactors,
+      detectedLegitimacySignals: triageResults.legitimacySignals,
+      priorityInvestigationAreas: triageResults.investigationFocus || [],
+      aiTriageConfidence: triageResults.confidence
+    };
+    
+    // Add scraping strategy context
+    enhanced.scrapingContext = {
+      strategyLevel: triageResults.scrapingStrategy.level,
+      resourceAllocation: triageResults.resourceEstimate,
+      expectedDataQuality: this.predictDataQuality(triageResults.scrapingStrategy)
+    };
+    
+    return enhanced;
+  }
+
+  /**
+   * Performs enhanced AI analysis with web research and triage context
+   */
+  async performEnhancedAIAnalysis(enhancedData, webResearch, triageResults) {
+    try {
+      // Use the original Gemini analysis but with enhanced data
+      const aiResult = await this.geminiService.analyzeCompanyFraud(enhancedData);
+      
+      // Enhance AI result with triage and web research context
+      if (aiResult.success) {
+        aiResult.data.enhancedContext = {
+          triageValidation: this.validateTriageWithAI(aiResult.data, triageResults),
+          webResearchAlignment: this.analyzeWebResearchAlignment(aiResult.data, webResearch),
+          confidenceAdjustment: this.calculateConfidenceAdjustment(aiResult.data, webResearch, triageResults)
+        };
+        
+        // Adjust AI confidence based on web research quality
+        const webDataQuality = webResearch.summary?.dataQuality || 'minimal';
+        const qualityBonus = this.getDataQualityBonus(webDataQuality);
+        aiResult.data.confidence = Math.min(100, aiResult.data.confidence + qualityBonus);
+      }
+      
+      return aiResult;
+      
+    } catch (error) {
+      console.error('Enhanced AI analysis failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        fallbackScore: this.calculateEnhancedFallbackScore(enhancedData, webResearch, triageResults)
+      };
+    }
+  }
+
+  /**
+   * Performs enhanced rule-based analysis with web research and triage context
+   */
+  performEnhancedRuleBasedAnalysis(enhancedData, webResearch, triageResults) {
+    // Start with the original rule-based analysis
+    const ruleAnalysis = this.performRuleBasedAnalysis(enhancedData);
+    
+    // Enhance with web research insights
+    const webResearchScore = this.analyzeWebResearchRisk(webResearch);
+    
+    // Enhance with triage validation
+    const triageValidationScore = this.validateTriageWithRules(triageResults, webResearch);
+    
+    // Enhanced scoring with intelligent weights
+    const enhancedWeights = this.calculateIntelligentWeights(triageResults, webResearch);
+    
+    const enhancedAnalysis = {
+      ...ruleAnalysis,
+      webResearchScore: webResearchScore,
+      triageValidationScore: triageValidationScore,
+      enhancedBreakdown: {
+        ...ruleAnalysis.breakdown,
+        webResearchContribution: webResearchScore,
+        triageValidation: triageValidationScore,
+        intelligentWeights: enhancedWeights
+      }
+    };
+    
+    // Recalculate overall score with enhanced factors
+    enhancedAnalysis.overallScore = this.calculateEnhancedRuleScore(
+      ruleAnalysis,
+      webResearchScore,
+      triageValidationScore,
+      enhancedWeights
+    );
+    
+    enhancedAnalysis.riskLevel = this.determineRiskLevel(enhancedAnalysis.overallScore);
+    enhancedAnalysis.confidence = Math.min(100, ruleAnalysis.confidence + 10); // Bonus for enhanced analysis
+    
+    return enhancedAnalysis;
+  }
+
+  /**
+   * Combines analysis results with intelligent weighting based on data quality
+   */
+  combineIntelligentAnalysisResults(aiResult, ruleResult, triageResults, webResearch, companyData) {
+    let finalScore;
+    let confidence;
+    let analysis;
+    let riskLevel;
+    
+    // Intelligent weight calculation based on data availability and quality
+    const weights = this.calculateDynamicWeights(aiResult, ruleResult, triageResults, webResearch);
+    
+    if (aiResult.success) {
+      // Enhanced combination with dynamic weights
+      finalScore = Math.round(
+        aiResult.data.fraudScore * weights.ai + 
+        ruleResult.overallScore * weights.rules +
+        (triageResults.initialScore || 50) * weights.triage
+      );
+      
+      confidence = Math.round(
+        (aiResult.data.confidence * weights.ai + 
+         ruleResult.confidence * weights.rules +
+         (triageResults.confidence || 50) * weights.triage) / 1.0
+      );
+      
+      analysis = {
+        ai: aiResult.data.analysis,
+        ruleBased: ruleResult.enhancedBreakdown || ruleResult.breakdown,
+        triage: {
+          initialAssessment: triageResults.riskLevel,
+          riskFactors: triageResults.riskFactors,
+          scrapingStrategy: triageResults.scrapingStrategy.level
+        },
+        webResearch: {
+          dataQuality: webResearch.summary?.dataQuality || 'minimal',
+          keyFindings: webResearch.summary?.keyFindings || [],
+          sourcesUsed: webResearch.sourcesScraped || 0,
+          intelligenceInsights: webResearch.summary?.intelligenceInsights || []
+        },
+        combined: true,
+        enhancedWeights: weights
+      };
+    } else {
+      // Use enhanced rule-based with triage fallback
+      finalScore = Math.round(
+        ruleResult.overallScore * 0.7 + 
+        (triageResults.initialScore || 50) * 0.3
+      );
+      
+      confidence = Math.round((ruleResult.confidence + triageResults.confidence) / 2);
+      
+      analysis = {
+        ruleBased: ruleResult.enhancedBreakdown || ruleResult.breakdown,
+        triage: {
+          initialAssessment: triageResults.riskLevel,
+          riskFactors: triageResults.riskFactors
+        },
+        webResearch: {
+          dataQuality: webResearch.summary?.dataQuality || 'minimal',
+          keyFindings: webResearch.summary?.keyFindings || []
+        },
+        aiError: aiResult.error,
+        combined: false
+      };
+    }
+    
+    // Final risk level determination with intelligence override
+    riskLevel = this.determineIntelligentRiskLevel(
+      finalScore, 
+      triageResults, 
+      webResearch.conclusiveEvidence
+    );
+    
+    return {
+      fraudScore: finalScore,
+      riskLevel: riskLevel,
+      confidence: Math.min(100, confidence),
+      analysis: analysis,
+      companyData: companyData,
+      triageResults: triageResults,
+      webResearchSummary: webResearch.summary,
+      timestamp: new Date().toISOString(),
+      source: 'enhanced_intelligent_analysis',
+      stageResults: {
+        stage1_triage: triageResults,
+        stage2_scraping: webResearch,
+        stage3_analysis: { ai: aiResult, rules: ruleResult }
+      }
+    };
   }
 
   /**
@@ -455,9 +701,375 @@ class FraudAnalyzer {
   }
 
   /**
-   * Test the analyzer with sample Indonesian companies
+   * Helper methods for enhanced analysis
    */
-  async testAnalyzer() {
+
+  predictDataQuality(scrapingStrategy) {
+    const qualityMap = {
+      light: 'limited',
+      medium: 'good', 
+      deep: 'comprehensive'
+    };
+    return qualityMap[scrapingStrategy.level] || 'minimal';
+  }
+
+  validateTriageWithAI(aiData, triageResults) {
+    const aiRisk = aiData.riskLevel;
+    const triageRisk = triageResults.riskLevel;
+    
+    // Check for alignment between triage and AI assessment
+    const riskLevelMap = { low: 1, medium: 2, high: 3, critical: 4 };
+    const aiRiskNum = riskLevelMap[aiRisk] || 2;
+    const triageRiskNum = riskLevelMap[triageRisk] || 2;
+    
+    const alignment = Math.abs(aiRiskNum - triageRiskNum);
+    
+    return {
+      aligned: alignment <= 1,
+      difference: alignment,
+      explanation: alignment <= 1 ? 'AI analysis confirms triage assessment' : 'AI analysis differs from initial triage'
+    };
+  }
+
+  analyzeWebResearchAlignment(aiData, webResearch) {
+    const webRisk = webResearch.summary?.overallRisk || 'medium';
+    const aiRisk = aiData.riskLevel;
+    
+    const alignment = webRisk === aiRisk;
+    
+    return {
+      aligned: alignment,
+      webRisk: webRisk,
+      aiRisk: aiRisk,
+      explanation: alignment ? 'Web research confirms AI assessment' : 'Web research suggests different risk level'
+    };
+  }
+
+  calculateConfidenceAdjustment(aiData, webResearch, triageResults) {
+    let adjustment = 0;
+    
+    // High-quality web research increases confidence
+    const dataQuality = webResearch.summary?.dataQuality;
+    if (dataQuality === 'comprehensive') adjustment += 15;
+    else if (dataQuality === 'good') adjustment += 10;
+    else if (dataQuality === 'limited') adjustment += 5;
+    
+    // Triage-AI alignment increases confidence
+    const triageValidation = this.validateTriageWithAI(aiData, triageResults);
+    if (triageValidation.aligned) adjustment += 10;
+    
+    // Conclusive evidence increases confidence
+    if (webResearch.conclusiveEvidence?.triggered) adjustment += 20;
+    
+    return Math.min(25, adjustment); // Cap at 25% increase
+  }
+
+  getDataQualityBonus(dataQuality) {
+    const bonuses = {
+      comprehensive: 15,
+      good: 10,
+      limited: 5,
+      minimal: 0,
+      unavailable: -5
+    };
+    return bonuses[dataQuality] || 0;
+  }
+
+  analyzeWebResearchRisk(webResearch) {
+    let riskScore = 30; // Neutral baseline
+    
+    // OJK findings
+    if (webResearch.sources?.ojk?.registrationStatus === 'warning_issued') {
+      riskScore += 30;
+    } else if (webResearch.sources?.ojk?.registrationStatus === 'registered') {
+      riskScore -= 15;
+    }
+    
+    // News sentiment
+    if (webResearch.sources?.news?.sentiment === 'negative') {
+      riskScore += 20;
+    } else if (webResearch.sources?.news?.sentiment === 'positive') {
+      riskScore -= 10;
+    }
+    
+    // Fraud reports
+    const fraudReports = webResearch.sources?.fraudReports?.fraudReportsFound || 0;
+    riskScore += fraudReports * 15;
+    
+    // Legitimacy signals
+    const legitimacySignals = webResearch.sources?.businessInfo?.legitimacySignals?.length || 0;
+    riskScore -= legitimacySignals * 5;
+    
+    return Math.max(0, Math.min(100, riskScore));
+  }
+
+  validateTriageWithRules(triageResults, webResearch) {
+    // Compare triage predictions with actual web research findings
+    let validationScore = 50; // Neutral
+    
+    const predictedRisk = triageResults.riskLevel;
+    const actualFindings = webResearch.summary?.overallRisk;
+    
+    // Reward accurate predictions
+    if (predictedRisk === actualFindings) {
+      validationScore = 20; // Lower risk score for accurate prediction
+    } else {
+      const riskLevelMap = { low: 1, medium: 2, high: 3, critical: 4 };
+      const difference = Math.abs(
+        (riskLevelMap[predictedRisk] || 2) - (riskLevelMap[actualFindings] || 2)
+      );
+      validationScore = 30 + (difference * 10); // Higher risk for inaccurate predictions
+    }
+    
+    return validationScore;
+  }
+
+  calculateIntelligentWeights(triageResults, webResearch) {
+    const weights = {
+      entityType: 0.15,
+      language: 0.08,
+      industry: 0.20,
+      ojkCompliance: 0.25,
+      fraudKeywords: 0.17,
+      legitimacy: 0.05,
+      webResearch: 0.10 // New weight for web research
+    };
+    
+    // Adjust weights based on data quality
+    const dataQuality = webResearch.summary?.dataQuality;
+    if (dataQuality === 'comprehensive') {
+      weights.webResearch = 0.20;
+      weights.ojkCompliance = 0.20;
+    } else if (dataQuality === 'good') {
+      weights.webResearch = 0.15;
+    }
+    
+    return weights;
+  }
+
+  calculateEnhancedRuleScore(ruleAnalysis, webResearchScore, triageValidationScore, weights) {
+    let score = 0;
+    
+    // Original rule-based components
+    for (const [component, componentScore] of Object.entries(ruleAnalysis.breakdown)) {
+      const weight = weights[component.replace('Score', '')] || 0;
+      score += componentScore * weight;
+    }
+    
+    // Add web research contribution
+    score += webResearchScore * weights.webResearch;
+    
+    // Adjust based on triage validation (lower is better for validation)
+    if (triageValidationScore < 30) {
+      score *= 0.9; // Reduce risk if triage was accurate
+    } else if (triageValidationScore > 60) {
+      score *= 1.1; // Increase risk if triage was inaccurate
+    }
+    
+    return Math.round(Math.max(0, Math.min(100, score)));
+  }
+
+  calculateDynamicWeights(aiResult, ruleResult, triageResults, webResearch) {
+    let weights = { ai: 0.5, rules: 0.4, triage: 0.1 };
+    
+    // Adjust based on AI availability and confidence
+    if (!aiResult.success) {
+      weights = { ai: 0.0, rules: 0.8, triage: 0.2 };
+    } else if (aiResult.data.confidence > 85) {
+      weights = { ai: 0.6, rules: 0.3, triage: 0.1 };
+    }
+    
+    // Adjust based on web research quality
+    const dataQuality = webResearch.summary?.dataQuality;
+    if (dataQuality === 'comprehensive') {
+      weights.rules *= 1.2; // Give more weight to rule-based analysis with good data
+      // Normalize
+      const total = weights.ai + weights.rules + weights.triage;
+      weights.ai /= total;
+      weights.rules /= total;
+      weights.triage /= total;
+    }
+    
+    // Adjust based on conclusive evidence
+    if (webResearch.conclusiveEvidence?.triggered) {
+      weights.triage *= 1.5; // Give more weight to initial triage if conclusive evidence found
+      // Normalize
+      const total = weights.ai + weights.rules + weights.triage;
+      weights.ai /= total;
+      weights.rules /= total;
+      weights.triage /= total;
+    }
+    
+    return weights;
+  }
+
+  determineIntelligentRiskLevel(score, triageResults, conclusiveEvidence) {
+    // Start with standard risk level determination
+    let riskLevel = this.determineRiskLevel(score);
+    
+    // Override based on conclusive evidence
+    if (conclusiveEvidence?.triggered && conclusiveEvidence.confidence > 85) {
+      if (conclusiveEvidence.reason === 'regulatory_warning' || 
+          conclusiveEvidence.reason === 'multiple_fraud_reports') {
+        riskLevel = 'critical';
+      } else if (conclusiveEvidence.reason === 'strong_legitimacy') {
+        riskLevel = 'low';
+      }
+    }
+    
+    // Validate against triage assessment
+    const triageRisk = triageResults.riskLevel;
+    const riskLevelMap = { low: 1, medium: 2, high: 3, critical: 4 };
+    const currentRiskNum = riskLevelMap[riskLevel];
+    const triageRiskNum = riskLevelMap[triageRisk];
+    
+    // Don't allow final assessment to differ by more than 2 levels from triage unless conclusive evidence
+    if (!conclusiveEvidence?.triggered && Math.abs(currentRiskNum - triageRiskNum) > 2) {
+      // Move towards triage assessment
+      const reverseMap = { 1: 'low', 2: 'medium', 3: 'high', 4: 'critical' };
+      const adjustedLevel = Math.max(1, Math.min(4, 
+        Math.round((currentRiskNum + triageRiskNum) / 2)
+      ));
+      riskLevel = reverseMap[adjustedLevel];
+    }
+    
+    return riskLevel;
+  }
+
+  calculateEfficiencyScore(totalTime, triageResults, webResearch) {
+    let efficiency = 100;
+    
+    // Time efficiency
+    if (totalTime > 60000) efficiency -= 30; // Over 1 minute
+    else if (totalTime > 45000) efficiency -= 20; // Over 45 seconds
+    else if (totalTime > 30000) efficiency -= 10; // Over 30 seconds
+    
+    // Early termination bonus
+    if (webResearch.intelligence?.earlyTermination) {
+      efficiency += 20;
+    }
+    
+    // Data quality vs time efficiency
+    const dataQuality = webResearch.summary?.dataQuality;
+    if (dataQuality === 'comprehensive' && totalTime < 30000) {
+      efficiency += 15; // Great data quality in short time
+    } else if (dataQuality === 'minimal' && totalTime > 45000) {
+      efficiency -= 20; // Poor data quality despite long time
+    }
+    
+    return Math.max(0, Math.min(100, efficiency));
+  }
+
+  calculateEnhancedFallbackScore(enhancedData, webResearch, triageResults) {
+    // Start with basic fallback
+    const basicFallback = this.calculateFallbackScore(enhancedData);
+    
+    // Enhance with available data
+    let enhancedScore = basicFallback.fraudScore;
+    
+    // Use triage score if available
+    if (triageResults?.initialScore) {
+      enhancedScore = Math.round((enhancedScore + triageResults.initialScore) / 2);
+    }
+    
+    // Use web research if available
+    if (webResearch?.summary?.overallRisk) {
+      const webRiskScore = { low: 20, medium: 50, high: 75, critical: 90 };
+      const webScore = webRiskScore[webResearch.summary.overallRisk] || 50;
+      enhancedScore = Math.round((enhancedScore + webScore) / 2);
+    }
+    
+    return {
+      ...basicFallback,
+      fraudScore: enhancedScore,
+      enhancedFallback: true
+    };
+  }
+
+  generateEnhancedFallbackAnalysis(companyData, error, processingTime) {
+    const enhancedData = this.enhanceCompanyData(companyData);
+    const fallbackScore = this.performBasicFraudCheck(enhancedData);
+    
+    return {
+      fraudScore: fallbackScore,
+      riskLevel: this.determineRiskLevel(fallbackScore),
+      confidence: 20,
+      analysis: {
+        fallback: true,
+        error: error.message,
+        basicCheck: true
+      },
+      performance: {
+        totalTimeMs: processingTime,
+        efficiency: 10, // Low efficiency due to failure
+        resourcesUsed: {
+          sources: 0,
+          searchTerms: 0,
+          earlyTermination: false
+        }
+      },
+      timestamp: new Date().toISOString(),
+      source: 'enhanced_fallback_analysis'
+    };
+  }
+
+  /**
+   * Test the enhanced analyzer with sample Indonesian companies
+   */
+  async testEnhancedAnalyzer() {
+    const testCompanies = [
+      {
+        name: 'PT Bank Digital Indonesia',
+        description: 'Bank digital terdaftar OJK dengan layanan mobile banking dan digital payment',
+        industry: 'banking'
+      },
+      {
+        name: 'Investasi Ponzi Guaranteed',
+        description: 'Investasi dengan keuntungan guaranteed 50% per bulan tanpa risiko',
+        industry: 'investment'
+      },
+      {
+        name: 'PT Aqua Golden Mississippi',
+        description: 'Produsen air minum dalam kemasan merek AQUA terbesar Indonesia',
+        industry: 'manufacturing'
+      }
+    ];
+    
+    console.log('🧪 Testing Enhanced Fraud Analyzer with Stage 1 & 2...');
+    const results = [];
+    
+    for (const company of testCompanies) {
+      console.log(`\n--- Testing: ${company.name} ---`);
+      const startTime = Date.now();
+      
+      try {
+        const result = await this.analyzeCompany(company);
+        const duration = Date.now() - startTime;
+        
+        console.log(`✅ Analysis completed in ${duration}ms`);
+        console.log(`📊 Score: ${result.fraudScore}, Risk: ${result.riskLevel}, Efficiency: ${result.performance?.efficiency || 'N/A'}`);
+        
+        results.push({
+          company: company.name,
+          duration: duration,
+          result: result
+        });
+      } catch (error) {
+        console.error(`❌ Analysis failed for ${company.name}:`, error.message);
+        results.push({
+          company: company.name,
+          error: error.message
+        });
+      }
+    }
+    
+    return results;
+  }
+
+  /**
+   * Test legacy analyzer (without Stage 1 & 2) for comparison
+   */
+  async testLegacyAnalyzer() {
     const testCompanies = [
       {
         name: 'PT Bank Digital Indonesia',
@@ -471,11 +1083,43 @@ class FraudAnalyzer {
     
     const results = [];
     for (const company of testCompanies) {
-      const result = await this.analyzeCompany(company);
-      results.push(result);
+      const startTime = Date.now();
+      
+      // Use original analysis methods directly (bypass enhanced flow)
+      const enhancedData = this.enhanceCompanyData(company);
+      const aiAnalysis = await this.geminiService.analyzeCompanyFraud(enhancedData);
+      const ruleBasedAnalysis = this.performRuleBasedAnalysis(enhancedData);
+      const combinedAnalysis = this.combineAnalysisResults(aiAnalysis, ruleBasedAnalysis, enhancedData);
+      
+      const duration = Date.now() - startTime;
+      
+      results.push({
+        company: company.name,
+        duration: duration,
+        result: combinedAnalysis
+      });
     }
     
     return results;
+  }
+
+  /**
+   * Cleanup enhanced services
+   */
+  async cleanup() {
+    if (this.geminiService && typeof this.geminiService.cleanup === 'function') {
+      await this.geminiService.cleanup();
+    }
+    
+    if (this.triageService && typeof this.triageService.cleanup === 'function') {
+      await this.triageService.cleanup();
+    }
+    
+    if (this.contextAwareScraper && typeof this.contextAwareScraper.cleanup === 'function') {
+      await this.contextAwareScraper.cleanup();
+    }
+    
+    this.analysisCache.clear();
   }
 }
 

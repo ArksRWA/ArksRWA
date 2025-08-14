@@ -1,9 +1,11 @@
 import express from 'express';
 import Joi from 'joi';
 import FraudAnalyzer from '../services/fraud-analyzer.js';
+import PerformanceComparison from '../services/performance-comparison.js';
 
 const router = express.Router();
 const fraudAnalyzer = new FraudAnalyzer();
+const performanceComparison = new PerformanceComparison();
 
 // Request validation schema
 const companyAnalysisSchema = Joi.object({

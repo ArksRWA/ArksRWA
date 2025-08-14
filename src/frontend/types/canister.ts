@@ -16,12 +16,12 @@ export interface Company {
   name: string;
   symbol: string;
   owner: string;
-  valuation: number;
-  base_price: number;
-  token_price: number;
-  supply: number;
-  remaining: number;
-  minimum_purchase: number;
+  valuation: bigint;
+  base_price: bigint;
+  token_price: bigint;
+  supply: bigint;
+  remaining: bigint;
+  minimum_purchase: bigint;
   logo_url: string;
   description: string;
   created_at: number;
@@ -50,12 +50,12 @@ export const candidCompanyToFrontend = (candidCompany: import('../../declaration
     name: candidCompany.name,
     symbol: candidCompany.symbol,
     owner: candidCompany.owner.toString(),
-    valuation: Number(candidCompany.valuation),
-    base_price: Number(candidCompany.base_price),
-    token_price: Number(candidCompany.token_price),
-    supply: Number(candidCompany.supply),
-    remaining: Number(candidCompany.remaining),
-    minimum_purchase: Number(candidCompany.minimum_purchase),
+    valuation: candidCompany.valuation,
+    base_price: candidCompany.base_price,
+    token_price: candidCompany.token_price,
+    supply: candidCompany.supply,
+    remaining: candidCompany.remaining,
+    minimum_purchase: candidCompany.minimum_purchase,
     logo_url: candidCompany.logo_url,
     description: candidCompany.description,
     created_at: Number(candidCompany.created_at),

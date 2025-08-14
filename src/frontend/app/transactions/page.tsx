@@ -423,7 +423,7 @@ export default function TransactionsPage() {
                       </td>
                       <td className="py-4 px-6 text-right">
                         <button
-                          onClick={() => router.push(`/company/${transaction.company.id}`)}
+                          onClick={() => router.push(`/company?id=${transaction.company.id}`)}
                           className="text-primary hover:text-primary/80 transition-colors text-sm"
                         >
                           View Company

@@ -4,7 +4,7 @@ import path from "path";
 const nextConfig: NextConfig = {
   output: 'export',
   distDir: '.next/build',
-  trailingSlash: true,      
+  trailingSlash: false,      
   webpack: (config, { isServer }) => {
     config.resolve.alias = {
       ...config.resolve.alias,

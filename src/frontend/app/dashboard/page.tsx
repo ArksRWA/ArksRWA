@@ -7,11 +7,11 @@ import { authService, AuthUser } from '../../services/auth';
 
 interface UserHolding {
   company: Company;
-  amount: number;
-  currentValue: number;
-  investmentValue: number;
-  profitLoss: number;
-  profitLossPercent: number;
+  amount: bigint;
+  currentValue: bigint;
+  investmentValue: bigint;
+  profitLoss: bigint;
+  profitLossPercent: bigint;
 }
 
 export default function DashboardPage() {
@@ -23,10 +23,10 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
 
   // Portfolio stats
-  const [totalValue, setTotalValue] = useState(0);
-  const [totalInvested, setTotalInvested] = useState(0);
-  const [totalProfitLoss, setTotalProfitLoss] = useState(0);
-  const [totalProfitLossPercent, setTotalProfitLossPercent] = useState(0);
+  const [totalValue, setTotalValue] = useState(BigInt(0));
+  const [totalInvested, setTotalInvested] = useState(BigInt(0));
+  const [totalProfitLoss, setTotalProfitLoss] = useState(BigInt(0));
+  const [totalProfitLossPercent, setTotalProfitLossPercent] = useState(BigInt(0));
 
   useEffect(() => {
     const checkAuth = () => {
@@ -55,11 +55,11 @@ export default function DashboardPage() {
       const holdingsPromises = companiesList.map(async (company) => {
         const amount = await backendService.getUserHoldings(company.id);
         if (amount > 0) {
-          const currentValue = Number(amount) * Number(company.token_price);
+          const currentValue = amount * company.token_price;
           // For demo purposes, assume invested at base price
-          const investmentValue = Number(amount) * Number(company.base_price);
+          const investmentValue = amount * company.base_price;
           const profitLoss = currentValue - investmentValue;
-          const profitLossPercent = investmentValue > 0 ? (profitLoss / investmentValue) * 100 : 0;
+          const profitLossPercent = investmentValue > 0 ? (profitLoss / investmentValue) * BigInt(100) : BigInt(0);
           
           return {
             company,
@@ -78,10 +78,10 @@ export default function DashboardPage() {
       setHoldings(validHoldings);
       
       // Calculate portfolio totals
-      const totalVal = validHoldings.reduce((sum, h) => sum + h.currentValue, 0);
-      const totalInv = validHoldings.reduce((sum, h) => sum + h.investmentValue, 0);
-      const totalPL = validHoldings.reduce((sum, h) => sum + h.profitLoss, 0);
-      const totalPLPercent = totalInv > 0 ? (totalPL / totalInv) * 100 : 0;
+      const totalVal = validHoldings.reduce((sum, h) => sum + h.currentValue, BigInt(0));
+      const totalInv = validHoldings.reduce((sum, h) => sum + h.investmentValue, BigInt(0));
+      const totalPL = validHoldings.reduce((sum, h) => sum + h.profitLoss, BigInt(0));
+      const totalPLPercent = totalInv > 0 ? (totalPL / totalInv) * BigInt(100) : BigInt(0);
       
       setTotalValue(totalVal);
       setTotalInvested(totalInv);

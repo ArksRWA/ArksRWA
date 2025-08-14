@@ -21,7 +21,7 @@ class BackendService {
   private actorCache: any = null;
   private agentCache: any = null;
 
-  private async createActor(requireAuth = true) {
+  private async oldcreateActor(requireAuth = true) {
     const user = authService.getCurrentUser();
     if (requireAuth && (!user || !user.isConnected)) {
       throw new Error('User not authenticated');
@@ -76,6 +76,52 @@ class BackendService {
       throw error;
     }
   }
+private async createActor(requireAuth = true) {
+  const user = await Promise.resolve(authService.getCurrentUser?.());
+  if (requireAuth && (!user || !user.isConnected)) {
+    throw new Error('User not authenticated');
+  }
+
+  // Always clear cache for now to ensure fresh connections
+  this.actorCache = null;
+
+  try {
+    const { Actor, HttpAgent } = await import('@dfinity/agent');
+
+    // ✅ Use SAME ORIGIN in the browser to avoid CORS
+    const isBrowser = typeof window !== 'undefined';
+    const agent = this.agentCache ?? new HttpAgent({
+      // If we're in the browser, let it default to window.location.origin by not setting host
+      ...(isBrowser ? {} : { host: (isLocal() ? 'http://127.0.0.1:4943' : 'https://icp-api.io') }),
+    });
+
+    // For local dev only
+    if (isLocal()) {
+      try { await agent.fetchRootKey(); } catch {}
+    }
+
+    this.agentCache = agent;
+
+    // Prefer wallet-provided ACTOR if it really is an actor with your canister methods
+    if (user && user.agent && typeof (user.agent as any).listCompanies === 'function') {
+      this.actorCache = user.agent;
+      return this.actorCache;
+    }
+
+    // Use your generated idlFactory
+    const idlFactory = declarations.idlFactory;
+
+    this.actorCache = Actor.createActor(idlFactory, {
+      agent: this.agentCache,
+      canisterId: this.canisterId,
+    });
+
+    return this.actorCache;
+  } catch (error) {
+    console.error('Error creating actor:', error);
+    throw error;
+  }
+}
 
   // Clear cache when user changes
   private clearCache() {
@@ -142,7 +188,7 @@ class BackendService {
     }
   }
 
-  async getUserHoldings(companyId: number): Promise<number> {
+  async getUserHoldings(companyId: number): Promise<bigint> {
     const user = authService.getCurrentUser();
     if (!user || !user.isConnected) {
       throw new Error('User not authenticated');
@@ -154,14 +200,14 @@ class BackendService {
       const actor = await this.createActor();
       const callerPrincipal = Principal.fromText(user.principal);
       const holdings = await actor.getMyHolding(companyId, callerPrincipal);
-      return holdings as number;
+      return holdings;
     } catch (error) {
       console.error('Error getting user holdings:', error);
       throw error;
     }
   }
 
-  async buyTokens(companyId: number, amount: number): Promise<string> {
+  async buyTokens(companyId: number, amount: bigint): Promise<string> {
     const user = authService.getCurrentUser();
     if (!user || !user.isConnected) {
       throw new Error('User not authenticated');
@@ -180,7 +226,7 @@ class BackendService {
     }
   }
 
-  async sellTokens(companyId: number, amount: number): Promise<string> {
+  async sellTokens(companyId: number, amount: bigint): Promise<string> {
     const user = authService.getCurrentUser();
     if (!user || !user.isConnected) {
       throw new Error('User not authenticated');

@@ -130,6 +130,53 @@ class ContextAwareWebScraper extends WebScrapingService {
   }
 
   /**
+   * Determine scraping strategy based on triage results
+   */
+  determineScrapingStrategy(triageResults) {
+    const riskLevel = triageResults?.riskLevel || 'medium';
+    const scrapingLevel = triageResults?.scrapingStrategy?.level || 'medium';
+    
+    // Return strategy based on triage level, fallback to risk level
+    if (this.scrapingStrategies[scrapingLevel]) {
+      return this.scrapingStrategies[scrapingLevel];
+    }
+    
+    // Fallback mapping from risk level to strategy
+    const riskToStrategy = {
+      'low': 'light',
+      'medium': 'medium', 
+      'high': 'deep',
+      'critical': 'deep'
+    };
+    
+    const strategyLevel = riskToStrategy[riskLevel] || 'medium';
+    return this.scrapingStrategies[strategyLevel];
+  }
+  
+  /**
+   * Generate intelligent search terms for SerpAPI prioritization
+   */
+  generateIntelligentSearchTerms(companyData, triageResults) {
+    const riskLevel = triageResults?.riskLevel || 'medium';
+    const riskFactors = triageResults?.riskFactors || [];
+    
+    const searchTerms = {
+      base: [`"${companyData.name}"`],
+      legitimacy: [],
+      fraud: [],
+      regulatory: [],
+      contextual: []
+    };
+    
+    // Add basic search patterns
+    searchTerms.fraud.push(`"${companyData.name}" penipuan`, `"${companyData.name}" scam`);
+    searchTerms.regulatory.push(`"${companyData.name}" OJK`, `"${companyData.name}" regulatory`);
+    searchTerms.legitimacy.push(`"${companyData.name}" terdaftar`, `"${companyData.name}" licensed`);
+    
+    return searchTerms;
+  }
+  
+  /**
    * Initialize context-aware search patterns for Indonesian companies
    */
   initializeContextPatterns() {
@@ -176,44 +223,102 @@ class ContextAwareWebScraper extends WebScrapingService {
 
   /**
    * NEW: Enhanced scraping with SerpAPI as primary intelligence source
-   * Optimized cost efficiency and early termination logic
+   * Uses SerpAPI data to enhance the FULL context-aware scraping pipeline
    */
   async scrapeWithSerpAPI(companyData, triageResults) {
     try {
       console.log(`🧠 Starting SerpAPI-enhanced intelligent scraping for: ${companyData.name}`);
       
       const strategy = this.determineScrapingStrategy(triageResults);
-      const searchTerms = this.generateIntelligentSearchTerms(companyData, triageResults);
+      const startTime = Date.now();
       
-      // Step 1: Intelligent SerpAPI search prioritization
-      const serpAPIPriority = this.determineSerpAPIPriority(triageResults, searchTerms);
-      console.log(`🎯 SerpAPI search priority: ${serpAPIPriority.join(', ')}`);
+      // STEP 1: Entity Resolution (canonicalize before scraping)
+      const entityData = this.entityUtils.resolveEntity(companyData.name, companyData.description);
+      console.log(`🏢 Entity resolved: ${entityData.canonicalName} (certainty: ${entityData.erCertainty})`);
       
-      // Step 2: Execute SerpAPI searches with smart batching
+      // Use canonical name and aliases for more accurate searching
+      const enhancedCompanyData = {
+        ...companyData,
+        canonicalName: entityData.canonicalName,
+        aliases: entityData.aliases,
+        entityData: entityData
+      };
+      
+      // STEP 2: Execute SerpAPI data collection first
+      console.log(`🔍 Step 2A: Collecting SerpAPI data...`);
       const serpResults = await this.executeSerpAPISearches(
-        companyData.name,
-        serpAPIPriority,
+        enhancedCompanyData.canonicalName,
+        this.determineSerpAPIPriority(triageResults, {}),
         strategy
       );
       
-      // Step 3: Early termination check
-      if (this.shouldTerminateEarly(serpResults, strategy)) {
-        console.log(`⚡ Early termination triggered for ${companyData.name}`);
-        return this.formatSerpAPIResults(serpResults, true);
-      }
-      
-      // Step 4: HTTP fallback for missing critical data
-      const httpFallback = await this.executeHTTPFallback(
-        companyData.name,
+      // STEP 3: Process SerpAPI data through full scraping pipeline
+      console.log(`🔍 Step 2B: Processing SerpAPI data through full pipeline...`);
+      const scrapingResults = await this.processSerpAPIDataThroughPipeline(
+        enhancedCompanyData,
         serpResults,
+        triageResults,
         strategy
       );
       
-      // Step 5: Combine and format results
-      const combinedResults = this.combineSerpAPIAndHTTP(serpResults, httpFallback);
+      // STEP 4: Generate contextual search terms (using canonical name + SerpAPI insights)
+      const searchTerms = this.generateContextualSearchTerms(enhancedCompanyData, triageResults);
       
-      console.log(`✅ SerpAPI-enhanced scraping completed for: ${companyData.name}`);
-      return this.formatSerpAPIResults(combinedResults, false);
+      // STEP 5: HTTP fallback for missing critical data (if needed)
+      const httpFallback = await this.executeHTTPFallbackIfNeeded(
+        enhancedCompanyData.canonicalName,
+        scrapingResults,
+        strategy
+      );
+      
+      // STEP 6: Collect domains for impersonation detection
+      const collectedDomains = this.collectDomainsFromBothSources(scrapingResults, serpResults);
+      const impersonationRisk = this.entityUtils.checkImpersonationRisk(collectedDomains);
+      console.log(`🚨 Impersonation risk: ${impersonationRisk.risk} (${collectedDomains.length} domains checked)`);
+      
+      // STEP 7: Analyze results for early termination conditions
+      const conclusiveEvidence = this.analyzeForConclusiveEvidenceWithSerpAPI(scrapingResults, serpResults, triageResults.riskLevel);
+      
+      const processingTime = Date.now() - startTime;
+      
+      // STEP 8: Generate enhanced research summary with SerpAPI integration
+      const enhancedSummary = this.generateSerpAPIEnhancedResearchSummary(
+        scrapingResults,
+        serpResults,
+        triageResults,
+        conclusiveEvidence,
+        processingTime
+      );
+      
+      console.log(`✅ SerpAPI-enhanced intelligent scraping completed in ${processingTime}ms - Quality: ${enhancedSummary.dataQuality}`);
+      
+      // STEP 9: Build comprehensive results with SerpAPI data integration
+      const finalResults = {
+        companyName: companyData.name,
+        canonicalName: entityData.canonicalName,
+        entityResolution: entityData,
+        timestamp: new Date().toISOString(),
+        processingTimeMs: processingTime,
+        strategy: strategy,
+        searchTermsUsed: searchTerms,
+        sourcesScraped: Object.keys(scrapingResults).length,
+        sources: scrapingResults,
+        domains: collectedDomains,
+        impersonationRisk: impersonationRisk,
+        conclusiveEvidence: conclusiveEvidence,
+        summary: enhancedSummary,
+        intelligence: {
+          earlyTermination: conclusiveEvidence.triggered,
+          terminationReason: conclusiveEvidence.reason,
+          confidenceLevel: conclusiveEvidence.confidence
+        },
+        serpAPIResults: serpResults, // Include SerpAPI data
+        httpFallback: httpFallback,
+        evidence: this.evidenceAtoms || []
+      };
+      
+      // STEP 10: Ensure evidence atoms are properly collected from all sources
+      return this.collectAndReturnEvidence(finalResults);
       
     } catch (error) {
       console.error(`SerpAPI enhanced scraping failed: ${error.message}`);
@@ -418,6 +523,7 @@ class ContextAwareWebScraper extends WebScrapingService {
 
   /**
    * Execute HTTP fallback for missing critical data
+   * FIXED: Enhanced error handling and graceful degradation
    */
   async executeHTTPFallback(companyName, serpResults, strategy) {
     const fallbackNeeded = this.identifyFallbackNeeds(serpResults);
@@ -430,26 +536,135 @@ class ContextAwareWebScraper extends WebScrapingService {
     console.log(`🔄 Executing HTTP fallback for: ${fallbackNeeded.join(', ')}`);
     
     const fallbackResults = {};
+    let browserInitialized = false;
+    
+    // Try to initialize browser for HTTP fallback
+    try {
+      await this.initializeBrowser();
+      browserInitialized = true;
+      console.log(`✅ Browser ready for HTTP fallback`);
+    } catch (error) {
+      console.warn(`🚫 Browser initialization failed for HTTP fallback: ${error.message}`);
+      console.log(`📊 Will attempt HTTP-only fallback without browser automation`);
+    }
     
     for (const source of fallbackNeeded.slice(0, 2)) { // Limit fallback sources
       try {
         switch (source) {
           case 'ojk_direct':
-            fallbackResults.ojkDirect = await this.checkOJKDirect(companyName);
+            if (browserInitialized) {
+              fallbackResults.ojkDirect = await this.checkOJKDirect(companyName);
+            } else {
+              fallbackResults.ojkDirect = await this.checkOJKDirectHTTPOnly(companyName);
+            }
             break;
           case 'business_registry':
-            fallbackResults.businessRegistry = await this.checkBusinessRegistry(companyName);
+            if (browserInitialized) {
+              fallbackResults.businessRegistry = await this.checkBusinessRegistry(companyName);
+            } else {
+              fallbackResults.businessRegistry = await this.checkBusinessRegistryHTTPOnly(companyName);
+            }
             break;
           case 'indonesian_news':
-            fallbackResults.indonesianNews = await this.checkIndonesianNews(companyName);
+            if (browserInitialized) {
+              fallbackResults.indonesianNews = await this.checkIndonesianNews(companyName);
+            } else {
+              fallbackResults.indonesianNews = await this.checkIndonesianNewsHTTPOnly(companyName);
+            }
             break;
         }
       } catch (error) {
         console.warn(`HTTP fallback ${source} failed: ${error.message}`);
+        // Continue with other sources instead of failing completely
+        fallbackResults[source] = { error: error.message, attempted: true };
       }
     }
     
     return fallbackResults;
+  }
+
+  /**
+   * HTTP-only fallback methods that don't require browser automation
+   * These use direct HTTP requests instead of Puppeteer
+   */
+  async checkOJKDirectHTTPOnly(companyName) {
+    console.log(`🌐 Checking OJK directly via HTTP for: ${companyName}`);
+    try {
+      // Use axios to search Google for OJK results
+      const searchQuery = `site:ojk.go.id "${companyName}"`;
+      const response = await axios.get(`https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        timeout: 10000
+      });
+      
+      // Simple text analysis instead of DOM parsing
+      const hasOJKMention = response.data.includes('ojk.go.id') && response.data.includes(companyName);
+      
+      return {
+        found: hasOJKMention,
+        method: 'http_only',
+        source: 'google_search_ojk'
+      };
+    } catch (error) {
+      console.warn(`OJK HTTP-only check failed: ${error.message}`);
+      return { found: false, error: error.message, method: 'http_only' };
+    }
+  }
+
+  async checkBusinessRegistryHTTPOnly(companyName) {
+    console.log(`🌐 Checking business registry via HTTP for: ${companyName}`);
+    try {
+      // Use axios to search for Indonesian business registration
+      const searchQuery = `"${companyName}" terdaftar OR registered indonesia business`;
+      const response = await axios.get(`https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        timeout: 10000
+      });
+      
+      // Simple analysis for Indonesian business terms
+      const businessTerms = ['terdaftar', 'registered', 'PT ', 'CV ', 'business'];
+      const hasBusinessSignals = businessTerms.some(term => response.data.includes(term));
+      
+      return {
+        isIndonesianEntity: hasBusinessSignals,
+        method: 'http_only',
+        source: 'google_search_business'
+      };
+    } catch (error) {
+      console.warn(`Business registry HTTP-only check failed: ${error.message}`);
+      return { isIndonesianEntity: false, error: error.message, method: 'http_only' };
+    }
+  }
+
+  async checkIndonesianNewsHTTPOnly(companyName) {
+    console.log(`🌐 Checking Indonesian news via HTTP for: ${companyName}`);
+    try {
+      // Use axios to search for news coverage
+      const searchQuery = `"${companyName}" site:detik.com OR site:kompas.com OR site:tribunnews.com`;
+      const response = await axios.get(`https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        timeout: 10000
+      });
+      
+      // Simple analysis for news coverage
+      const newsTerms = ['detik.com', 'kompas.com', 'tribunnews.com'];
+      const newsCount = newsTerms.filter(term => response.data.includes(term)).length;
+      
+      return {
+        coverage: newsCount > 0 ? 'found' : 'not_found',
+        sources: newsCount,
+        method: 'http_only'
+      };
+    } catch (error) {
+      console.warn(`Indonesian news HTTP-only check failed: ${error.message}`);
+      return { coverage: 'not_found', error: error.message, method: 'http_only' };
+    }
   }
 
   /**
@@ -504,6 +719,249 @@ class ContextAwareWebScraper extends WebScrapingService {
     return combined;
   }
 
+  /**
+   * Process SerpAPI data through the full context-aware scraping pipeline
+   */
+  async processSerpAPIDataThroughPipeline(enhancedCompanyData, serpResults, triageResults, strategy) {
+    // Initialize results structure
+    const results = {
+      ojk: { registrationStatus: 'unknown', foundEntries: 0, details: [] },
+      news: { totalArticles: 0, sentiment: 'neutral', fraudMentions: 0, articles: [] },
+      businessInfo: { businessRegistration: 'unknown', digitalFootprint: 'minimal', legitimacySignals: [] },
+      fraudReports: { fraudReportsFound: 0, riskLevel: 'unknown', warnings: [] },
+      enhanced: {}
+    };
+    
+    // Initialize evidence atoms array
+    if (!this.evidenceAtoms) {
+      this.evidenceAtoms = [];
+    }
+    
+    // Process SerpAPI search results through the intelligence pipeline
+    for (const [searchType, searchData] of Object.entries(serpResults.searches || {})) {
+      if (searchData && !searchData.error) {
+        console.log(`🔍 Processing ${searchType} SerpAPI data...`);
+        
+        // Convert SerpAPI results to internal format
+        const processedResults = this.convertSerpAPIToInternalFormat(searchData, searchType);
+        
+        // Apply intelligent analysis to each result
+        const enhancedResults = processedResults.map(result => ({
+          ...result,
+          sourceSpecialization: this.mapSearchTypeToSpecialization(searchType),
+          relevanceScore: this.calculateRelevanceScore(result, this.mapSearchTypeToSpecialization(searchType)),
+          extractedSignals: this.extractSpecializedSignals(result, this.mapSearchTypeToSpecialization(searchType))
+        }));
+        
+        // Integrate results using existing intelligent integration logic
+        this.integrateSourceResults(results, enhancedResults, this.mapSearchTypeToSourceName(searchType));
+      }
+    }
+    
+    return results;
+  }
+  
+  /**
+   * Convert SerpAPI results to internal scraping format
+   */
+  convertSerpAPIToInternalFormat(searchData, searchType) {
+    const results = [];
+    
+    // Handle organic results
+    if (searchData.organic_results) {
+      for (const result of searchData.organic_results) {
+        results.push({
+          title: result.title || '',
+          snippet: result.snippet || '',
+          url: result.link || '',
+          source: 'serpapi',
+          searchType: searchType
+        });
+      }
+    }
+    
+    // Handle news results
+    if (searchData.news_results) {
+      for (const result of searchData.news_results) {
+        results.push({
+          title: result.title || '',
+          snippet: result.snippet || '',
+          url: result.link || '',
+          source: 'serpapi_news',
+          searchType: searchType,
+          date: result.date || ''
+        });
+      }
+    }
+    
+    return results;
+  }
+  
+  /**
+   * Map SerpAPI search type to source specialization
+   */
+  mapSearchTypeToSpecialization(searchType) {
+    const mappings = {
+      'general': 'business_directory',
+      'fraud': 'investigative_journalism', 
+      'financial': 'financial_crime',
+      'regulatory': 'business_registration',
+      'news': 'news_coverage',
+      'victims': 'social_sentiment',
+      'official': 'business_directory'
+    };
+    
+    return mappings[searchType] || 'news_coverage';
+  }
+  
+  /**
+   * Map SerpAPI search type to internal source name
+   */
+  mapSearchTypeToSourceName(searchType) {
+    const mappings = {
+      'general': 'businessInfo',
+      'fraud': 'fraudReports', 
+      'financial': 'fraudReports',
+      'regulatory': 'ojk',
+      'news': 'news',
+      'victims': 'fraudReports',
+      'official': 'businessInfo'
+    };
+    
+    return mappings[searchType] || 'enhanced';
+  }
+  
+  /**
+   * Execute HTTP fallback only if needed based on SerpAPI results
+   * FIXED: More conservative fallback - only when SerpAPI completely fails
+   */
+  async executeHTTPFallbackIfNeeded(companyName, scrapingResults, strategy) {
+    // Check if SerpAPI provided any meaningful data
+    const ojkData = scrapingResults.ojk?.foundEntries || 0;
+    const newsData = scrapingResults.news?.totalArticles || 0;
+    const businessData = scrapingResults.businessInfo?.legitimacySignals?.length || 0;
+    const fraudData = scrapingResults.fraudReports?.fraudReportsFound || 0;
+    
+    const totalData = ojkData + newsData + businessData + fraudData;
+    
+    // FIXED: Much lower threshold - only fallback if we have almost no data (≤2 data points)
+    // This prevents unnecessary browser initialization when SerpAPI provides reasonable data
+    if (totalData <= 2) {
+      console.log(`🔄 SerpAPI data very limited (${totalData} data points), attempting HTTP fallback...`);
+      
+      // ADDED: Check if browser-based scraping is disabled
+      if (process.env.DISABLE_BROWSER_FALLBACK === 'true') {
+        console.log(`🚫 Browser fallback disabled by environment configuration`);
+        return null;
+      }
+      
+      try {
+        return await this.executeHTTPFallback(companyName, { searches: {} }, strategy);
+      } catch (error) {
+        console.warn(`🚫 HTTP fallback failed: ${error.message}`);
+        console.log(`✅ Continuing with SerpAPI data only (${totalData} data points)`);
+        return null;
+      }
+    }
+    
+    console.log(`📊 SerpAPI data sufficient (${totalData} data points), skipping HTTP fallback`);
+    return null;
+  }
+  
+  /**
+   * Collect domains from both SerpAPI and traditional scraping results
+   */
+  collectDomainsFromBothSources(scrapingResults, serpResults) {
+    const domains = new Set();
+    
+    // Collect from traditional scraping results
+    const traditionalDomains = this.collectDomains(scrapingResults);
+    traditionalDomains.forEach(domain => domains.add(domain));
+    
+    // Collect from SerpAPI results
+    Object.values(serpResults.searches || {}).forEach(searchData => {
+      if (searchData && !searchData.error) {
+        const results = searchData.organic_results || searchData.news_results || [];
+        results.forEach(result => {
+          if (result.link) {
+            try {
+              const domain = new URL(result.link).hostname;
+              domains.add(domain);
+            } catch (e) {
+              // Invalid URL, skip
+            }
+          }
+        });
+      }
+    });
+    
+    return Array.from(domains);
+  }
+  
+  /**
+   * Analyze for conclusive evidence including SerpAPI data
+   */
+  analyzeForConclusiveEvidenceWithSerpAPI(scrapingResults, serpResults, riskLevel) {
+    // Start with traditional analysis
+    const evidence = this.analyzeForConclusiveEvidence(scrapingResults, riskLevel);
+    
+    // Enhance with SerpAPI-specific evidence
+    if (serpResults.summary?.conclusiveEvidence) {
+      evidence.triggered = true;
+      evidence.reason = 'serpapi_conclusive_evidence';
+      evidence.confidence = Math.max(evidence.confidence, 90);
+      evidence.conclusiveFactors.push('SerpAPI found conclusive evidence');
+    }
+    
+    // Check for multiple fraud indicators across SerpAPI searches
+    const fraudSearchTypes = ['fraud', 'victims', 'financial'];
+    const fraudEvidence = fraudSearchTypes.filter(searchType => {
+      const searchData = serpResults.searches?.[searchType];
+      return searchData && !searchData.error && 
+             (searchData.organic_results?.length > 0 || searchData.news_results?.length > 0);
+    });
+    
+    if (fraudEvidence.length >= 2) {
+      evidence.triggered = true;
+      evidence.reason = 'multiple_serpapi_fraud_sources';
+      evidence.confidence = Math.max(evidence.confidence, 85);
+      evidence.conclusiveFactors.push(`Fraud evidence found in ${fraudEvidence.length} SerpAPI search types`);
+    }
+    
+    return evidence;
+  }
+  
+  /**
+   * Generate research summary enhanced with SerpAPI integration
+   */
+  generateSerpAPIEnhancedResearchSummary(scrapingResults, serpResults, triageResults, conclusiveEvidence, processingTime) {
+    // Start with traditional enhanced summary
+    const summary = this.generateEnhancedResearchSummary(scrapingResults, triageResults, conclusiveEvidence, processingTime);
+    
+    // Add SerpAPI-specific insights
+    const serpAPISearches = Object.keys(serpResults.searches || {}).length;
+    const serpAPIResults = serpResults.summary?.totalResults || 0;
+    
+    summary.intelligenceInsights.push(`SerpAPI: ${serpAPISearches} searches, ${serpAPIResults} total results`);
+    
+    // Enhance data quality based on SerpAPI contribution
+    if (serpAPIResults > 15) {
+      summary.dataQuality = summary.dataQuality === 'comprehensive' ? 'comprehensive' : 'good';
+    } else if (serpAPIResults > 8) {
+      summary.dataQuality = summary.dataQuality === 'minimal' ? 'limited' : summary.dataQuality;
+    }
+    
+    // Add SerpAPI efficiency metrics
+    summary.serpAPIEfficiency = {
+      searchesExecuted: serpAPISearches,
+      resultsFound: serpAPIResults,
+      earlyTermination: serpResults.summary?.earlyTermination || false,
+      conclusiveEvidence: serpResults.summary?.conclusiveEvidence || false
+    };
+    
+    return summary;
+  }
+  
   /**
    * Format SerpAPI results for consumption
    */
@@ -647,7 +1105,7 @@ class ContextAwareWebScraper extends WebScrapingService {
    */
   generateContextualSearchTerms(companyData, triageResults) {
     const { name } = companyData;
-    const { riskLevel, riskFactors } = triageResults;
+    const { riskLevel, riskFactors } = triageResults || { riskLevel: 'medium', riskFactors: [] };
     
     const searchTerms = {
       base: [`"${companyData.name}"`],
@@ -716,7 +1174,7 @@ class ContextAwareWebScraper extends WebScrapingService {
     }
     
     // Add contextual terms based on detected risk factors
-    for (const riskFactor of riskFactors) {
+    for (const riskFactor of (riskFactors || [])) {
       if (riskFactor.includes('ponzi') || riskFactor.includes('investment')) {
         searchTerms.contextual.push(
           `"${companyData.name}" "skema ponzi"`,
@@ -748,7 +1206,7 @@ class ContextAwareWebScraper extends WebScrapingService {
    */
   prioritizeSources(strategy, riskLevel) {
     const availableSources = Object.keys(this.enhancedSources);
-    const baseTargets = this.config.targets;
+    const baseTargets = this.config?.targets || {};
     
     // Combine base and enhanced sources
     const allSources = [...Object.keys(baseTargets), ...availableSources];
@@ -768,7 +1226,7 @@ class ContextAwareWebScraper extends WebScrapingService {
     
     return selectedSources.map(sourceName => ({
       name: sourceName,
-      config: this.enhancedSources[sourceName] || this.config.targets[sourceName] || this.config.targets.google,
+      config: this.enhancedSources[sourceName] || baseTargets[sourceName] || { baseUrl: 'https://www.google.com' },
       maxResults: strategy.maxResultsPerSource || 5
     }));
   }
@@ -818,7 +1276,7 @@ class ContextAwareWebScraper extends WebScrapingService {
         this.integrateSourceResults(results, sourceResults, source.name);
         
         // Update evidence counter
-        totalEvidence += this.countEvidence(sourceResults);
+        totalEvidence += this.countEvidence(sourceResults || []);
         
         // Random delay between sources
         await this.randomDelay();
@@ -1177,7 +1635,7 @@ class ContextAwareWebScraper extends WebScrapingService {
       }
       
       // Specialized signals add to evidence count
-      evidenceCount += result.extractedSignals.length;
+      evidenceCount += (result.extractedSignals || []).length;
     }
     
     return evidenceCount;

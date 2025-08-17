@@ -1976,6 +1976,387 @@ ${index + 1}. Title: ${result.title}
   }
 
   /**
+   * Generates human-readable company narrative from analysis results
+   */
+  async generateCompanyNarrative(companyData, analysisResult, entityResolution = null) {
+    try {
+      const prompt = this.createNarrativePrompt(companyData, analysisResult, entityResolution);
+      
+      if (this.testMode) {
+        return this.generateMockNarrative(companyData, analysisResult, entityResolution);
+      }
+      
+      const result = await this.model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.3, // Slightly higher for more natural language
+          topK: 10,
+          topP: 0.7,
+          maxOutputTokens: 1024,
+        },
+      });
+
+      const response = await result.response;
+      const text = response.text();
+      
+      // Extract JSON from response
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No valid JSON response found in narrative generation');
+      }
+      
+      return {
+        success: true,
+        data: JSON.parse(jsonMatch[0]),
+        timestamp: new Date().toISOString()
+      };
+      
+    } catch (error) {
+      console.error('Narrative generation error:', error);
+      return {
+        success: false,
+        error: error.message,
+        fallback: this.generateMockNarrative(companyData, analysisResult, entityResolution)
+      };
+    }
+  }
+
+  /**
+   * Creates prompt for AI narrative generation
+   */
+  createNarrativePrompt(companyData, analysisResult, entityResolution) {
+    const { name, description } = companyData;
+    const { fraudScore, riskLevel, confidence } = analysisResult;
+    
+    return `
+Generate a comprehensive, human-readable analysis narrative for the following Indonesian company fraud assessment.
+
+**COMPANY INFORMATION:**
+- Name: ${name}
+- Description: ${description}
+${entityResolution ? `
+**ENTITY RESOLUTION:**
+- Canonical Name: ${entityResolution.canonicalName}
+- Entity Type: ${entityResolution.entityType}
+- Industry: ${entityResolution.industry}
+- Jurisdiction: ${entityResolution.jurisdiction}
+- Registration Status: ${entityResolution.registrationStatus}
+- Known Aliases: ${entityResolution.aliases.slice(0, 3).join(', ')}` : ''}
+
+**ANALYSIS RESULTS:**
+- Fraud Score: ${fraudScore}/100
+- Risk Level: ${riskLevel}
+- Analysis Confidence: ${confidence}%
+
+**EVIDENCE FINDINGS:**
+${this.formatEvidenceForNarrative(analysisResult)}
+
+**NARRATIVE REQUIREMENTS:**
+Create a professional, accessible narrative that explains the fraud assessment in plain language. The narrative should be suitable for business stakeholders who need to understand the risk assessment without technical jargon.
+
+**OUTPUT FORMAT (JSON):**
+{
+  "summary": "2-3 sentence overall risk assessment summary",
+  "keyFindings": [
+    "Most important discovery 1",
+    "Most important discovery 2",
+    "Most important discovery 3"
+  ],
+  "riskExplanation": "Detailed explanation of why this fraud score was assigned, referencing specific evidence",
+  "recommendations": [
+    "Specific actionable recommendation 1",
+    "Specific actionable recommendation 2",
+    "Specific actionable recommendation 3"
+  ],
+  "confidenceReasoning": "Explanation of why we have this level of confidence in the assessment",
+  "businessContext": "How this assessment should be interpreted in the context of Indonesian business environment"
+}
+
+**WRITING GUIDELINES:**
+- Use professional but accessible language
+- Focus on business implications
+- Cite specific evidence when possible
+- Avoid technical fraud detection terminology
+- Consider Indonesian business context and regulations
+- Be objective and fact-based
+- Provide actionable insights
+
+Generate the narrative now:`;
+  }
+
+  /**
+   * Formats evidence for narrative generation
+   */
+  formatEvidenceForNarrative(analysisResult) {
+    let evidence = '';
+    
+    if (analysisResult.analysis?.fraudIndicators) {
+      const fraud = analysisResult.analysis.fraudIndicators;
+      evidence += `- Fraud Indicators: Score ${fraud.score}/100`;
+      if (fraud.detectedKeywords?.length > 0) {
+        evidence += `, Keywords: ${fraud.detectedKeywords.slice(0, 3).join(', ')}`;
+      }
+      evidence += '\n';
+    }
+    
+    if (analysisResult.analysis?.legitimacyEvidence) {
+      const legit = analysisResult.analysis.legitimacyEvidence;
+      evidence += `- Legitimacy Evidence: Score ${legit.score}/100`;
+      if (legit.businessMarkers?.length > 0) {
+        evidence += `, Markers: ${legit.businessMarkers.slice(0, 3).join(', ')}`;
+      }
+      evidence += '\n';
+    }
+    
+    if (analysisResult.analysis?.regulatoryWarnings) {
+      const regulatory = analysisResult.analysis.regulatoryWarnings;
+      evidence += `- Regulatory Status: Score ${regulatory.score}/100\n`;
+    }
+    
+    if (analysisResult.analysis?.webResearchImpact) {
+      const web = analysisResult.analysis.webResearchImpact;
+      evidence += `- Web Research: Score ${web.score}/100, Quality: ${web.dataQuality}\n`;
+    }
+    
+    return evidence || '- No detailed evidence breakdown available\n';
+  }
+
+  /**
+   * Generates mock narrative for testing
+   */
+  generateMockNarrative(companyData, analysisResult, entityResolution) {
+    const { name } = companyData;
+    const { fraudScore, riskLevel, confidence } = analysisResult;
+    
+    let summary, riskExplanation, businessContext;
+    const keyFindings = [];
+    const recommendations = [];
+    
+    // Generate content based on risk level
+    if (riskLevel === 'critical' || riskLevel === 'high') {
+      summary = `${name} presents significant fraud risk with a score of ${fraudScore}/100. Multiple concerning indicators were identified requiring immediate attention and enhanced due diligence.`;
+      
+      keyFindings.push(
+        'Multiple fraud-related keywords detected in company description',
+        'Limited or suspicious regulatory compliance evidence',
+        'Negative indicators outweigh legitimacy signals'
+      );
+      
+      recommendations.push(
+        'Conduct enhanced due diligence before any business engagement',
+        'Verify all business registration documents with Indonesian authorities',
+        'Consider rejecting business relationship until concerns are addressed'
+      );
+      
+      riskExplanation = `The high fraud score is primarily driven by the presence of suspicious keywords commonly associated with fraudulent investment schemes, combined with insufficient evidence of legitimate business operations and regulatory compliance.`;
+      
+    } else if (riskLevel === 'medium') {
+      summary = `${name} shows moderate risk characteristics with a score of ${fraudScore}/100. While some legitimacy indicators are present, additional verification is recommended before establishing business relationships.`;
+      
+      keyFindings.push(
+        'Mixed signals between legitimacy and risk indicators',
+        'Some business registration evidence found',
+        'Requires additional verification for complete assessment'
+      );
+      
+      recommendations.push(
+        'Conduct standard enhanced due diligence procedures',
+        'Verify OJK registration status if applicable to business type',
+        'Monitor for additional risk signals during onboarding'
+      );
+      
+      riskExplanation = `The moderate risk score reflects a balance between positive legitimacy indicators and areas of concern that require further investigation.`;
+      
+    } else {
+      summary = `${name} demonstrates low fraud risk with a score of ${fraudScore}/100. The company shows strong legitimacy indicators consistent with established Indonesian business practices.`;
+      
+      keyFindings.push(
+        'Strong business legitimacy indicators present',
+        'Proper Indonesian business entity structure identified',
+        'No significant fraud-related concerns detected'
+      );
+      
+      recommendations.push(
+        'Proceed with standard due diligence procedures',
+        'Maintain routine monitoring as part of ongoing relationship',
+        'Consider for streamlined onboarding process'
+      );
+      
+      riskExplanation = `The low risk score is supported by clear business legitimacy indicators and absence of fraud-related warning signs.`;
+    }
+    
+    businessContext = `This assessment considers Indonesian business regulatory environment including OJK oversight for financial services and standard PT/CV corporate structures. ${entityResolution ? `The company operates as a ${entityResolution.entityType} entity in the ${entityResolution.industry} sector within ${entityResolution.jurisdiction} jurisdiction.` : ''}`;
+    
+    const confidenceReasoning = `Assessment confidence of ${confidence}% is based on ${analysisResult.analysis?.webResearchImpact ? 'comprehensive web research findings combined with' : ''} AI analysis of company information and established fraud detection patterns for Indonesian businesses.`;
+    
+    return {
+      success: true,
+      data: {
+        summary,
+        keyFindings,
+        riskExplanation,
+        recommendations,
+        confidenceReasoning,
+        businessContext
+      },
+      source: 'mock_narrative'
+    };
+  }
+
+  /**
+   * Extracts key findings from analysis results
+   */
+  extractKeyFindings(analysisResult, maxFindings = 5) {
+    const findings = [];
+    
+    // Extract from fraud indicators
+    if (analysisResult.analysis?.fraudIndicators?.detectedKeywords?.length > 0) {
+      findings.push(`Fraud keywords detected: ${analysisResult.analysis.fraudIndicators.detectedKeywords.slice(0, 2).join(', ')}`);
+    }
+    
+    // Extract from legitimacy evidence
+    if (analysisResult.analysis?.legitimacyEvidence?.businessMarkers?.length > 0) {
+      findings.push(`Business legitimacy markers: ${analysisResult.analysis.legitimacyEvidence.businessMarkers.slice(0, 2).join(', ')}`);
+    }
+    
+    // Extract from regulatory status
+    if (analysisResult.analysis?.regulatoryWarnings?.score > 50) {
+      findings.push('Regulatory compliance concerns identified');
+    } else if (analysisResult.analysis?.regulatoryWarnings?.score < 30) {
+      findings.push('Strong regulatory compliance indicators');
+    }
+    
+    // Extract from web research
+    if (analysisResult.analysis?.webResearchImpact?.dataQuality) {
+      findings.push(`Web research quality: ${analysisResult.analysis.webResearchImpact.dataQuality}`);
+    }
+    
+    // Extract from entity resolution if available
+    if (analysisResult.entityResolution?.registrationStatus === 'registered') {
+      findings.push('Confirmed business registration status');
+    }
+    
+    return findings.slice(0, maxFindings);
+  }
+
+  /**
+   * Generates risk explanation based on analysis components
+   */
+  generateRiskExplanation(analysisResult) {
+    const { fraudScore, riskLevel } = analysisResult;
+    const components = [];
+    
+    // Analyze each component's contribution
+    if (analysisResult.analysis?.fraudIndicators?.score > 30) {
+      components.push(`fraud indicators (${analysisResult.analysis.fraudIndicators.score}/100)`);
+    }
+    
+    if (analysisResult.analysis?.legitimacyEvidence?.score > 50) {
+      components.push(`strong legitimacy evidence (${analysisResult.analysis.legitimacyEvidence.score}/100)`);
+    } else if (analysisResult.analysis?.legitimacyEvidence?.score < 30) {
+      components.push(`weak legitimacy evidence (${analysisResult.analysis.legitimacyEvidence.score}/100)`);
+    }
+    
+    if (analysisResult.analysis?.regulatoryWarnings?.score > 40) {
+      components.push(`regulatory compliance concerns (${analysisResult.analysis.regulatoryWarnings.score}/100)`);
+    }
+    
+    const explanation = `The ${riskLevel} risk assessment with a score of ${fraudScore}/100 is primarily based on ${components.join(', ')}.`;
+    
+    return explanation;
+  }
+
+  /**
+   * Generates actionable recommendations based on risk level and findings
+   */
+  generateRecommendations(analysisResult, entityResolution = null) {
+    const { riskLevel, fraudScore } = analysisResult;
+    const recommendations = [];
+    
+    // Risk-level specific recommendations
+    if (riskLevel === 'critical') {
+      recommendations.push('Immediate manual review and investigation required');
+      recommendations.push('Consider blocking all transactions until verification completed');
+      recommendations.push('Report suspicious activity to relevant Indonesian authorities');
+    } else if (riskLevel === 'high') {
+      recommendations.push('Enhanced due diligence required before business engagement');
+      recommendations.push('Verify all business documents with Indonesian regulatory authorities');
+      recommendations.push('Implement enhanced monitoring if relationship proceeds');
+    } else if (riskLevel === 'medium') {
+      recommendations.push('Standard enhanced due diligence procedures recommended');
+      recommendations.push('Additional verification of business registration and licenses');
+      recommendations.push('Regular monitoring during initial business relationship period');
+    } else {
+      recommendations.push('Standard due diligence procedures sufficient');
+      recommendations.push('Proceed with normal onboarding process');
+      recommendations.push('Routine periodic monitoring as part of ongoing relationship');
+    }
+    
+    // Industry-specific recommendations
+    if (entityResolution?.industry === 'banking' || entityResolution?.industry === 'fintech') {
+      recommendations.push('Verify OJK registration and compliance status');
+      recommendations.push('Review financial services licensing requirements');
+    }
+    
+    // Entity-type specific recommendations
+    if (entityResolution?.entityType === 'tbk') {
+      recommendations.push('Verify IDX listing status and trading information');
+    }
+    
+    return recommendations.slice(0, 5); // Limit to 5 recommendations
+  }
+
+  /**
+   * Explains confidence reasoning based on data quality and analysis depth
+   */
+  explainConfidenceReasoning(analysisResult) {
+    const { confidence } = analysisResult;
+    const factors = [];
+    
+    // Data quality factors
+    if (analysisResult.analysis?.webResearchImpact?.dataQuality) {
+      const quality = analysisResult.analysis.webResearchImpact.dataQuality;
+      if (quality === 'comprehensive' || quality === 'good') {
+        factors.push('high-quality web research data');
+      } else if (quality === 'limited') {
+        factors.push('limited web research data available');
+      } else {
+        factors.push('minimal web research data');
+      }
+    }
+    
+    // Analysis coverage
+    const analysisComponents = Object.keys(analysisResult.analysis || {}).length;
+    if (analysisComponents >= 4) {
+      factors.push('comprehensive multi-component analysis');
+    } else if (analysisComponents >= 2) {
+      factors.push('standard multi-component analysis');
+    } else {
+      factors.push('basic analysis coverage');
+    }
+    
+    // Entity resolution quality
+    if (analysisResult.entityResolution?.confidence > 0.8) {
+      factors.push('high entity resolution confidence');
+    } else if (analysisResult.entityResolution?.confidence > 0.5) {
+      factors.push('moderate entity resolution confidence');
+    }
+    
+    let reasoning = `Confidence level of ${confidence}% is based on ${factors.join(', ')}.`;
+    
+    // Add confidence interpretation
+    if (confidence >= 80) {
+      reasoning += ' This high confidence level indicates reliable assessment suitable for business decision-making.';
+    } else if (confidence >= 60) {
+      reasoning += ' This moderate confidence level suggests additional verification may be beneficial for critical decisions.';
+    } else {
+      reasoning += ' This lower confidence level indicates that additional manual review and verification is strongly recommended.';
+    }
+    
+    return reasoning;
+  }
+
+  /**
    * Cleanup resources (web scraper browser)
    */
   async cleanup() {

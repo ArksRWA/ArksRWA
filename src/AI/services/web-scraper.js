@@ -69,13 +69,21 @@ class WebScrapingService {
 
   /**
    * Initialize browser instance with anti-detection measures
+   * FIXED: Enhanced error handling and multiple fallback configurations
    */
   async initializeBrowser() {
     if (this.browser) return this.browser;
     
-    try {
-      this.browser = await puppeteer.launch({
-        headless: this.config.headless, // Using 'new' headless mode
+    // Check if browser fallback is disabled
+    if (process.env.DISABLE_BROWSER_FALLBACK === 'true') {
+      throw new Error('Browser fallback disabled by configuration');
+    }
+    
+    // Try multiple browser configurations for maximum compatibility
+    const configs = [
+      // Primary configuration (most secure)
+      {
+        headless: this.config.headless,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -91,14 +99,44 @@ class WebScrapingService {
           '--disable-features=TranslateUI',
           '--disable-ipc-flooding-protection'
         ]
-      });
-      
-      console.log('🚀 Web scraper browser initialized');
-      return this.browser;
-    } catch (error) {
-      console.error('Browser initialization failed:', error);
-      throw new Error('Failed to initialize web scraper browser');
+      },
+      // Fallback configuration (less restrictive)
+      {
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu'
+        ]
+      },
+      // Minimal configuration (emergency fallback)
+      {
+        headless: true,
+        args: ['--no-sandbox']
+      }
+    ];
+    
+    let lastError;
+    for (let i = 0; i < configs.length; i++) {
+      try {
+        console.log(`🚀 Attempting browser initialization (config ${i + 1}/${configs.length})...`);
+        this.browser = await puppeteer.launch(configs[i]);
+        console.log(`✅ Web scraper browser initialized with config ${i + 1}`);
+        return this.browser;
+      } catch (error) {
+        lastError = error;
+        console.warn(`❌ Browser config ${i + 1} failed: ${error.message}`);
+        
+        if (i < configs.length - 1) {
+          console.log(`🔄 Trying next browser configuration...`);
+        }
+      }
     }
+    
+    // If all configurations failed, throw informative error
+    console.error('All browser initialization attempts failed:', lastError);
+    throw new Error(`Failed to initialize web scraper browser after ${configs.length} attempts. Last error: ${lastError.message}`);
   }
 
   /**

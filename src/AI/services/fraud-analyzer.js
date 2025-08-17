@@ -37,8 +37,8 @@ class FraudAnalyzer {
   }
 
   /**
-   * NEW: Enhanced fraud analysis with SerpAPI integration
-   * Complete pipeline: SerpAPI research → Gemini AI analysis → Risk assessment
+   * NEW: Enhanced fraud analysis with SerpAPI integration using FULL pipeline
+   * Uses SerpAPI for data collection, then processes through complete fraud analyzer pipeline
    */
   async analyzeCompanyWithSerpAPI(companyData) {
     const analysisStart = Date.now();
@@ -46,47 +46,81 @@ class FraudAnalyzer {
     try {
       console.log(`🔍 Starting SerpAPI-enhanced fraud analysis for: ${companyData.name}`);
       
-      // Step 1: SerpAPI comprehensive data collection
-      const serpResults = await serpAPIService.analyzeCompany(companyData.name, {
-        priority: 'balanced',
-        skipOnConclusiveEvidence: true,
-        maxSearches: 6
-      });
+      // Check cache first
+      const cacheKey = this.generateCacheKey(companyData);
+      const cached = this.getFromCache(cacheKey);
+      if (cached) {
+        console.log(`📋 Using cached analysis for: ${companyData.name}`);
+        return {
+          ...cached,
+          source: 'cache_serpapi',
+          timestamp: new Date().toISOString()
+        };
+      }
+
+      // STAGE 1: Intelligent Risk Triage (same as full pipeline)
+      console.log(`🧠 Stage 1: Performing intelligent triage...`);
+      const triageResults = await this.triageService.performInitialTriage(companyData);
       
-      console.log(`📊 SerpAPI data collection completed: ${Object.keys(serpResults.searches).length} searches`);
+      // STAGE 2: SerpAPI-Enhanced Context-Aware Web Scraping
+      console.log(`🌐 Stage 2: SerpAPI-enhanced context-aware scraping (${triageResults.scrapingStrategy.level} strategy)...`);
+      const intelligentWebResearch = await this.contextAwareScraper.scrapeWithSerpAPI(
+        companyData, 
+        triageResults
+      );
+
+      // Prepare enhanced company data with triage insights
+      const enhancedData = this.enhanceCompanyDataWithTriage(companyData, triageResults);
       
-      // Step 2: Enhanced Gemini AI analysis with SerpAPI data
-      const geminiAnalysis = await this.geminiService.analyzeCompanyWithSerpData(
-        companyData.name,
-        companyData.description,
-        serpResults
+      // STAGE 3A: Enhanced AI Analysis (with SerpAPI data and triage context)
+      console.log(`🤖 Stage 3A: AI analysis with SerpAPI intelligence context...`);
+      const aiAnalysis = await this.performEnhancedAIAnalysis(
+        enhancedData, 
+        intelligentWebResearch, 
+        triageResults
       );
       
-      console.log(`🧠 Gemini AI analysis completed with confidence: ${geminiAnalysis.data?.confidence || 'unknown'}%`);
-      
-      // Step 3: Combine AI insights with rule-based validation
-      const ruleBasedAnalysis = this.performRuleBasedValidation(companyData, serpResults);
-      
-      // Step 4: Final risk assessment and scoring
-      const finalAssessment = this.combineSerpAPIAndAIAnalysis(
-        geminiAnalysis,
-        ruleBasedAnalysis,
-        serpResults,
-        companyData
+      // STAGE 3B: Enhanced Rule-Based Analysis (with SerpAPI data)
+      console.log(`📊 Stage 3B: Rule-based analysis with SerpAPI insights...`);
+      const ruleBasedAnalysis = this.performEnhancedRuleBasedAnalysis(
+        enhancedData, 
+        intelligentWebResearch, 
+        triageResults
       );
       
-      const analysisTime = Date.now() - analysisStart;
-      console.log(`✅ SerpAPI-enhanced analysis completed in ${analysisTime}ms for: ${companyData.name}`);
+      // STAGE 4: Intelligent Result Combination (full pipeline)
+      const combinedAnalysis = this.combineIntelligentAnalysisResults(
+        aiAnalysis, 
+        ruleBasedAnalysis, 
+        triageResults,
+        intelligentWebResearch,
+        enhancedData
+      );
       
-      return {
-        success: true,
-        analysis: finalAssessment,
-        serpAPIData: serpResults,
-        geminiAnalysis: geminiAnalysis,
-        processingTime: analysisTime,
-        timestamp: new Date().toISOString(),
-        methodology: 'serpapi_enhanced'
+      // Add performance metrics
+      const totalAnalysisTime = Date.now() - analysisStart;
+      combinedAnalysis.performance = {
+        totalTimeMs: totalAnalysisTime,
+        triageTimeMs: triageResults.processingTimeMs,
+        scrapingTimeMs: intelligentWebResearch.processingTimeMs,
+        efficiency: this.calculateEfficiencyScore(totalAnalysisTime, triageResults, intelligentWebResearch),
+        resourcesUsed: {
+          sources: intelligentWebResearch.sourcesScraped,
+          searchTerms: intelligentWebResearch.searchTermsUsed ? Object.values(intelligentWebResearch.searchTermsUsed).flat().length : 0,
+          earlyTermination: intelligentWebResearch.intelligence?.earlyTermination || false,
+          serpAPISearches: intelligentWebResearch.serpAPIResults?.summary?.searchesExecuted || 0
+        }
       };
+      
+      // Mark as SerpAPI-enhanced methodology
+      combinedAnalysis.source = 'serpapi_enhanced_intelligent_analysis';
+      combinedAnalysis.methodology = 'serpapi_full_pipeline';
+      
+      // Cache the result
+      this.addToCache(cacheKey, combinedAnalysis);
+      
+      console.log(`✅ SerpAPI-enhanced analysis completed in ${totalAnalysisTime}ms - Score: ${combinedAnalysis.fraudScore}, Efficiency: ${combinedAnalysis.performance.efficiency}`);
+      return combinedAnalysis;
       
     } catch (error) {
       console.error(`SerpAPI-enhanced analysis failed for ${companyData.name}:`, error);
@@ -313,39 +347,55 @@ class FraudAnalyzer {
   }
 
   /**
-   * Combine SerpAPI and AI analysis results
+   * Combine SerpAPI and AI analysis results with entity resolution
    */
-  combineSerpAPIAndAIAnalysis(geminiAnalysis, ruleBasedAnalysis, serpResults, companyData) {
+  combineSerpAPIAndAIAnalysis(geminiAnalysis, ruleBasedAnalysis, serpResults, companyData, entityResolution = null) {
     const aiData = geminiAnalysis.data;
     const fallbackScore = aiData?.fraudScore || 50;
+    
+    // Factor in entity resolution confidence
+    let entityResolutionBonus = 0;
+    if (entityResolution) {
+      if (entityResolution.confidence > 0.9) {
+        entityResolutionBonus = 5; // High confidence entity resolution
+      } else if (entityResolution.confidence > 0.7) {
+        entityResolutionBonus = 3; // Medium confidence
+      } else if (entityResolution.confidence < 0.5) {
+        entityResolutionBonus = -5; // Low confidence penalty
+      }
+    }
     
     // Calculate weighted final score
     const aiWeight = geminiAnalysis.success && aiData ? 0.7 : 0.3;
     const ruleWeight = 1 - aiWeight;
     
     const ruleBasedScore = this.calculateRuleBasedScore(ruleBasedAnalysis, serpResults);
-    const finalScore = Math.round((fallbackScore * aiWeight) + (ruleBasedScore * ruleWeight));
+    const baseScore = Math.round((fallbackScore * aiWeight) + (ruleBasedScore * ruleWeight));
+    const finalScore = Math.max(0, Math.min(100, baseScore + entityResolutionBonus));
     
     // Determine final risk level
     const riskLevel = this.determineRiskLevel(finalScore);
     
-    // Generate comprehensive recommendations
+    // Generate comprehensive recommendations with entity context
     const recommendations = this.generateSerpAPIRecommendations(
       geminiAnalysis,
       ruleBasedAnalysis,
       serpResults,
-      riskLevel
+      riskLevel,
+      entityResolution
     );
     
     return {
-      fraudScore: Math.max(0, Math.min(100, finalScore)),
+      fraudScore: finalScore,
       riskLevel,
-      confidence: this.calculateConfidence(geminiAnalysis, serpResults),
-      methodology: 'serpapi_gemini_hybrid',
+      confidence: this.calculateSerpAPIConfidence(geminiAnalysis, serpResults),
+      methodology: 'serpapi_gemini_hybrid_with_entity_resolution',
+      entityResolution: entityResolution,
       evidenceBreakdown: {
         aiAnalysis: aiData?.evidenceBreakdown || {},
         ruleBasedFindings: ruleBasedAnalysis,
-        serpAPIMetrics: serpResults.summary
+        serpAPIMetrics: serpResults.summary,
+        entityResolutionImpact: entityResolutionBonus
       },
       recommendations,
       dataQuality: this.assessOverallDataQuality(geminiAnalysis, serpResults),
@@ -353,7 +403,8 @@ class FraudAnalyzer {
         serpAPISearches: Object.keys(serpResults.searches).length,
         aiAnalysisSuccess: geminiAnalysis.success,
         totalEvidence: this.countTotalEvidence(ruleBasedAnalysis),
-        earlyTermination: serpResults.summary?.earlyTermination || false
+        earlyTermination: serpResults.summary?.earlyTermination || false,
+        entityResolutionConfidence: entityResolution?.confidence || 0
       }
     };
   }
@@ -417,9 +468,9 @@ class FraudAnalyzer {
   }
 
   /**
-   * Generate comprehensive recommendations
+   * Generate comprehensive recommendations with entity resolution context
    */
-  generateSerpAPIRecommendations(geminiAnalysis, ruleBasedAnalysis, serpResults, riskLevel) {
+  generateSerpAPIRecommendations(geminiAnalysis, ruleBasedAnalysis, serpResults, riskLevel, entityResolution = null) {
     const recommendations = [];
     
     // Risk-based recommendations
@@ -438,6 +489,24 @@ class FraudAnalyzer {
       case 'low':
         recommendations.push('APPROVE: Low risk profile');
         break;
+    }
+    
+    // Entity-specific recommendations
+    if (entityResolution) {
+      if (entityResolution.industry === 'banking' || entityResolution.industry === 'fintech') {
+        recommendations.push('Verify OJK registration and compliance requirements');
+        if (entityResolution.registrationStatus === 'unknown') {
+          recommendations.push('CRITICAL: Financial services licensing verification required');
+        }
+      }
+      
+      if (entityResolution.entityType === 'tbk') {
+        recommendations.push('Verify IDX listing status and annual reporting compliance');
+      }
+      
+      if (entityResolution.confidence < 0.7) {
+        recommendations.push('Enhanced entity verification required due to low resolution confidence');
+      }
     }
     
     // Evidence-based recommendations
@@ -857,7 +926,10 @@ class FraudAnalyzer {
     
     // Component 1: Evidence Collection Quality (0-25 points)
     const expectedEvidenceSources = ['OJK', 'IDX', 'news', 'businessInfo'];
-    const sourcesFound = new Set(evidenceAtoms.map(atom => atom.source)).size;
+    
+    // Ensure evidenceAtoms is an array before using map
+    const evidenceArray = Array.isArray(evidenceAtoms) ? evidenceAtoms : [];
+    const sourcesFound = new Set(evidenceArray.map(atom => atom.source)).size;
     const evidenceBonus = Math.round((sourcesFound / expectedEvidenceSources.length) * 25);
     confidence += evidenceBonus;
     
@@ -914,6 +986,42 @@ class FraudAnalyzer {
     
     // Ensure confidence stays within reasonable bounds
     return Math.min(100, Math.max(25, confidence)); // Minimum 25, Maximum 100
+  }
+
+  /**
+   * Calculate confidence specifically for SerpAPI analysis
+   */
+  calculateSerpAPIConfidence(geminiAnalysis, serpResults) {
+    let confidence = 50; // Base confidence for SerpAPI analysis
+    
+    // AI analysis quality contribution (0-25 points)
+    if (geminiAnalysis.success && geminiAnalysis.data?.confidence) {
+      const aiConfidence = geminiAnalysis.data.confidence;
+      confidence += Math.round((aiConfidence - 50) * 0.5); // Scale AI confidence to max 25 points
+    }
+    
+    // SerpAPI data quality contribution (0-30 points)
+    const totalResults = serpResults.summary?.totalResults || 0;
+    if (totalResults > 15) confidence += 25;
+    else if (totalResults > 8) confidence += 20;
+    else if (totalResults > 3) confidence += 15;
+    else if (totalResults > 0) confidence += 10;
+    
+    // Search diversity contribution (0-15 points)
+    const searchTypes = Object.keys(serpResults.searches || {}).length;
+    confidence += Math.min(searchTypes * 3, 15);
+    
+    // Early termination indicates strong evidence (0-10 points)
+    if (serpResults.summary?.earlyTermination) {
+      confidence += 10;
+    }
+    
+    // Conclusive evidence bonus (0-10 points)
+    if (serpResults.summary?.conclusiveEvidence) {
+      confidence += 10;
+    }
+    
+    return Math.max(30, Math.min(100, Math.round(confidence)));
   }
 
   /**

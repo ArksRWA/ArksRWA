@@ -164,50 +164,71 @@ router.post('/analyze-company/serpapi', async (req, res) => {
     const result = await fraudAnalyzer.analyzeCompanyWithSerpAPI(companyData);
     const analysisTime = Date.now() - analysisStart;
     
-    console.log(`✅ SerpAPI analysis completed in ${analysisTime}ms - Score: ${result.analysis?.fraudScore}, Risk: ${result.analysis?.riskLevel}`);
+    console.log(`✅ SerpAPI analysis completed in ${analysisTime}ms - Score: ${result.fraudScore}, Risk: ${result.riskLevel}`);
     
-    // Prepare enhanced response
+    // Extract data sources using the same method as traditional analysis
+    const dataSources = router.extractDataSources(result);
+    
+    // Prepare enhanced response with full pipeline results
     const response = {
       success: true,
       data: {
         companyName: companyData.name,
-        fraudScore: result.analysis?.fraudScore || 50,
-        riskLevel: result.analysis?.riskLevel || 'medium',
-        confidence: result.analysis?.confidence || 50,
-        methodology: result.methodology || 'serpapi_enhanced',
+        fraudScore: result.fraudScore,
+        riskLevel: result.riskLevel,
+        confidence: result.confidence,
+        methodology: result.source || 'serpapi_enhanced_intelligent_analysis',
         
-        // Enhanced evidence breakdown
-        evidenceBreakdown: result.analysis?.evidenceBreakdown || {},
+        // Enhanced analysis structure
+        analysis: result.analysis,
         
-        // Recommendations based on SerpAPI findings
-        recommendations: result.analysis?.recommendations || [],
+        // Entity Resolution (from enhanced pipeline)
+        entityResolution: result.analysis?.entity || {
+          canonicalName: companyData.name,
+          entityType: 'unknown',
+          industry: 'unknown',
+          jurisdiction: 'Indonesia',
+          registrationStatus: 'unknown',
+          aliases: [companyData.name],
+          confidence: 0.5
+        },
         
-        // Data quality metrics
-        dataQuality: result.analysis?.dataQuality || 'limited',
+        // Evidence breakdown (from full pipeline)
+        evidenceBreakdown: result.analysis?.evidence || [],
+        
+        // Data sources (comprehensive extraction)
+        dataSources: dataSources,
         
         // Processing details
         processingDetails: {
-          ...result.analysis?.processingDetails,
+          ...result.performance,
           processingTime: analysisTime,
           timestamp: new Date().toISOString()
         },
         
-        // SerpAPI-specific metrics
+        // SerpAPI-specific metrics (if available)
         serpAPIMetrics: {
-          searchesExecuted: result.serpAPIData?.summary?.totalResults ? Object.keys(result.serpAPIData.searches).length : 0,
-          totalResults: result.serpAPIData?.summary?.totalResults || 0,
-          fraudIndicators: result.serpAPIData?.summary?.fraudIndicators || 0,
-          legitimacySignals: result.serpAPIData?.summary?.legitimacySignals || 0,
-          earlyTermination: result.serpAPIData?.summary?.earlyTermination || false,
+          searchesExecuted: result.performance?.resourcesUsed?.serpAPISearches || 0,
+          totalResults: result.stageResults?.stage2_scraping?.serpAPIResults?.summary?.totalResults || 0,
+          fraudIndicators: result.stageResults?.stage2_scraping?.serpAPIResults?.summary?.fraudIndicators || 0,
+          legitimacySignals: result.stageResults?.stage2_scraping?.serpAPIResults?.summary?.legitimacySignals || 0,
+          earlyTermination: result.performance?.resourcesUsed?.earlyTermination || false,
           quotaUsed: serpAPIService.getStats().quotaUsed
         }
       },
       
       // Include raw data for debugging (optional)
       debug: process.env.NODE_ENV === 'development' ? {
-        serpAPIResults: result.serpAPIData,
-        geminiAnalysis: result.geminiAnalysis
-      } : undefined
+        stageResults: result.stageResults,
+        performance: result.performance,
+        fullAnalysis: result.analysis
+      } : undefined,
+      
+      metadata: {
+        version: '1.0.0',
+        source: result.source || 'serpapi_enhanced_analysis',
+        cached: result.source === 'cache_serpapi'
+      }
     };
     
     res.json(response);
@@ -220,6 +241,7 @@ router.post('/analyze-company/serpapi', async (req, res) => {
       error: 'SerpAPI analysis failed',
       message: error.message,
       fallback: 'Traditional analysis method available',
+      recommendation: 'Use /analyze-company endpoint for fallback analysis',
       timestamp: new Date().toISOString()
     });
   }

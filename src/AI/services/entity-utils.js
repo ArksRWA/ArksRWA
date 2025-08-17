@@ -159,48 +159,59 @@ class EntityUtils {
   }
 
   /**
-   * Main entity resolution function
+   * Main entity resolution function with enhanced features
    */
-  resolveEntity(name, description = '') {
+  resolveEntity(name, description = '', searchResults = null) {
     const normalizedName = this.normalizeName(name);
     const text = `${name} ${description}`.toLowerCase();
     
     // Step 1: Try exact match in database
     const exactMatch = this.findExactMatch(normalizedName);
     if (exactMatch) {
-      return {
+      return this.createEntityResolution({
         canonicalName: exactMatch.canonical,
         aliases: exactMatch.aliases,
         ids: exactMatch.ids,
         erCertainty: 0.95,
         entityType: exactMatch.entityType,
-        isListed: exactMatch.isListed
-      };
+        isListed: exactMatch.isListed,
+        industry: this.determineIndustry(exactMatch.entityType, text),
+        jurisdiction: this.determineJurisdiction(name, description),
+        registrationStatus: this.determineRegistrationStatus(exactMatch, searchResults)
+      });
     }
     
     // Step 2: Try alias matching
     const aliasMatch = this.findAliasMatch(normalizedName, text);
     if (aliasMatch) {
-      return {
+      return this.createEntityResolution({
         canonicalName: aliasMatch.canonical,
         aliases: aliasMatch.aliases,
         ids: aliasMatch.ids,
         erCertainty: 0.85,
         entityType: aliasMatch.entityType,
-        isListed: aliasMatch.isListed
-      };
+        isListed: aliasMatch.isListed,
+        industry: this.determineIndustry(aliasMatch.entityType, text),
+        jurisdiction: this.determineJurisdiction(name, description),
+        registrationStatus: this.determineRegistrationStatus(aliasMatch, searchResults)
+      });
     }
     
-    // Step 3: Extract business entity info
+    // Step 3: Extract business entity info with enhanced analysis
     const entityInfo = this.extractEntityInfo(name);
-    return {
-      canonicalName: entityInfo.canonical,
-      aliases: [name, ...entityInfo.aliases],
+    const enhancedAliases = this.extractAliasesFromSearchResults(name, searchResults);
+    
+    return this.createEntityResolution({
+      canonicalName: this.standardizeCompanyName(name),
+      aliases: [name, ...entityInfo.aliases, ...enhancedAliases],
       ids: {},
       erCertainty: entityInfo.certainty,
-      entityType: entityInfo.type,
-      isListed: false
-    };
+      entityType: this.determineEntityTypeFromName(name),
+      isListed: false,
+      industry: this.determineIndustry(entityInfo.type, text),
+      jurisdiction: this.determineJurisdiction(name, description),
+      registrationStatus: this.determineRegistrationStatus(null, searchResults)
+    });
   }
 
   /**
@@ -400,6 +411,231 @@ class EntityUtils {
   }
 
   /**
+   * Creates standardized entity resolution response
+   */
+  createEntityResolution(data) {
+    return {
+      canonicalName: data.canonicalName,
+      entityType: data.entityType,
+      industry: data.industry,
+      jurisdiction: data.jurisdiction,
+      registrationStatus: data.registrationStatus,
+      aliases: [...new Set(data.aliases)], // Remove duplicates
+      confidence: data.erCertainty,
+      ids: data.ids || {},
+      isListed: data.isListed || false
+    };
+  }
+
+  /**
+   * Standardizes Indonesian company names
+   */
+  standardizeCompanyName(name) {
+    // Remove extra spaces and normalize punctuation
+    let standardized = name.trim().replace(/\s+/g, ' ');
+    
+    // Standardize entity type abbreviations
+    standardized = standardized.replace(/\bPT\s+/i, 'PT ');
+    standardized = standardized.replace(/\bCV\s+/i, 'CV ');
+    standardized = standardized.replace(/\s+Tbk$/i, ' Tbk');
+    standardized = standardized.replace(/\s+\(Persero\)\s+/i, ' (Persero) ');
+    
+    return standardized;
+  }
+
+  /**
+   * Determines Indonesian business entity type from name
+   */
+  determineEntityTypeFromName(name) {
+    const nameUpper = name.toUpperCase();
+    
+    if (nameUpper.includes('TBK')) return 'tbk';
+    if (nameUpper.includes('(PERSERO)')) return 'persero';
+    if (nameUpper.startsWith('PT ')) return 'pt';
+    if (nameUpper.startsWith('CV ')) return 'cv';
+    if (nameUpper.includes('KOPERASI')) return 'koperasi';
+    if (nameUpper.includes('PERUM')) return 'perum';
+    
+    return 'unknown';
+  }
+
+  /**
+   * Determines industry from entity type and description
+   */
+  determineIndustry(entityType, text) {
+    // Financial services
+    if (text.includes('bank') || text.includes('finance') || text.includes('fintech')) {
+      return 'banking';
+    }
+    if (text.includes('asuransi') || text.includes('insurance')) {
+      return 'insurance';
+    }
+    if (text.includes('investasi') || text.includes('investment')) {
+      return 'investment';
+    }
+    
+    // Technology
+    if (text.includes('teknologi') || text.includes('digital') || text.includes('software')) {
+      return 'technology';
+    }
+    
+    // Manufacturing
+    if (text.includes('manufaktur') || text.includes('industri') || text.includes('pabrik')) {
+      return 'manufacturing';
+    }
+    
+    // Agriculture
+    if (text.includes('pertanian') || text.includes('agriculture') || text.includes('perikanan')) {
+      return 'agriculture';
+    }
+    
+    // Retail/Trading
+    if (text.includes('retail') || text.includes('trading') || text.includes('perdagangan')) {
+      return 'retail';
+    }
+    
+    // Use entity type as fallback
+    return entityType || 'business';
+  }
+
+  /**
+   * Determines jurisdiction from name and description
+   */
+  determineJurisdiction(name, description) {
+    const text = `${name} ${description}`.toLowerCase();
+    
+    // Check for specific Indonesian cities/provinces
+    if (text.includes('jakarta')) return 'DKI Jakarta';
+    if (text.includes('surabaya')) return 'Jawa Timur';
+    if (text.includes('bandung')) return 'Jawa Barat';
+    if (text.includes('medan')) return 'Sumatera Utara';
+    if (text.includes('makassar')) return 'Sulawesi Selatan';
+    if (text.includes('yogyakarta') || text.includes('jogja')) return 'DIY Yogyakarta';
+    if (text.includes('denpasar') || text.includes('bali')) return 'Bali';
+    if (text.includes('semarang')) return 'Jawa Tengah';
+    
+    // Check for provincial indicators
+    if (text.includes('jawa')) return 'Jawa';
+    if (text.includes('sumatera') || text.includes('sumatra')) return 'Sumatera';
+    if (text.includes('kalimantan') || text.includes('borneo')) return 'Kalimantan';
+    if (text.includes('sulawesi')) return 'Sulawesi';
+    if (text.includes('papua')) return 'Papua';
+    
+    // Default to Indonesia
+    return 'Indonesia';
+  }
+
+  /**
+   * Determines registration status from entity data and search results
+   */
+  determineRegistrationStatus(entityData, searchResults) {
+    // Check if we have explicit registration data
+    if (entityData?.ids?.ojkId) return 'registered';
+    if (entityData?.isListed) return 'registered';
+    
+    // Check search results for registration indicators
+    if (searchResults?.sources?.ojk) {
+      const ojkStatus = searchResults.sources.ojk.registrationStatus;
+      if (ojkStatus && ojkStatus !== 'unknown') {
+        return ojkStatus;
+      }
+    }
+    
+    // Check search results for business registration
+    if (searchResults?.sources?.businessInfo) {
+      const businessReg = searchResults.sources.businessInfo.businessRegistration;
+      if (businessReg === 'registered') return 'registered';
+    }
+    
+    return 'unknown';
+  }
+
+  /**
+   * Extracts additional aliases from search results
+   */
+  extractAliasesFromSearchResults(originalName, searchResults) {
+    const aliases = [];
+    
+    if (!searchResults?.searches) return aliases;
+    
+    // Extract aliases from search result titles and snippets
+    Object.values(searchResults.searches).forEach(searchData => {
+      if (searchData.organic_results) {
+        searchData.organic_results.forEach(result => {
+          // Look for company name variations in titles
+          const nameVariations = this.extractNameVariations(result.title, originalName);
+          aliases.push(...nameVariations);
+          
+          // Look for company name variations in snippets
+          if (result.snippet) {
+            const snippetVariations = this.extractNameVariations(result.snippet, originalName);
+            aliases.push(...snippetVariations);
+          }
+        });
+      }
+    });
+    
+    // Remove duplicates and filter out invalid aliases
+    return [...new Set(aliases)]
+      .filter(alias => alias.length > 2 && alias.length < 100)
+      .slice(0, 5); // Limit to 5 additional aliases
+  }
+
+  /**
+   * Extracts name variations from text
+   */
+  extractNameVariations(text, originalName) {
+    const variations = [];
+    const originalWords = originalName.toLowerCase().split(/\s+/);
+    
+    // Look for quoted company names
+    const quotedMatches = text.match(/"([^"]+)"/g);
+    if (quotedMatches) {
+      quotedMatches.forEach(match => {
+        const cleaned = match.replace(/"/g, '').trim();
+        if (this.isLikelyCompanyName(cleaned, originalWords)) {
+          variations.push(cleaned);
+        }
+      });
+    }
+    
+    // Look for company name patterns (PT, CV, etc.)
+    const companyPatterns = /\b(?:PT|CV|UD)\s+[A-Za-z\s]+(?:Tbk|\(Persero\))?/gi;
+    const companyMatches = text.match(companyPatterns);
+    if (companyMatches) {
+      companyMatches.forEach(match => {
+        if (this.isLikelyCompanyName(match, originalWords)) {
+          variations.push(match.trim());
+        }
+      });
+    }
+    
+    return variations;
+  }
+
+  /**
+   * Checks if a text string is likely a company name variation
+   */
+  isLikelyCompanyName(text, originalWords) {
+    const textLower = text.toLowerCase();
+    const textWords = textLower.split(/\s+/);
+    
+    // Must share at least one significant word with original
+    const significantWords = originalWords.filter(word => 
+      word.length > 3 && !['dan', 'atau', 'dengan', 'yang', 'dari'].includes(word)
+    );
+    
+    const hasSharedWord = significantWords.some(word => 
+      textWords.some(textWord => textWord.includes(word) || word.includes(textWord))
+    );
+    
+    // Must look like a company name
+    const looksLikeCompany = /\b(?:pt|cv|ud|tbk|persero|company|corp|inc|ltd)\b/i.test(text);
+    
+    return hasSharedWord && (looksLikeCompany || text.length > 10);
+  }
+
+  /**
    * Test method for development
    */
   test() {
@@ -414,7 +650,10 @@ class EntityUtils {
     console.log('Entity Resolution Test Results:');
     for (const testCase of testCases) {
       const result = this.resolveEntity(testCase);
-      console.log(`${testCase} → ${result.canonicalName} (${result.erCertainty})`);
+      console.log(`${testCase} → ${result.canonicalName} (${result.confidence})`);
+      console.log(`  Entity Type: ${result.entityType}, Industry: ${result.industry}`);
+      console.log(`  Jurisdiction: ${result.jurisdiction}, Status: ${result.registrationStatus}`);
+      console.log(`  Aliases: ${result.aliases.slice(0, 3).join(', ')}\n`);
     }
   }
 }

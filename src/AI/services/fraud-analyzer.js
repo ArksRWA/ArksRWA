@@ -1,6 +1,8 @@
 import GeminiService from './gemini.js';
 import IntelligentRiskTriageService from './intelligent-triage.js';
 import ContextAwareWebScraper from './context-aware-scraper.js';
+import EntityUtils from './entity-utils.js';
+import { serpAPIService } from './serpapi-service.js';
 
 /**
  * Indonesian Fraud Analysis Service
@@ -12,32 +14,18 @@ class FraudAnalyzer {
     this.geminiService = new GeminiService();
     this.triageService = new IntelligentRiskTriageService(this.geminiService);
     this.contextAwareScraper = new ContextAwareWebScraper();
+    this.entityUtils = new EntityUtils();
     
-    // Indonesian-specific configuration
+    // Authoritative-first risk buckets (deterministic thresholds)
+    this.RISK_BUCKETS = {
+      low: [0, 30],
+      medium: [31, 60], 
+      high: [61, 85],
+      critical: [86, 100]
+    };
+    
+    // Evidence-based configuration (no industry bias)
     this.config = {
-      // Industry risk profiles for Indonesian market
-      industryRiskProfiles: {
-        'fintech': { baseRisk: 40, digitalExpectation: 'high' },
-        'banking': { baseRisk: 20, digitalExpectation: 'high' },
-        'ecommerce': { baseRisk: 35, digitalExpectation: 'high' },
-        'cryptocurrency': { baseRisk: 70, digitalExpectation: 'high' },
-        'investment': { baseRisk: 60, digitalExpectation: 'medium' },
-        'manufacturing': { baseRisk: 25, digitalExpectation: 'low' },
-        'agriculture': { baseRisk: 20, digitalExpectation: 'low' },
-        'retail': { baseRisk: 30, digitalExpectation: 'medium' },
-        'consulting': { baseRisk: 35, digitalExpectation: 'medium' },
-        'technology': { baseRisk: 30, digitalExpectation: 'high' },
-        'education': { baseRisk: 20, digitalExpectation: 'medium' },
-        'healthcare': { baseRisk: 25, digitalExpectation: 'medium' },
-        'default': { baseRisk: 40, digitalExpectation: 'medium' }
-      },
-      
-      // OJK compliance requirements
-      ojkRequiredIndustries: [
-        'fintech', 'banking', 'insurance', 'investment', 'payment',
-        'lending', 'crowdfunding', 'cryptocurrency', 'digital wallet'
-      ],
-      
       // Cache settings
       cacheExpiryHours: 24,
       maxRetries: 3,
@@ -46,6 +34,531 @@ class FraudAnalyzer {
     
     // Analysis cache
     this.analysisCache = new Map();
+  }
+
+  /**
+   * NEW: Enhanced fraud analysis with SerpAPI integration
+   * Complete pipeline: SerpAPI research → Gemini AI analysis → Risk assessment
+   */
+  async analyzeCompanyWithSerpAPI(companyData) {
+    const analysisStart = Date.now();
+    
+    try {
+      console.log(`🔍 Starting SerpAPI-enhanced fraud analysis for: ${companyData.name}`);
+      
+      // Step 1: SerpAPI comprehensive data collection
+      const serpResults = await serpAPIService.analyzeCompany(companyData.name, {
+        priority: 'balanced',
+        skipOnConclusiveEvidence: true,
+        maxSearches: 6
+      });
+      
+      console.log(`📊 SerpAPI data collection completed: ${Object.keys(serpResults.searches).length} searches`);
+      
+      // Step 2: Enhanced Gemini AI analysis with SerpAPI data
+      const geminiAnalysis = await this.geminiService.analyzeCompanyWithSerpData(
+        companyData.name,
+        companyData.description,
+        serpResults
+      );
+      
+      console.log(`🧠 Gemini AI analysis completed with confidence: ${geminiAnalysis.data?.confidence || 'unknown'}%`);
+      
+      // Step 3: Combine AI insights with rule-based validation
+      const ruleBasedAnalysis = this.performRuleBasedValidation(companyData, serpResults);
+      
+      // Step 4: Final risk assessment and scoring
+      const finalAssessment = this.combineSerpAPIAndAIAnalysis(
+        geminiAnalysis,
+        ruleBasedAnalysis,
+        serpResults,
+        companyData
+      );
+      
+      const analysisTime = Date.now() - analysisStart;
+      console.log(`✅ SerpAPI-enhanced analysis completed in ${analysisTime}ms for: ${companyData.name}`);
+      
+      return {
+        success: true,
+        analysis: finalAssessment,
+        serpAPIData: serpResults,
+        geminiAnalysis: geminiAnalysis,
+        processingTime: analysisTime,
+        timestamp: new Date().toISOString(),
+        methodology: 'serpapi_enhanced'
+      };
+      
+    } catch (error) {
+      console.error(`SerpAPI-enhanced analysis failed for ${companyData.name}:`, error);
+      
+      // Fallback to traditional analysis
+      console.log(`🔄 Falling back to traditional analysis for: ${companyData.name}`);
+      return await this.analyzeCompany(companyData);
+    }
+  }
+
+  /**
+   * Perform rule-based validation on SerpAPI results
+   */
+  performRuleBasedValidation(companyData, serpResults) {
+    const validation = {
+      fraudIndicators: [],
+      legitimacySignals: [],
+      regulatoryIssues: [],
+      businessValidation: {},
+      riskFactors: []
+    };
+    
+    // Validate Indonesian business patterns
+    validation.businessValidation = this.validateIndonesianBusiness(companyData);
+    
+    // Analyze SerpAPI search results for patterns
+    Object.entries(serpResults.searches).forEach(([searchType, searchData]) => {
+      if (searchData && !searchData.error) {
+        const analysis = this.analyzeSearchTypeResults(searchType, searchData, companyData);
+        
+        validation.fraudIndicators.push(...analysis.fraudIndicators);
+        validation.legitimacySignals.push(...analysis.legitimacySignals);
+        validation.regulatoryIssues.push(...analysis.regulatoryIssues);
+        validation.riskFactors.push(...analysis.riskFactors);
+      }
+    });
+    
+    return validation;
+  }
+
+  /**
+   * Analyze specific search type results for fraud patterns
+   */
+  analyzeSearchTypeResults(searchType, searchData, companyData) {
+    const analysis = {
+      fraudIndicators: [],
+      legitimacySignals: [],
+      regulatoryIssues: [],
+      riskFactors: []
+    };
+    
+    const results = searchData.organic_results || searchData.news_results || [];
+    
+    results.forEach(result => {
+      const text = `${result.title} ${result.snippet || ''}`.toLowerCase();
+      const companyName = companyData.name.toLowerCase();
+      
+      // Fraud indicator detection
+      if (this.detectFraudIndicators(text, companyName)) {
+        analysis.fraudIndicators.push({
+          type: searchType,
+          source: result.link,
+          evidence: result.title,
+          severity: this.assessEvidenceSeverity(text, searchType)
+        });
+      }
+      
+      // Legitimacy signal detection
+      if (this.detectLegitimacySignals(text, companyName)) {
+        analysis.legitimacySignals.push({
+          type: searchType,
+          source: result.link,
+          evidence: result.title,
+          strength: this.assessSignalStrength(text, searchType)
+        });
+      }
+      
+      // Regulatory issue detection
+      if (this.detectRegulatoryIssues(text, companyName)) {
+        analysis.regulatoryIssues.push({
+          type: searchType,
+          source: result.link,
+          issue: result.title,
+          severity: this.assessRegulatorySeverity(text)
+        });
+      }
+    });
+    
+    return analysis;
+  }
+
+  /**
+   * Detect fraud indicators in search results
+   */
+  detectFraudIndicators(text, companyName) {
+    const fraudKeywords = [
+      'penipuan', 'scam', 'fraud', 'penipu', 'menipu',
+      'investasi bodong', 'skema ponzi', 'money game',
+      'gugatan', 'complaint', 'korban', 'victim',
+      'bangkrut', 'bermasalah', 'tutup', 'closed',
+      'peringatan', 'warning', 'blacklist', 'daftar hitam'
+    ];
+    
+    // Check if fraud terms are directly associated with the company
+    return fraudKeywords.some(keyword => {
+      const keywordIndex = text.indexOf(keyword);
+      const companyIndex = text.indexOf(companyName);
+      
+      // If both are found and relatively close (within 100 characters)
+      if (keywordIndex !== -1 && companyIndex !== -1) {
+        return Math.abs(keywordIndex - companyIndex) < 100;
+      }
+      
+      return false;
+    });
+  }
+
+  /**
+   * Detect legitimacy signals in search results
+   */
+  detectLegitimacySignals(text, companyName) {
+    const legitimacyKeywords = [
+      'ojk', 'terdaftar', 'registered', 'resmi', 'official',
+      'sertifikat', 'certified', 'izin', 'licensed',
+      'akreditasi', 'accredited', 'iso', 'audit',
+      'penghargaan', 'award', 'prestasi', 'achievement',
+      'ekspansi', 'expansion', 'growth', 'berkembang'
+    ];
+    
+    return legitimacyKeywords.some(keyword => {
+      const keywordIndex = text.indexOf(keyword);
+      const companyIndex = text.indexOf(companyName);
+      
+      if (keywordIndex !== -1 && companyIndex !== -1) {
+        return Math.abs(keywordIndex - companyIndex) < 100;
+      }
+      
+      return false;
+    });
+  }
+
+  /**
+   * Detect regulatory issues in search results
+   */
+  detectRegulatoryIssues(text, companyName) {
+    const regulatoryKeywords = [
+      'sanksi', 'sanction', 'peringatan', 'warning',
+      'investigasi', 'investigation', 'pemeriksaan', 'audit',
+      'pelanggaran', 'violation', 'denda', 'fine',
+      'pencabutan izin', 'license revocation', 'suspended'
+    ];
+    
+    return regulatoryKeywords.some(keyword => {
+      const keywordIndex = text.indexOf(keyword);
+      const companyIndex = text.indexOf(companyName);
+      
+      if (keywordIndex !== -1 && companyIndex !== -1) {
+        return Math.abs(keywordIndex - companyIndex) < 100;
+      }
+      
+      return false;
+    });
+  }
+
+  /**
+   * Assess evidence severity
+   */
+  assessEvidenceSeverity(text, searchType) {
+    if (searchType === 'regulatory' && (text.includes('sanksi') || text.includes('revoked'))) {
+      return 'critical';
+    }
+    
+    if (searchType === 'victims' && text.includes('korban')) {
+      return 'high';
+    }
+    
+    if (text.includes('ponzi') || text.includes('investasi bodong')) {
+      return 'high';
+    }
+    
+    if (text.includes('complaint') || text.includes('gugatan')) {
+      return 'medium';
+    }
+    
+    return 'low';
+  }
+
+  /**
+   * Assess legitimacy signal strength
+   */
+  assessSignalStrength(text, searchType) {
+    if (searchType === 'regulatory' && text.includes('ojk')) {
+      return 'high';
+    }
+    
+    if (text.includes('certified') || text.includes('sertifikat')) {
+      return 'high';
+    }
+    
+    if (text.includes('official') || text.includes('resmi')) {
+      return 'medium';
+    }
+    
+    return 'low';
+  }
+
+  /**
+   * Assess regulatory severity
+   */
+  assessRegulatorySeverity(text) {
+    if (text.includes('pencabutan') || text.includes('revoked')) {
+      return 'critical';
+    }
+    
+    if (text.includes('sanksi') || text.includes('sanction')) {
+      return 'high';
+    }
+    
+    if (text.includes('peringatan') || text.includes('warning')) {
+      return 'medium';
+    }
+    
+    return 'low';
+  }
+
+  /**
+   * Combine SerpAPI and AI analysis results
+   */
+  combineSerpAPIAndAIAnalysis(geminiAnalysis, ruleBasedAnalysis, serpResults, companyData) {
+    const aiData = geminiAnalysis.data;
+    const fallbackScore = aiData?.fraudScore || 50;
+    
+    // Calculate weighted final score
+    const aiWeight = geminiAnalysis.success && aiData ? 0.7 : 0.3;
+    const ruleWeight = 1 - aiWeight;
+    
+    const ruleBasedScore = this.calculateRuleBasedScore(ruleBasedAnalysis, serpResults);
+    const finalScore = Math.round((fallbackScore * aiWeight) + (ruleBasedScore * ruleWeight));
+    
+    // Determine final risk level
+    const riskLevel = this.determineRiskLevel(finalScore);
+    
+    // Generate comprehensive recommendations
+    const recommendations = this.generateSerpAPIRecommendations(
+      geminiAnalysis,
+      ruleBasedAnalysis,
+      serpResults,
+      riskLevel
+    );
+    
+    return {
+      fraudScore: Math.max(0, Math.min(100, finalScore)),
+      riskLevel,
+      confidence: this.calculateConfidence(geminiAnalysis, serpResults),
+      methodology: 'serpapi_gemini_hybrid',
+      evidenceBreakdown: {
+        aiAnalysis: aiData?.evidenceBreakdown || {},
+        ruleBasedFindings: ruleBasedAnalysis,
+        serpAPIMetrics: serpResults.summary
+      },
+      recommendations,
+      dataQuality: this.assessOverallDataQuality(geminiAnalysis, serpResults),
+      processingDetails: {
+        serpAPISearches: Object.keys(serpResults.searches).length,
+        aiAnalysisSuccess: geminiAnalysis.success,
+        totalEvidence: this.countTotalEvidence(ruleBasedAnalysis),
+        earlyTermination: serpResults.summary?.earlyTermination || false
+      }
+    };
+  }
+
+  /**
+   * Calculate rule-based score from validation results
+   */
+  calculateRuleBasedScore(ruleBasedAnalysis, serpResults) {
+    let score = 30; // Base score
+    
+    // Penalty for fraud indicators
+    const fraudIndicators = ruleBasedAnalysis.fraudIndicators.length;
+    score += fraudIndicators * 15;
+    
+    // Bonus for legitimacy signals
+    const legitimacySignals = ruleBasedAnalysis.legitimacySignals.length;
+    score -= legitimacySignals * 8;
+    
+    // Penalty for regulatory issues
+    const regulatoryIssues = ruleBasedAnalysis.regulatoryIssues.length;
+    score += regulatoryIssues * 20;
+    
+    // Factor in search result volume
+    const totalResults = serpResults.summary?.totalResults || 0;
+    if (totalResults > 20) {
+      score += 5; // More results = more visibility = potentially more issues
+    } else if (totalResults < 5) {
+      score += 10; // Very low visibility = suspicious
+    }
+    
+    return Math.max(0, Math.min(100, score));
+  }
+
+  /**
+   * Calculate confidence based on data availability
+   */
+  calculateConfidence(geminiAnalysis, serpResults) {
+    let confidence = 50; // Base confidence
+    
+    // AI analysis contribution
+    if (geminiAnalysis.success && geminiAnalysis.data?.confidence) {
+      confidence += (geminiAnalysis.data.confidence - 50) * 0.5;
+    }
+    
+    // SerpAPI data quality contribution
+    const totalResults = serpResults.summary?.totalResults || 0;
+    if (totalResults > 15) confidence += 20;
+    else if (totalResults > 8) confidence += 10;
+    else if (totalResults > 3) confidence += 5;
+    
+    // Search diversity contribution
+    const searchTypes = Object.keys(serpResults.searches).length;
+    confidence += Math.min(searchTypes * 3, 15);
+    
+    // Early termination indicates strong evidence
+    if (serpResults.summary?.earlyTermination) {
+      confidence += 10;
+    }
+    
+    return Math.max(0, Math.min(100, Math.round(confidence)));
+  }
+
+  /**
+   * Generate comprehensive recommendations
+   */
+  generateSerpAPIRecommendations(geminiAnalysis, ruleBasedAnalysis, serpResults, riskLevel) {
+    const recommendations = [];
+    
+    // Risk-based recommendations
+    switch (riskLevel) {
+      case 'critical':
+        recommendations.push('REJECT: High fraud risk detected');
+        recommendations.push('Report findings to relevant authorities');
+        break;
+      case 'high':
+        recommendations.push('MANUAL REVIEW: Detailed investigation required');
+        recommendations.push('Verify all documentation before proceeding');
+        break;
+      case 'medium':
+        recommendations.push('ENHANCED DUE DILIGENCE: Additional verification needed');
+        break;
+      case 'low':
+        recommendations.push('APPROVE: Low risk profile');
+        break;
+    }
+    
+    // Evidence-based recommendations
+    if (ruleBasedAnalysis.fraudIndicators.length > 0) {
+      recommendations.push(`Review ${ruleBasedAnalysis.fraudIndicators.length} fraud indicators found`);
+    }
+    
+    if (ruleBasedAnalysis.regulatoryIssues.length > 0) {
+      recommendations.push(`Investigate ${ruleBasedAnalysis.regulatoryIssues.length} regulatory concerns`);
+    }
+    
+    // Data quality recommendations
+    if (serpResults.summary?.totalResults < 5) {
+      recommendations.push('Low online presence - verify business operations independently');
+    }
+    
+    // AI analysis recommendations
+    if (geminiAnalysis.success && geminiAnalysis.data?.recommendedAction) {
+      recommendations.push(`AI recommendation: ${geminiAnalysis.data.recommendedAction}`);
+    }
+    
+    return recommendations;
+  }
+
+  /**
+   * Assess overall data quality
+   */
+  assessOverallDataQuality(geminiAnalysis, serpResults) {
+    const aiQuality = geminiAnalysis.success ? 'good' : 'limited';
+    const serpQuality = serpResults.summary?.totalResults > 15 ? 'comprehensive' : 
+                       serpResults.summary?.totalResults > 8 ? 'good' :
+                       serpResults.summary?.totalResults > 3 ? 'limited' : 'minimal';
+    
+    // Return the better of the two
+    const qualityLevels = ['minimal', 'limited', 'good', 'comprehensive'];
+    const aiIndex = qualityLevels.indexOf(aiQuality);
+    const serpIndex = qualityLevels.indexOf(serpQuality);
+    
+    return qualityLevels[Math.max(aiIndex, serpIndex)];
+  }
+
+  /**
+   * Count total evidence from rule-based analysis
+   */
+  countTotalEvidence(ruleBasedAnalysis) {
+    return (ruleBasedAnalysis.fraudIndicators?.length || 0) +
+           (ruleBasedAnalysis.legitimacySignals?.length || 0) +
+           (ruleBasedAnalysis.regulatoryIssues?.length || 0);
+  }
+
+  /**
+   * Validate Indonesian business patterns and entity structure
+   */
+  validateIndonesianBusiness(companyData) {
+    const validation = {
+      entityType: 'unknown',
+      isIndonesianEntity: false,
+      hasProperNaming: false,
+      industryClassification: 'unknown',
+      complianceRequirements: [],
+      validationScore: 0
+    };
+
+    const companyName = companyData.name.toUpperCase();
+    const description = companyData.description.toLowerCase();
+
+    // Check Indonesian entity types
+    const entityTypes = ['PT', 'CV', 'TBK', 'PERSERO', 'PERUM'];
+    for (const entityType of entityTypes) {
+      if (companyName.includes(entityType + ' ') || companyName.includes(' ' + entityType)) {
+        validation.entityType = entityType;
+        validation.isIndonesianEntity = true;
+        validation.hasProperNaming = true;
+        validation.validationScore += 20;
+        break;
+      }
+    }
+
+    // Industry classification based on description
+    const industryKeywords = {
+      financial: ['bank', 'keuangan', 'investasi', 'financial', 'fintech', 'payment'],
+      manufacturing: ['manufaktur', 'produksi', 'pabrik', 'industri', 'manufacturing'],
+      retail: ['retail', 'perdagangan', 'jual', 'toko', 'store'],
+      technology: ['teknologi', 'digital', 'software', 'tech', 'it'],
+      services: ['layanan', 'jasa', 'service', 'konsultan']
+    };
+
+    for (const [industry, keywords] of Object.entries(industryKeywords)) {
+      if (keywords.some(keyword => description.includes(keyword))) {
+        validation.industryClassification = industry;
+        validation.validationScore += 10;
+        break;
+      }
+    }
+
+    // Determine compliance requirements
+    if (validation.industryClassification === 'financial') {
+      validation.complianceRequirements.push('OJK_registration');
+      validation.complianceRequirements.push('BI_approval');
+    }
+
+    if (validation.isIndonesianEntity) {
+      validation.complianceRequirements.push('NPWP');
+      validation.complianceRequirements.push('NIB');
+      validation.complianceRequirements.push('business_license');
+    }
+
+    // Check for suspicious naming patterns
+    const suspiciousPatterns = [
+      'guaranteed', 'profit', 'income', 'money', 'investment',
+      'ponzi', 'mlm', 'binary', 'forex'
+    ];
+
+    for (const pattern of suspiciousPatterns) {
+      if (companyName.includes(pattern.toUpperCase())) {
+        validation.validationScore -= 15;
+        break;
+      }
+    }
+
+    return validation;
   }
 
   /**
@@ -140,15 +653,12 @@ class FraudAnalyzer {
   }
 
   /**
-   * Enhances company data with Indonesian business context
+   * Enhances company data with business context (no industry categorization)
    */
   enhanceCompanyData(companyData) {
     const enhanced = { ...companyData };
     
-    // Detect industry from name/description
-    enhanced.industry = enhanced.industry || this.detectIndustry(enhanced.name, enhanced.description);
-    
-    // Keep region for reference but don't use for scoring
+    // Set region to Indonesia for context but don't use for scoring
     enhanced.region = enhanced.region || 'Indonesia';
     
     // Add business entity type detection
@@ -265,84 +775,68 @@ class FraudAnalyzer {
    * Combines analysis results with intelligent weighting based on data quality
    */
   combineIntelligentAnalysisResults(aiResult, ruleResult, triageResults, webResearch, companyData) {
+    // Step 1: Entity Resolution and Evidence Collection
+    const entityData = triageResults.er || this.entityUtils.resolveEntity(companyData.name, companyData.description);
+    const evidenceAtoms = webResearch.evidence || [];
+    
+    // Step 2: Calculate base fraud score 
     let finalScore;
-    let confidence;
-    let analysis;
-    let riskLevel;
-    
-    // Intelligent weight calculation based on data availability and quality
-    const weights = this.calculateDynamicWeights(aiResult, ruleResult, triageResults, webResearch);
-    
     if (aiResult.success) {
-      // Enhanced combination with dynamic weights
+      const weights = this.calculateDynamicWeights(aiResult, ruleResult, triageResults, webResearch);
       finalScore = Math.round(
         aiResult.data.fraudScore * weights.ai + 
         ruleResult.overallScore * weights.rules +
         (triageResults.initialScore || 50) * weights.triage
       );
-      
-      confidence = Math.round(
-        (aiResult.data.confidence * weights.ai + 
-         ruleResult.confidence * weights.rules +
-         (triageResults.confidence || 50) * weights.triage) / 1.0
-      );
-      
-      analysis = {
-        ai: aiResult.data.analysis,
-        ruleBased: ruleResult.enhancedBreakdown || ruleResult.breakdown,
-        triage: {
-          initialAssessment: triageResults.riskLevel,
-          riskFactors: triageResults.riskFactors,
-          scrapingStrategy: triageResults.scrapingStrategy.level
-        },
-        webResearch: {
-          dataQuality: webResearch.summary?.dataQuality || 'minimal',
-          keyFindings: webResearch.summary?.keyFindings || [],
-          sourcesUsed: webResearch.sourcesScraped || 0,
-          intelligenceInsights: webResearch.summary?.intelligenceInsights || []
-        },
-        combined: true,
-        enhancedWeights: weights
-      };
     } else {
-      // Use enhanced rule-based with triage fallback
-      finalScore = Math.round(
-        ruleResult.overallScore * 0.7 + 
-        (triageResults.initialScore || 50) * 0.3
-      );
-      
-      confidence = Math.round((ruleResult.confidence + triageResults.confidence) / 2);
-      
-      analysis = {
-        ruleBased: ruleResult.enhancedBreakdown || ruleResult.breakdown,
-        triage: {
-          initialAssessment: triageResults.riskLevel,
-          riskFactors: triageResults.riskFactors
-        },
-        webResearch: {
-          dataQuality: webResearch.summary?.dataQuality || 'minimal',
-          keyFindings: webResearch.summary?.keyFindings || []
-        },
-        aiError: aiResult.error,
-        combined: false
-      };
+      finalScore = Math.round(ruleResult.overallScore * 0.7 + (triageResults.initialScore || 50) * 0.3);
     }
     
-    // Final risk level determination with intelligence override
-    riskLevel = this.determineIntelligentRiskLevel(
-      finalScore, 
-      triageResults, 
-      webResearch.conclusiveEvidence
-    );
+    // Step 3: Apply Authoritative Override (IDX + OJK + no severe red flags → force ≤10)
+    const authoritativeOverride = this.entityUtils.getAuthoritativeOverride(entityData, evidenceAtoms);
+    if (authoritativeOverride.shouldApply) {
+      finalScore = Math.min(finalScore, 10);
+      console.log(`🏛️ Authoritative override applied for ${entityData.canonicalName} - Score capped at 10`);
+    }
+    
+    // Step 4: Calculate confidence (resilient multi-component scoring system)
+    const confidence = this.calculateConfidence(evidenceAtoms, entityData, aiResult, ruleResult, webResearch);
+    
+    // Step 5: Check impersonation risk separately
+    const domains = webResearch.sources?.businessInfo?.domains || [];
+    const impersonationCheck = this.entityUtils.checkImpersonationRisk(domains);
+    
+    // Step 6: Determine final risk level using RISK_BUCKETS
+    const riskLevel = this.determineRiskLevel(finalScore);
+    
+    // Step 7: Build analysis object with entity data and overrides
+    const analysis = {
+      entity: entityData,
+      evidence: evidenceAtoms,
+      overrides: {
+        authoritativeOverrideApplied: authoritativeOverride.shouldApply,
+        impersonationRisk: impersonationCheck.risk
+      },
+      ai: aiResult.success ? aiResult.data.analysis : null,
+      ruleBased: ruleResult.enhancedBreakdown || ruleResult.breakdown,
+      triage: {
+        initialAssessment: triageResults.riskLevel,
+        riskFactors: triageResults.riskFactors,
+        scrapingStrategy: triageResults.scrapingStrategy.level
+      },
+      webResearch: {
+        dataQuality: webResearch.summary?.dataQuality || 'minimal',
+        keyFindings: webResearch.summary?.keyFindings || [],
+        sourcesUsed: webResearch.sourcesScraped || 0
+      }
+    };
     
     return {
       fraudScore: finalScore,
       riskLevel: riskLevel,
-      confidence: Math.min(100, confidence),
+      confidence: confidence,
       analysis: analysis,
       companyData: companyData,
-      triageResults: triageResults,
-      webResearchSummary: webResearch.summary,
       timestamp: new Date().toISOString(),
       source: 'enhanced_intelligent_analysis',
       stageResults: {
@@ -353,34 +847,85 @@ class FraudAnalyzer {
     };
   }
 
+
   /**
-   * Detects industry from company name and description
+   * Calculate confidence score: Resilient multi-component scoring system
+   * FIXED: No longer returns 0 when evidence atoms are missing
    */
-  detectIndustry(name, description) {
-    const text = `${name} ${description}`.toLowerCase();
+  calculateConfidence(evidenceAtoms, entityData, aiResult, ruleResult, webResearch = null) {
+    let confidence = 45; // Start with meaningful base confidence instead of 0
     
-    const industryKeywords = {
-      fintech: ['fintech', 'financial technology', 'digital payment', 'mobile banking', 'peer-to-peer', 'p2p'],
-      banking: ['bank', 'perbankan', 'tabungan', 'kredit', 'deposito'],
-      cryptocurrency: ['crypto', 'bitcoin', 'blockchain', 'digital currency', 'token'],
-      investment: ['investasi', 'investment', 'mutual fund', 'reksa dana', 'portfolio'],
-      ecommerce: ['e-commerce', 'online shop', 'marketplace', 'toko online'],
-      manufacturing: ['manufaktur', 'pabrik', 'produksi', 'manufacturing'],
-      agriculture: ['pertanian', 'agriculture', 'perkebunan', 'peternakan'],
-      technology: ['teknologi', 'software', 'aplikasi', 'sistem informasi'],
-      consulting: ['konsultan', 'consulting', 'advisory', 'management'],
-      education: ['pendidikan', 'education', 'sekolah', 'universitas', 'training']
-    };
+    // Component 1: Evidence Collection Quality (0-25 points)
+    const expectedEvidenceSources = ['OJK', 'IDX', 'news', 'businessInfo'];
+    const sourcesFound = new Set(evidenceAtoms.map(atom => atom.source)).size;
+    const evidenceBonus = Math.round((sourcesFound / expectedEvidenceSources.length) * 25);
+    confidence += evidenceBonus;
     
-    for (const [industry, keywords] of Object.entries(industryKeywords)) {
-      for (const keyword of keywords) {
-        if (text.includes(keyword)) {
-          return industry;
-        }
-      }
+    // Component 2: Web Research Quality (0-20 points) - NEW
+    if (webResearch?.summary?.dataQuality) {
+      const qualityBonus = {
+        'comprehensive': 20,
+        'good': 15, 
+        'limited': 10,
+        'minimal': 5,
+        'unavailable': 0
+      };
+      confidence += qualityBonus[webResearch.summary.dataQuality] || 5;
+    } else if (webResearch?.sources) {
+      // Fallback: count sources that actually found data
+      const activeSources = Object.values(webResearch.sources).filter(source => 
+        (source.foundEntries && source.foundEntries > 0) ||
+        (source.totalArticles && source.totalArticles > 0) ||
+        (source.resultsFound && source.resultsFound > 0)
+      );
+      confidence += Math.min(15, activeSources.length * 3);
     }
     
-    return 'default';
+    // Component 3: Entity Resolution Quality (0-15 points) - IMPROVED
+    const erCertainty = entityData.erCertainty || 0.3;
+    const erBonus = Math.round(erCertainty * 15);
+    confidence += erBonus;
+    
+    // Component 4: AI-Rules Agreement (0-10 points)
+    if (aiResult.success && ruleResult.overallScore) {
+      const scoreDiff = Math.abs(aiResult.data.fraudScore - ruleResult.overallScore);
+      const agreement = Math.max(0, 1 - (scoreDiff / 100));
+      const agreementBonus = Math.round(agreement * 10);
+      confidence += agreementBonus;
+    } else {
+      confidence += 5; // Default modest bonus when both systems ran
+    }
+    
+    // Component 5: Analysis Completeness (0-5 points) - NEW
+    let completenessBonus = 0;
+    if (aiResult.success) completenessBonus += 2;
+    if (ruleResult.overallScore > 0) completenessBonus += 2;
+    if (entityData.canonicalName) completenessBonus += 1;
+    confidence += completenessBonus;
+    
+    // Tier-0/1 Evidence Bonus (high-authority sources)
+    const hasTier01Evidence = evidenceAtoms.some(atom => atom.tier <= 1);
+    if (hasTier01Evidence) {
+      confidence += 10; // Significant bonus for authoritative evidence
+    } else {
+      // Cap at 75 if no high-tier evidence (instead of 60)
+      confidence = Math.min(confidence, 75);
+    }
+    
+    // Ensure confidence stays within reasonable bounds
+    return Math.min(100, Math.max(25, confidence)); // Minimum 25, Maximum 100
+  }
+
+  /**
+   * Determine risk level using RISK_BUCKETS (replaces old determineRiskLevel)
+   */
+  determineRiskLevel(score) {
+    for (const [level, range] of Object.entries(this.RISK_BUCKETS)) {
+      if (score >= range[0] && score <= range[1]) {
+        return level;
+      }
+    }
+    return 'critical'; // fallback for scores > 100
   }
 
 
@@ -433,26 +978,24 @@ class FraudAnalyzer {
   }
 
   /**
-   * Performs rule-based fraud analysis using Indonesian business patterns
+   * Performs rule-based fraud analysis using Indonesian business patterns (evidence-based)
    */
   performRuleBasedAnalysis(companyData) {
     const analysis = {
       entityTypeScore: this.analyzeEntityType(companyData),
       languageScore: this.analyzeLanguageConsistency(companyData),
-      industryRiskScore: this.analyzeIndustryRisk(companyData),
       ojkComplianceScore: this.analyzeOJKCompliance(companyData),
       fraudKeywordScore: this.analyzeFraudKeywords(companyData),
       legitimacySignalScore: this.analyzeLegitimacySignals(companyData)
     };
     
-    // Calculate weighted overall score (redistributed regional weight)
+    // Calculate weighted overall score (evidence-based weights)
     const weights = {
       entityTypeScore: 0.15,
       languageScore: 0.10,
-      industryRiskScore: 0.25,
-      ojkComplianceScore: 0.30,
-      fraudKeywordScore: 0.15,
-      legitimacySignalScore: 0.05
+      ojkComplianceScore: 0.25, // Evidence-based OJK compliance
+      fraudKeywordScore: 0.35, // High weight for actual fraud indicators
+      legitimacySignalScore: 0.15
     };
     
     let weightedScore = 0;
@@ -498,34 +1041,31 @@ class FraudAnalyzer {
   }
 
   /**
-   * Analyzes industry-specific risk factors
-   */
-  analyzeIndustryRisk(companyData) {
-    const { industry } = companyData;
-    const profile = this.config.industryRiskProfiles[industry] || this.config.industryRiskProfiles.default;
-    return profile.baseRisk;
-  }
-
-
-  /**
-   * Analyzes OJK compliance requirements
+   * Analyzes OJK compliance based on actual business activities (evidence-based)
    */
   analyzeOJKCompliance(companyData) {
-    const { industry, description } = companyData;
-    const lowerDesc = description.toLowerCase();
+    const { name, description } = companyData;
+    const text = `${name} ${description}`.toLowerCase();
     
-    // Check if industry requires OJK compliance
-    const requiresOJK = this.config.ojkRequiredIndustries.includes(industry);
+    // Check if company claims to be in financial services based on description
+    const financialKeywords = [
+      'bank', 'perbankan', 'financial services', 'layanan keuangan',
+      'fintech', 'digital payment', 'pembayaran digital', 'lending', 'pinjaman',
+      'investment', 'investasi', 'insurance', 'asuransi', 'crowdfunding',
+      'cryptocurrency', 'kripto', 'e-money', 'dompet digital', 'wallet'
+    ];
     
-    if (requiresOJK) {
+    const isFinancialBusiness = financialKeywords.some(keyword => text.includes(keyword));
+    
+    if (isFinancialBusiness) {
       // Look for OJK compliance indicators
-      const ojkIndicators = ['ojk', 'terdaftar ojk', 'licensed', 'regulated', 'compliance'];
-      const hasOJKMention = ojkIndicators.some(indicator => lowerDesc.includes(indicator));
+      const ojkIndicators = ['ojk', 'terdaftar ojk', 'licensed', 'regulated', 'compliance', 'authorized'];
+      const hasOJKMention = ojkIndicators.some(indicator => text.includes(indicator));
       
-      return hasOJKMention ? 15 : 75; // High risk if no OJK mention for regulated industry
+      return hasOJKMention ? 15 : 65; // Higher risk if financial business without OJK mention
     }
     
-    return 10; // Low risk for non-regulated industries - they don't need OJK compliance
+    return 10; // Low risk for non-financial businesses
   }
 
   /**
@@ -1020,18 +1560,15 @@ class FraudAnalyzer {
     const testCompanies = [
       {
         name: 'PT Bank Digital Indonesia',
-        description: 'Bank digital terdaftar OJK dengan layanan mobile banking dan digital payment',
-        industry: 'banking'
+        description: 'Bank digital terdaftar OJK dengan layanan mobile banking dan digital payment'
       },
       {
         name: 'Investasi Ponzi Guaranteed',
-        description: 'Investasi dengan keuntungan guaranteed 50% per bulan tanpa risiko',
-        industry: 'investment'
+        description: 'Investasi dengan keuntungan guaranteed 50% per bulan tanpa risiko money game'
       },
       {
         name: 'PT Aqua Golden Mississippi',
-        description: 'Produsen air minum dalam kemasan merek AQUA terbesar Indonesia',
-        industry: 'manufacturing'
+        description: 'Produsen air minum dalam kemasan merek AQUA terbesar Indonesia'
       }
     ];
     
@@ -1077,7 +1614,7 @@ class FraudAnalyzer {
       },
       {
         name: 'Investasi Ponzi Guaranteed',
-        description: 'Investasi dengan keuntungan guaranteed 50% per bulan tanpa risiko'
+        description: 'Investasi dengan keuntungan guaranteed 50% per bulan tanpa risiko money game'
       }
     ];
     

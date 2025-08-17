@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import WebScrapingService from './web-scraper.js';
+import { serpAPIService } from './serpapi-service.js';
 
 /**
  * Data validation utility for Indonesian fraud detection
@@ -66,10 +67,87 @@ class DataValidator {
       }
     }
 
+    // Validate evidence atoms if present
+    if (data.evidence && Array.isArray(data.evidence)) {
+      const evidenceValidation = this.validateEvidenceAtoms(data.evidence, data.sourcesScraped || 0);
+      if (!evidenceValidation.isValid) {
+        issues.push(...evidenceValidation.issues);
+      } else {
+        validatedData.evidence = evidenceValidation.cleanedData;
+      }
+    }
+
     return {
       isValid: issues.length === 0,
       issues,
       cleanedData: validatedData
+    };
+  }
+
+  /**
+   * Validate evidence atoms array and enforce atoms when sourcesUsed > 0
+   */
+  static validateEvidenceAtoms(evidenceAtoms, sourcesUsed = 0) {
+    const issues = [];
+    const cleanedData = [];
+
+    // Enforce: if sourcesUsed > 0, must have at least one evidence atom
+    if (sourcesUsed > 0 && evidenceAtoms.length === 0) {
+      issues.push('Sources were used but no evidence atoms found');
+      return { isValid: false, issues, cleanedData: [] };
+    }
+
+    for (const [index, atom] of evidenceAtoms.entries()) {
+      if (!atom || typeof atom !== 'object') {
+        issues.push(`Evidence atom ${index} is not a valid object`);
+        continue;
+      }
+
+      const cleanedAtom = { ...atom };
+
+      // Validate required fields
+      if (typeof atom.tier !== 'number' || atom.tier < 0 || atom.tier > 3) {
+        issues.push(`Evidence atom ${index}: tier must be 0-3`);
+        cleanedAtom.tier = 3; // Default to lowest tier
+      }
+
+      if (!atom.source || typeof atom.source !== 'string') {
+        issues.push(`Evidence atom ${index}: source is required`);
+        cleanedAtom.source = 'unknown';
+      }
+
+      if (!atom.field || typeof atom.field !== 'string') {
+        issues.push(`Evidence atom ${index}: field is required`);
+        cleanedAtom.field = 'unknown';
+      }
+
+      if (atom.value === undefined || atom.value === null) {
+        issues.push(`Evidence atom ${index}: value is required`);
+        cleanedAtom.value = '';
+      }
+
+      // Validate optional fields
+      if (atom.confidence !== undefined) {
+        if (typeof atom.confidence !== 'number' || atom.confidence < 0 || atom.confidence > 1) {
+          issues.push(`Evidence atom ${index}: confidence must be 0-1`);
+          cleanedAtom.confidence = 0.5;
+        }
+      } else {
+        cleanedAtom.confidence = 0.7; // Default confidence
+      }
+
+      if (atom.verification && !['exact', 'verified', 'partial', 'unverified'].includes(atom.verification)) {
+        issues.push(`Evidence atom ${index}: invalid verification status`);
+        cleanedAtom.verification = 'partial';
+      }
+
+      cleanedData.push(cleanedAtom);
+    }
+
+    return {
+      isValid: issues.length === 0,
+      issues,
+      cleanedData
     };
   }
 
@@ -375,17 +453,6 @@ class DataValidator {
       cleanedData.description = companyData.description.trim().substring(0, 2000); // Limit length
     }
 
-    // Validate optional fields
-    if (companyData.industry !== undefined) {
-      if (typeof companyData.industry !== 'string') {
-        issues.push('Industry must be a string');
-        cleanedData.industry = 'unknown';
-      } else {
-        cleanedData.industry = companyData.industry.trim().substring(0, 100);
-      }
-    } else {
-      cleanedData.industry = 'unknown';
-    }
 
     if (companyData.region !== undefined) {
       if (typeof companyData.region !== 'string') {
@@ -408,13 +475,14 @@ class DataValidator {
 
 /**
  * Enhanced legitimacy signal analyzer for Indonesian companies
+ * Stage 2 Implementation: Tier-based analysis with evidence atoms integration
  */
 class LegitimacyAnalyzer {
   static analyzeLegitimacySignals(companyData, webResearch = null) {
     const { name, description } = companyData;
     const text = `${name} ${description}`.toLowerCase();
     
-    // Enhanced legitimacy keywords with weights
+    // Enhanced legitimacy keywords with weights (trivial markers down-weighted)
     const legitimacyKeywords = [
       // Strong legitimacy indicators (weight: 15-20)
       { keyword: 'ojk', weight: 20 },
@@ -429,10 +497,8 @@ class LegitimacyAnalyzer {
       { keyword: 'siup', weight: 15 },
       
       // Medium legitimacy indicators (weight: 10-14)
-      { keyword: 'pt ', weight: 14 },
       { keyword: 'cv ', weight: 14 },
       { keyword: ' tbk', weight: 14 },
-      { keyword: 'bank', weight: 13 },
       { keyword: 'fintech', weight: 12 },
       { keyword: 'finance', weight: 12 },
       { keyword: 'financial', weight: 12 },
@@ -450,7 +516,11 @@ class LegitimacyAnalyzer {
       { keyword: 'corp', weight: 7 },
       { keyword: 'official', weight: 6 },
       { keyword: 'legal', weight: 6 },
-      { keyword: 'business', weight: 5 }
+      { keyword: 'business', weight: 5 },
+      
+      // Trivial markers (down-weighted for Stage 2)
+      { keyword: 'pt ', weight: 3 }, // Reduced from 14 to 3
+      { keyword: 'bank', weight: 3 } // Reduced from 13 to 3
     ];
     
     let score = 0;
@@ -488,6 +558,14 @@ class LegitimacyAnalyzer {
         score += Math.min(webLegitimacyCount * 5, 20); // Cap at 20 points
         businessMarkers.push(...webResearch.sources.businessInfo.legitimacySignals);
       }
+      
+      // NEW: Tier-0/1 Evidence Atoms Up-weighting (+30 cap)
+      const evidenceAtoms = webResearch.evidence || [];
+      const tier01EvidenceBonus = this.calculateTier01Bonus(evidenceAtoms);
+      if (tier01EvidenceBonus > 0) {
+        score += tier01EvidenceBonus;
+        businessMarkers.push(`tier_01_evidence_bonus_${tier01EvidenceBonus}`);
+      }
     }
     
     // Apply diminishing returns to prevent score inflation
@@ -524,6 +602,31 @@ class LegitimacyAnalyzer {
       businessMarkers: [...new Set(businessMarkers)], // Remove duplicates
       concerns
     };
+  }
+  
+  /**
+   * Calculate bonus from Tier-0/1 evidence atoms (up to +30 cap)
+   */
+  static calculateTier01Bonus(evidenceAtoms) {
+    if (!Array.isArray(evidenceAtoms)) return 0;
+    
+    let bonus = 0;
+    const tier01Atoms = evidenceAtoms.filter(atom => 
+      atom.tier !== undefined && atom.tier <= 1
+    );
+    
+    for (const atom of tier01Atoms) {
+      if (atom.tier === 0) {
+        // Tier-0 (IDX): +15 per atom
+        bonus += 15;
+      } else if (atom.tier === 1) {
+        // Tier-1 (OJK): +10 per atom
+        bonus += 10;
+      }
+    }
+    
+    // Cap at +30 as specified
+    return Math.min(30, bonus);
   }
 }
 
@@ -571,16 +674,15 @@ class GeminiService {
       throw new Error(`Invalid company  ${validation.issues.join(', ')}`);
     }
     
-    const { name, description, industry, region } = validation.cleanedData;
+    const { name, description, region } = validation.cleanedData;
     
-    // Build enhanced prompt with web research
+    // Build enhanced prompt with web research (evidence-based analysis)
     let prompt = `
-Analyze the following Indonesian company for fraud risk using your knowledge of Indonesian business practices, regulatory environment, and fraud patterns. Provide a comprehensive fraud risk assessment.
+Analyze the following company for fraud risk based on evidence found through web research and content analysis. Focus purely on the company name and description without making industry assumptions or bias.
 
 **COMPANY INFORMATION:**
 - Name: ${name}
 - Description: ${description}
-- Industry: ${industry || 'Not specified'}
 - Region: ${region || 'Indonesia'}`;
 
     // Add web research section if available
@@ -624,45 +726,42 @@ ${validatedWebData.sources.fraudReports.warnings.length > 0 ?
 
     prompt += `
 
-**ANALYSIS FRAMEWORK:**
-Please analyze this company using these Indonesian-specific criteria (considering both provided information and internet research findings):`;
+**EVIDENCE-BASED ANALYSIS FRAMEWORK:**
+Analyze this company purely based on evidence found in the company description and internet research. Do not make assumptions based on business categories or industries.`;
 
     return prompt + `
 
-1. **OJK REGULATORY COMPLIANCE** (Weight: 30%)
-   - Does this appear to be a legitimate Indonesian financial services company?
-   - Are there any OJK registration requirements they should meet?
-   - Look for mentions of proper licensing (OJK, Bank Indonesia, Ministry approvals)
-   - Check for compliance with Indonesian financial regulations
-   ${webResearch ? '- Consider the internet research findings about OJK registration status' : ''}
-
-2. **INDONESIAN FRAUD INDICATORS** (Weight: 25%)
-   - Scan for Indonesian fraud keywords: "investasi bodong", "skema ponzi", "money game", "penipuan", "scam"
-   - Look for unrealistic profit promises common in Indonesian investment scams
+1. **FRAUD INDICATORS & FINANCIAL TROUBLES** (Weight: 40%)
+   - Scan for fraud keywords: "investasi bodong", "skema ponzi", "money game", "penipuan", "scam"
+   - Look for unrealistic profit promises or "guaranteed returns"
    - Check for pyramid scheme language or MLM red flags
-   - Analyze for "get rich quick" schemes targeting Indonesian investors
-   ${webResearch ? '- Consider news reports and fraud mentions found in internet research' : ''}
+   - Search for evidence of financial difficulties, bankruptcy, or business closure
+   - Look for victim testimonials, complaints, or withdrawal problems
+   ${webResearch ? '- Analyze news reports, fraud mentions, and negative sentiment from research' : ''}
 
-3. **BUSINESS LEGITIMACY SIGNALS** (Weight: 25%)
+2. **REGULATORY WARNINGS & SANCTIONS** (Weight: 30%)
+   - Check for any OJK warnings, sanctions, or blacklist mentions (ONLY if company claims financial services)
+   - Look for PPATK suspicious transaction reports or investigations  
+   - Search for government investigations or regulatory actions
+   - Find evidence of license revocations or suspended operations
+   - Check for any official warnings from Indonesian authorities
+   ${webResearch ? '- Review internet research findings about regulatory status and warnings' : ''}
+
+3. **BUSINESS LEGITIMACY EVIDENCE** (Weight: 20%)
    - Look for proper Indonesian business entity indicators: "PT", "CV", "Tbk"
-   - Check for mentions of NPWP, NIB, or other Indonesian business registration
-   - Analyze for professional business language vs. suspicious marketing speak
-   - Look for established business operations vs. new/vague ventures
+   - Check for mentions of NPWP, NIB, or other business registration documents
+   - Analyze language for professional business communication vs. suspicious marketing
+   - Look for evidence of established operations and real business activities
+   - Search for positive customer reviews, awards, or recognition
    ${webResearch ? '- Consider business registration and legitimacy signals from internet research' : ''}
 
-4. **DIGITAL FOOTPRINT & CREDIBILITY** (Weight: 15%)
-   - Consider Indonesian business environment and practices
-   - Analyze cultural and language patterns for authenticity
-   - Consider industry norms in Indonesian market
-   ${webResearch ? '- Evaluate digital footprint and online presence found in research' : ''}
-
-5. **RED FLAGS DETECTION** (Weight: 5%)
-   - Guaranteed returns or "risk-free" investments
-   - Pressure tactics or urgency language
-   - Vague business models or unclear revenue sources
-   - Celebrity endorsements without substance
-   - Targeting of specific demographics (elderly, students, etc.)
-   ${webResearch ? '- Consider any warnings or negative reports from internet research' : ''}
+4. **NEGATIVE PUBLIC SENTIMENT** (Weight: 10%)
+   - Search for negative news coverage or media reports
+   - Look for social media complaints or warning posts
+   - Check for discussion forum complaints (Kaskus, etc.)
+   - Find evidence of customer dissatisfaction or problems
+   - Look for any public advisories or community warnings
+   ${webResearch ? '- Analyze sentiment and public opinion from internet research findings' : ''}
 
 **OUTPUT REQUIREMENTS:**
 Respond with a JSON object in this exact format:
@@ -672,20 +771,26 @@ Respond with a JSON object in this exact format:
   "riskLevel": "[low|medium|high|critical]",
   "confidence": [0-100 integer],
   "analysis": {
-    "ojkCompliance": {
-      "score": [0-100],
-      "issues": ["list of compliance concerns"],
-      "positives": ["list of compliance strengths"]
-    },
     "fraudIndicators": {
       "score": [0-100],
       "detectedKeywords": ["list of fraud keywords found"],
-      "riskFactors": ["list of specific risk factors"]
+      "financialTroubles": ["evidence of financial problems or bankruptcy"],
+      "victimReports": ["testimonials or complaints found"]
     },
-    "legitimacySignals": {
+    "regulatoryWarnings": {
+      "score": [0-100],
+      "officialWarnings": ["list of government warnings or sanctions"],
+      "investigations": ["ongoing or past investigations"]
+    },
+    "legitimacyEvidence": {
       "score": [0-100],
       "businessMarkers": ["list of legitimate business indicators"],
-      "concerns": ["list of legitimacy concerns"]
+      "registrationEvidence": ["business registration documents found"]
+    },
+    "publicSentiment": {
+      "score": [0-100],
+      "negativeReports": ["negative news or media coverage"],
+      "customerComplaints": ["social media or forum complaints"]
     },
     "webResearchImpact": {
       "score": [0-100],
@@ -698,21 +803,22 @@ Respond with a JSON object in this exact format:
   "requiresManualReview": boolean
 }
 
-**SCORING GUIDE:**
-- 0-20: Very Low Risk (Highly legitimate, strong compliance indicators, positive internet research)
-- 21-40: Low Risk (Generally legitimate with minor concerns, neutral/positive research)
-- 41-60: Medium Risk (Mixed signals, requires closer examination, limited research data)
-- 61-80: High Risk (Multiple red flags, significant concerns, negative internet findings)
-- 81-100: Critical Risk (Clear fraud indicators, immediate attention required, fraud reports found)
+**EVIDENCE-BASED SCORING GUIDE:**
+- 0-20: Very Low Risk (Strong legitimacy evidence, no fraud indicators, positive reputation)
+- 21-40: Low Risk (Good legitimacy evidence, minimal concerns, stable business)
+- 41-60: Medium Risk (Limited evidence, some concerns, needs more investigation)
+- 61-80: High Risk (Multiple fraud indicators, negative evidence, financial troubles)
+- 81-100: Critical Risk (Clear fraud evidence, victim reports, regulatory warnings)
 
-**IMPORTANT NOTES:**
-- Give significant weight to internet research findings when available
-- Be sensitive to legitimate Indonesian businesses that may have limited digital presence
-- Consider that traditional Indonesian businesses may not have extensive online footprints
-- Account for language variations and local business practices
-- Distinguish between companies offering fraud prevention services vs. fraudulent companies
-- Consider the regulatory environment and typical business practices in Indonesia
-${webResearch ? '- Prioritize factual internet research findings over general assumptions' : ''}
+**IMPORTANT ANALYSIS PRINCIPLES:**
+- Base assessment ONLY on evidence found, not on industry assumptions
+- Prioritize factual internet research findings over speculation
+- Look for actual fraud reports, victim testimonials, and regulatory warnings
+- Focus on financial troubles, bankruptcy, or business closure evidence
+- Consider negative sentiment and public complaints as risk indicators
+- Search for specific scam patterns (Ponzi schemes, guaranteed returns, MLM)
+- Distinguish between fraud prevention companies vs fraudulent operations
+${webResearch ? '- Weight internet research findings heavily in final assessment' : ''}
 
 Begin your analysis now:`;
   }
@@ -899,27 +1005,36 @@ Perform triage analysis now:`;
    * Calculates fallback triage when AI fails
    */
   calculateFallbackTriage(companyData) {
-    const { name, description, industry } = companyData;
+    const { name, description } = companyData;
     const text = `${name} ${description}`.toLowerCase();
     
-    // Basic keyword scoring
-    const suspiciousKeywords = ['guaranteed', 'risk-free', 'ponzi', 'scam'];
-    const legitimateKeywords = ['registered', 'licensed', 'certified', 'ojk'];
+    // Enhanced fraud keyword detection
+    const suspiciousKeywords = [
+      'guaranteed', 'risk-free', 'ponzi', 'scam', 'money game', 'investasi bodong',
+      'profit guaranteed', 'tanpa risiko', 'keuntungan pasti', 'bangkrut', 'tutup usaha'
+    ];
+    const legitimateKeywords = [
+      'registered', 'licensed', 'certified', 'ojk', 'terdaftar', 'resmi',
+      'pt ', 'cv ', 'tbk', 'npwp', 'nib'
+    ];
     
     let riskScore = 50; // Start neutral
     
     for (const keyword of suspiciousKeywords) {
-      if (text.includes(keyword)) riskScore += 20;
+      if (text.includes(keyword)) riskScore += 15;
     }
     
     for (const keyword of legitimateKeywords) {
-      if (text.includes(keyword)) riskScore -= 15;
+      if (text.includes(keyword)) riskScore -= 12;
     }
     
-    // Industry adjustments
-    const highRiskIndustries = ['investment', 'cryptocurrency', 'lending'];
-    if (highRiskIndustries.includes(industry)) {
-      riskScore += 10;
+    // Evidence-based adjustments instead of industry
+    const financialKeywords = ['investment', 'investasi', 'financial', 'keuangan', 'bank'];
+    const needsRegulation = financialKeywords.some(keyword => text.includes(keyword));
+    const hasRegulation = legitimateKeywords.some(keyword => text.includes(keyword));
+    
+    if (needsRegulation && !hasRegulation) {
+      riskScore += 15; // Higher risk for financial business without regulation indicators
     }
     
     riskScore = Math.max(0, Math.min(100, riskScore));
@@ -933,6 +1048,375 @@ Perform triage analysis now:`;
       investigationFocus: ['general_verification'],
       scrapingPriority: ['ojk.go.id', 'google_news'],
       reasoning: 'Fallback triage due to AI service unavailability'
+    };
+  }
+
+  /**
+   * NEW: Analyzes company with SerpAPI search results
+   * Enhanced fraud detection with structured search data
+   */
+  async analyzeCompanyWithSerpData(companyName, description, serpResults) {
+    try {
+      console.log(`🧠 Analyzing company with SerpAPI data: ${companyName}`);
+      
+      // Validate inputs
+      if (!serpResults || !serpResults.searches) {
+        throw new Error('Invalid SerpAPI results provided');
+      }
+      
+      // Create enhanced prompt with SerpAPI data
+      const prompt = this.createSerpAPIEnhancedPrompt(companyName, description, serpResults);
+      
+      // Handle test mode
+      if (this.testMode) {
+        return this.generateSerpAPIResponse(companyName, description, serpResults);
+      }
+      
+      const result = await this.model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.1,
+          topK: 1,
+          topP: 0.1,
+          maxOutputTokens: 2048,
+        },
+      });
+
+      const response = await result.response;
+      const text = response.text();
+      
+      // Extract JSON from response
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No valid JSON response found in SerpAPI analysis');
+      }
+      
+      const analysisResult = JSON.parse(jsonMatch[0]);
+      
+      // Validate structure
+      this.validateSerpAPIAnalysisResult(analysisResult);
+      
+      return {
+        success: true,
+        data: analysisResult,
+        rawResponse: text,
+        serpData: serpResults,
+        timestamp: new Date().toISOString()
+      };
+      
+    } catch (error) {
+      console.error('SerpAPI analysis error:', error);
+      
+      return {
+        success: false,
+        error: error.message,
+        fallbackAnalysis: this.generateSerpAPIFallback(companyName, description, serpResults),
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
+   * Creates enhanced prompt with SerpAPI search results
+   */
+  createSerpAPIEnhancedPrompt(companyName, description, serpResults) {
+    const { searches, summary } = serpResults;
+    
+    let prompt = `
+Analyze the following Indonesian company for fraud risk using comprehensive internet search data from SerpAPI. Base your assessment on actual evidence found online.
+
+**COMPANY INFORMATION:**
+- Name: ${companyName}
+- Description: ${description}
+
+**COMPREHENSIVE INTERNET RESEARCH FINDINGS:`;
+
+    // Add search results sections
+    Object.entries(searches).forEach(([searchType, searchData]) => {
+      if (searchData && !searchData.error) {
+        prompt += this.formatSerpSearchResults(searchType, searchData);
+      }
+    });
+
+    // Add summary findings
+    if (summary) {
+      prompt += `
+
+**SEARCH SUMMARY:**
+- Total Results Found: ${summary.totalResults}
+- Fraud Indicators: ${summary.fraudIndicators}
+- Legitimacy Signals: ${summary.legitimacySignals}
+- Conclusive Evidence: ${summary.conclusiveEvidence ? 'Yes' : 'No'}
+- Early Termination: ${summary.earlyTermination ? 'Yes (sufficient evidence found)' : 'No'}`;
+    }
+
+    // Add analysis framework
+    prompt += `
+
+**EVIDENCE-BASED ANALYSIS FRAMEWORK:**
+Analyze this company based ONLY on evidence found in the internet search results above. Do not make assumptions.
+
+**ANALYSIS REQUIREMENTS:**
+
+1. **FRAUD EVIDENCE ANALYSIS** (Weight: 40%)
+   - Direct fraud reports, victim testimonials, scam warnings
+   - Investment fraud patterns (ponzi, guaranteed returns, money games)
+   - Financial troubles (bankruptcy, business closure, license revocation)
+   - Regulatory sanctions and government warnings
+
+2. **LEGITIMACY VERIFICATION** (Weight: 30%)
+   - Official business registration and licenses
+   - OJK registration for financial services (if applicable)
+   - Positive news coverage and business achievements
+   - Professional certifications and industry recognition
+
+3. **PUBLIC SENTIMENT ANALYSIS** (Weight: 20%)
+   - News coverage tone and frequency
+   - Social media sentiment and discussions
+   - Customer reviews and experiences
+   - Community warnings or endorsements
+
+4. **REGULATORY COMPLIANCE** (Weight: 10%)
+   - Government database listings
+   - Official warnings or sanctions
+   - License status and regulatory standing
+   - Compliance with Indonesian business laws
+
+**OUTPUT FORMAT:**
+Return a JSON object with this exact structure:
+
+{
+  "fraudScore": [0-100 integer],
+  "riskLevel": "[low|medium|high|critical]",
+  "confidence": [0-100 integer],
+  "evidenceBreakdown": {
+    "fraudIndicators": ["specific fraud evidence found"],
+    "financialTroubles": ["business problems or bankruptcy evidence"],
+    "regulatoryIssues": ["government warnings or sanctions"],
+    "publicSentiment": "[positive|neutral|negative|mixed]",
+    "legitimacySignals": ["positive business indicators found"]
+  },
+  "reasoning": "Detailed explanation based on search findings",
+  "keyFindings": ["most important discoveries from internet research"],
+  "recommendedAction": "[approve|investigate|reject|manual_review]",
+  "evidenceQuality": "[comprehensive|good|limited|minimal]",
+  "searchImpact": {
+    "totalSources": [number of sources analyzed],
+    "reliableSources": [number of authoritative sources],
+    "conflictingInfo": [true|false]
+  }
+}
+
+**SCORING GUIDELINES:**
+- 0-20: Very Low Risk - Strong legitimacy evidence, no fraud indicators
+- 21-40: Low Risk - Good business standing, minimal concerns
+- 41-60: Medium Risk - Mixed evidence, standard verification needed
+- 61-80: High Risk - Multiple fraud indicators or regulatory issues
+- 81-100: Critical Risk - Clear fraud evidence or victim reports
+
+**ANALYSIS PRINCIPLES:**
+- Prioritize authoritative sources (government, established news, official sites)
+- Weight recent information more heavily than old reports
+- Distinguish between fraud accusations vs fraud prevention services
+- Consider Indonesian business context and regulatory requirements
+- Base confidence on quality and quantity of evidence found
+
+Begin detailed analysis:`;
+
+    return prompt;
+  }
+
+  /**
+   * Formats SerpAPI search results for prompt inclusion
+   */
+  formatSerpSearchResults(searchType, searchData) {
+    let section = `
+
+**${searchType.toUpperCase()} SEARCH RESULTS:**`;
+    
+    const results = searchData.organic_results || searchData.news_results || [];
+    if (results.length === 0) {
+      section += `\n- No relevant results found`;
+      return section;
+    }
+
+    results.slice(0, 5).forEach((result, index) => {
+      section += `
+${index + 1}. Title: ${result.title}
+   Source: ${result.link}
+   Summary: ${result.snippet || 'No summary available'}`;
+      
+      if (result.date) {
+        section += `\n   Date: ${result.date}`;
+      }
+    });
+
+    return section;
+  }
+
+  /**
+   * Generates SerpAPI-based response for test mode
+   */
+  generateSerpAPIResponse(companyName, description, serpResults) {
+    const { summary } = serpResults;
+    
+    // Calculate scores based on SerpAPI findings
+    let fraudScore = 30; // Base score
+    let riskLevel = 'medium';
+    let confidence = 85;
+    
+    const fraudIndicators = [];
+    const financialTroubles = [];
+    const regulatoryIssues = [];
+    const legitimacySignals = [];
+    
+    // Analyze search results
+    if (summary) {
+      // Increase fraud score based on indicators
+      if (summary.fraudIndicators > 0) {
+        fraudScore += summary.fraudIndicators * 15;
+        fraudIndicators.push(`${summary.fraudIndicators} fraud-related search results found`);
+      }
+      
+      // Decrease fraud score based on legitimacy
+      if (summary.legitimacySignals > 0) {
+        fraudScore -= summary.legitimacySignals * 10;
+        legitimacySignals.push(`${summary.legitimacySignals} legitimacy indicators found`);
+      }
+      
+      // Early termination indicates strong evidence
+      if (summary.earlyTermination) {
+        if (summary.fraudIndicators > summary.legitimacySignals) {
+          fraudScore = Math.max(fraudScore, 75);
+          fraudIndicators.push('Early termination due to conclusive fraud evidence');
+        } else {
+          fraudScore = Math.min(fraudScore, 25);
+          legitimacySignals.push('Early termination due to strong legitimacy evidence');
+        }
+      }
+    }
+
+    // Determine risk level
+    fraudScore = Math.max(0, Math.min(100, fraudScore));
+    if (fraudScore >= 80) riskLevel = 'critical';
+    else if (fraudScore >= 60) riskLevel = 'high';
+    else if (fraudScore >= 40) riskLevel = 'medium';
+    else riskLevel = 'low';
+
+    // Determine public sentiment
+    let publicSentiment = 'neutral';
+    if (summary && summary.fraudIndicators > 2) publicSentiment = 'negative';
+    else if (summary && summary.legitimacySignals > 2) publicSentiment = 'positive';
+
+    // Generate key findings
+    const keyFindings = [];
+    if (summary) {
+      keyFindings.push(`Found ${summary.totalResults} total search results`);
+      if (summary.fraudIndicators > 0) {
+        keyFindings.push(`Detected ${summary.fraudIndicators} potential fraud indicators`);
+      }
+      if (summary.legitimacySignals > 0) {
+        keyFindings.push(`Identified ${summary.legitimacySignals} legitimacy signals`);
+      }
+      if (summary.conclusiveEvidence) {
+        keyFindings.push('Search revealed conclusive evidence for assessment');
+      }
+    }
+
+    // Determine recommended action
+    let recommendedAction = 'investigate';
+    if (fraudScore >= 80) recommendedAction = 'reject';
+    else if (fraudScore >= 60) recommendedAction = 'manual_review';
+    else if (fraudScore <= 30) recommendedAction = 'approve';
+
+    // Determine evidence quality
+    let evidenceQuality = 'limited';
+    if (summary && summary.totalResults > 20) evidenceQuality = 'comprehensive';
+    else if (summary && summary.totalResults > 10) evidenceQuality = 'good';
+    else if (summary && summary.totalResults > 5) evidenceQuality = 'limited';
+    else evidenceQuality = 'minimal';
+
+    return {
+      success: true,
+      data: {
+        fraudScore: Math.round(fraudScore),
+        riskLevel,
+        confidence,
+        evidenceBreakdown: {
+          fraudIndicators,
+          financialTroubles,
+          regulatoryIssues,
+          publicSentiment,
+          legitimacySignals
+        },
+        reasoning: `Analysis based on comprehensive internet search of ${companyName}. ${keyFindings.join('. ')}.`,
+        keyFindings,
+        recommendedAction,
+        evidenceQuality,
+        searchImpact: {
+          totalSources: summary?.totalResults || 0,
+          reliableSources: Math.floor((summary?.totalResults || 0) * 0.7),
+          conflictingInfo: summary?.fraudIndicators > 0 && summary?.legitimacySignals > 0
+        }
+      },
+      rawResponse: '[SERPAPI MOCK RESPONSE]',
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Validates SerpAPI analysis result structure
+   */
+  validateSerpAPIAnalysisResult(result) {
+    const required = [
+      'fraudScore', 'riskLevel', 'confidence', 'evidenceBreakdown', 
+      'reasoning', 'keyFindings', 'recommendedAction', 'evidenceQuality'
+    ];
+    
+    for (const field of required) {
+      if (!(field in result)) {
+        throw new Error(`Missing required field in SerpAPI analysis: ${field}`);
+      }
+    }
+    
+    if (typeof result.fraudScore !== 'number' || result.fraudScore < 0 || result.fraudScore > 100) {
+      throw new Error('fraudScore must be a number between 0 and 100');
+    }
+    
+    if (!['low', 'medium', 'high', 'critical'].includes(result.riskLevel)) {
+      throw new Error('riskLevel must be one of: low, medium, high, critical');
+    }
+    
+    if (!['approve', 'investigate', 'reject', 'manual_review'].includes(result.recommendedAction)) {
+      throw new Error('recommendedAction must be one of: approve, investigate, reject, manual_review');
+    }
+  }
+
+  /**
+   * Generates fallback analysis when SerpAPI analysis fails
+   */
+  generateSerpAPIFallback(companyName, description, serpResults) {
+    const text = `${companyName} ${description}`.toLowerCase();
+    
+    // Basic keyword analysis
+    const suspiciousKeywords = ['guaranteed', 'ponzi', 'scam', 'investasi bodong'];
+    const legitimateKeywords = ['ojk', 'terdaftar', 'resmi', 'pt '];
+    
+    const suspiciousCount = suspiciousKeywords.filter(k => text.includes(k)).length;
+    const legitimateCount = legitimateKeywords.filter(k => text.includes(k)).length;
+    
+    let fraudScore = 50;
+    if (suspiciousCount > 0) fraudScore += suspiciousCount * 20;
+    if (legitimateCount > 0) fraudScore -= legitimateCount * 15;
+    
+    fraudScore = Math.max(0, Math.min(100, fraudScore));
+    
+    return {
+      fraudScore,
+      riskLevel: fraudScore > 70 ? 'high' : fraudScore > 40 ? 'medium' : 'low',
+      confidence: 30,
+      reasoning: 'Fallback analysis due to SerpAPI processing error',
+      source: 'keyword_analysis'
     };
   }
 
@@ -1127,19 +1611,29 @@ Perform triage analysis now:`;
         riskLevel,
         confidence: 85,
         analysis: {
-          ojkCompliance: {
-            score: this.calculateOJKComplianceScore(companyData, legitimateCount),
-            issues: suspiciousCount > 0 ? ['Potential regulatory compliance concerns'] : [],
-            positives: legitimateCount > 0 ? ['Proper registration indicated'] : []
-          },
           fraudIndicators: {
             score: suspiciousCount * 30,
             detectedKeywords: suspiciousKeywords.filter(k => text.includes(k)),
-            riskFactors: suspiciousCount > 0 ? ['Suspicious language patterns'] : []
+            financialTroubles: suspiciousKeywords.filter(k => ['bankruptcy', 'bangkrut', 'tutup', 'failed'].some(t => k.includes(t))),
+            victimReports: suspiciousKeywords.filter(k => ['victim', 'korban', 'complaint'].some(t => k.includes(t)))
           },
-          legitimacySignals: legitimacyAnalysis,
+          regulatoryWarnings: {
+            score: this.calculateRegulatoryWarningsScore(companyData, webResearch),
+            officialWarnings: [],
+            investigations: []
+          },
+          legitimacyEvidence: {
+            score: legitimacyAnalysis.score,
+            businessMarkers: legitimacyAnalysis.businessMarkers,
+            registrationEvidence: legitimacyAnalysis.businessMarkers.filter(m => ['pt', 'cv', 'tbk', 'npwp', 'nib'].includes(m))
+          },
+          publicSentiment: {
+            score: this.calculatePublicSentimentScore(webResearch),
+            negativeReports: [],
+            customerComplaints: []
+          },
           webResearchImpact: {
-            score: Math.round(Math.abs(webResearchImpact) * 5), // Convert impact to 0-100 scale
+            score: this.calculateWebResearchImpactScore(webResearchImpact, webResearch),
             keyFindings: keyWebFindings,
             dataQuality: webDataQuality
           }
@@ -1411,6 +1905,74 @@ Perform triage analysis now:`;
         timestamp: new Date().toISOString()
       };
     }
+  }
+
+  /**
+   * Calculate web research impact score ensuring never 0 when sources used
+   * Stage 2 Implementation: Prevents webResearchImpact.score = 0 when sourcesUsed > 0
+   */
+  calculateWebResearchImpactScore(webResearchImpact, webResearch) {
+    const sourcesUsed = webResearch?.sourcesScraped || 0;
+    let impactScore = Math.round(Math.abs(webResearchImpact) * 5); // Convert impact to 0-100 scale
+    
+    // Ensure score is never 0 when sources were actually used
+    if (sourcesUsed > 0 && impactScore === 0) {
+      // Minimum score of 10 when sources were used but impact was minimal
+      impactScore = 10;
+    }
+    
+    return impactScore;
+  }
+
+  /**
+   * Calculate regulatory warnings score based on evidence found
+   */
+  calculateRegulatoryWarningsScore(companyData, webResearch) {
+    let score = 0;
+    
+    // Check for regulatory issues in web research
+    if (webResearch && !webResearch.fallback) {
+      if (webResearch.sources?.ojk?.registrationStatus === 'warning_issued') {
+        score += 70;
+      } else if (webResearch.sources?.ojk?.registrationStatus === 'suspended') {
+        score += 80;
+      } else if (webResearch.sources?.ojk?.registrationStatus === 'revoked') {
+        score += 90;
+      }
+      
+      // Add points for investigations
+      const investigations = webResearch.sources?.fraudReports?.investigations || 0;
+      score += Math.min(investigations * 20, 60);
+    }
+    
+    return Math.min(score, 100);
+  }
+
+  /**
+   * Calculate public sentiment score based on negative indicators
+   */
+  calculatePublicSentimentScore(webResearch) {
+    let score = 0;
+    
+    if (webResearch && !webResearch.fallback) {
+      // Negative news sentiment
+      if (webResearch.sources?.news?.sentiment === 'negative') {
+        score += 40;
+      } else if (webResearch.sources?.news?.sentiment === 'mixed') {
+        score += 20;
+      }
+      
+      // Fraud mentions in news
+      const fraudMentions = webResearch.sources?.news?.fraudMentions || 0;
+      score += Math.min(fraudMentions * 15, 45);
+      
+      // Customer complaints or social sentiment
+      if (webResearch.sources?.businessInfo?.digitalFootprint === 'negative') {
+        score += 30;
+      }
+    }
+    
+    return Math.min(score, 100);
   }
 
   /**

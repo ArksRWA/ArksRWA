@@ -1,4 +1,6 @@
 import WebScrapingService from './web-scraper.js';
+import EntityUtils from './entity-utils.js';
+import { serpAPIService } from './serpapi-service.js';
 import puppeteer from 'puppeteer';
 import * as cheerio from 'cheerio';
 import axios from 'axios';
@@ -11,6 +13,9 @@ import axios from 'axios';
 class ContextAwareWebScraper extends WebScrapingService {
   constructor() {
     super();
+    
+    // Initialize entity resolution utility
+    this.entityUtils = new EntityUtils();
     
     // Enhanced Indonesian sources configuration
     this.enhancedSources = {
@@ -170,6 +175,385 @@ class ContextAwareWebScraper extends WebScrapingService {
   }
 
   /**
+   * NEW: Enhanced scraping with SerpAPI as primary intelligence source
+   * Optimized cost efficiency and early termination logic
+   */
+  async scrapeWithSerpAPI(companyData, triageResults) {
+    try {
+      console.log(`🧠 Starting SerpAPI-enhanced intelligent scraping for: ${companyData.name}`);
+      
+      const strategy = this.determineScrapingStrategy(triageResults);
+      const searchTerms = this.generateIntelligentSearchTerms(companyData, triageResults);
+      
+      // Step 1: Intelligent SerpAPI search prioritization
+      const serpAPIPriority = this.determineSerpAPIPriority(triageResults, searchTerms);
+      console.log(`🎯 SerpAPI search priority: ${serpAPIPriority.join(', ')}`);
+      
+      // Step 2: Execute SerpAPI searches with smart batching
+      const serpResults = await this.executeSerpAPISearches(
+        companyData.name,
+        serpAPIPriority,
+        strategy
+      );
+      
+      // Step 3: Early termination check
+      if (this.shouldTerminateEarly(serpResults, strategy)) {
+        console.log(`⚡ Early termination triggered for ${companyData.name}`);
+        return this.formatSerpAPIResults(serpResults, true);
+      }
+      
+      // Step 4: HTTP fallback for missing critical data
+      const httpFallback = await this.executeHTTPFallback(
+        companyData.name,
+        serpResults,
+        strategy
+      );
+      
+      // Step 5: Combine and format results
+      const combinedResults = this.combineSerpAPIAndHTTP(serpResults, httpFallback);
+      
+      console.log(`✅ SerpAPI-enhanced scraping completed for: ${companyData.name}`);
+      return this.formatSerpAPIResults(combinedResults, false);
+      
+    } catch (error) {
+      console.error(`SerpAPI enhanced scraping failed: ${error.message}`);
+      
+      // Fallback to traditional intelligent scraping
+      console.log(`🔄 Falling back to traditional scraping for: ${companyData.name}`);
+      return await this.scrapeWithIntelligence(companyData, triageResults);
+    }
+  }
+
+  /**
+   * Determine SerpAPI search prioritization based on triage
+   */
+  determineSerpAPIPriority(triageResults, searchTerms) {
+    const priority = [];
+    
+    if (!triageResults || !triageResults.data) {
+      // Default balanced approach
+      return ['general', 'news', 'regulatory', 'fraud'];
+    }
+    
+    const { riskLevel, riskFactors, priorityPatterns } = triageResults.data;
+    
+    // High-risk companies: Focus on fraud evidence first
+    if (riskLevel === 'critical' || riskLevel === 'high') {
+      priority.push('fraud', 'regulatory', 'victims', 'financial', 'news', 'general');
+    }
+    // Low-risk companies: Focus on legitimacy verification
+    else if (riskLevel === 'low') {
+      priority.push('general', 'regulatory', 'news', 'official');
+    }
+    // Medium-risk: Balanced approach
+    else {
+      priority.push('general', 'news', 'fraud', 'regulatory', 'financial');
+    }
+    
+    // Remove duplicates and limit to 6 searches max
+    return [...new Set(priority)].slice(0, 6);
+  }
+
+  /**
+   * Execute SerpAPI searches with intelligent batching
+   */
+  async executeSerpAPISearches(companyName, searchPriority, strategy) {
+    const results = {
+      searches: {},
+      summary: {
+        totalResults: 0,
+        fraudIndicators: 0,
+        legitimacySignals: 0,
+        conclusiveEvidence: false,
+        earlyTermination: false
+      }
+    };
+    
+    let searchCount = 0;
+    const maxSearches = Math.min(searchPriority.length, strategy.maxSources);
+    
+    for (const searchType of searchPriority) {
+      if (searchCount >= maxSearches) break;
+      
+      try {
+        console.log(`🔍 Executing SerpAPI ${searchType} search for: ${companyName}`);
+        
+        let searchResult;
+        switch (searchType) {
+          case 'general':
+            searchResult = await serpAPIService.searchCompanyGeneral(companyName);
+            break;
+          case 'fraud':
+            searchResult = await serpAPIService.searchCompanyFraud(companyName);
+            break;
+          case 'financial':
+            searchResult = await serpAPIService.searchCompanyFinancialTroubles(companyName);
+            break;
+          case 'regulatory':
+            searchResult = await serpAPIService.searchCompanyRegulatory(companyName);
+            break;
+          case 'news':
+            searchResult = await serpAPIService.searchCompanyNews(companyName);
+            break;
+          case 'victims':
+            searchResult = await serpAPIService.searchCompanyVictims(companyName);
+            break;
+          case 'official':
+            searchResult = await serpAPIService.searchCompanyOfficialSites(companyName);
+            break;
+          default:
+            continue;
+        }
+        
+        results.searches[searchType] = searchResult;
+        searchCount++;
+        
+        // Analyze for early termination
+        const analysis = this.analyzeSerpAPIResult(searchResult, searchType);
+        results.summary.totalResults += analysis.resultCount;
+        results.summary.fraudIndicators += analysis.fraudSignals;
+        results.summary.legitimacySignals += analysis.legitimacySignals;
+        
+        // Check for conclusive evidence
+        if (analysis.isConclusiveEvidence && strategy.earlyTermination) {
+          console.log(`🎯 Conclusive evidence found in ${searchType} search`);
+          results.summary.conclusiveEvidence = true;
+          break;
+        }
+        
+      } catch (error) {
+        console.warn(`SerpAPI ${searchType} search failed: ${error.message}`);
+        results.searches[searchType] = { error: error.message };
+      }
+      
+      // Rate limiting delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    return results;
+  }
+
+  /**
+   * Analyze SerpAPI result for evidence patterns
+   */
+  analyzeSerpAPIResult(searchResult, searchType) {
+    const analysis = {
+      resultCount: 0,
+      fraudSignals: 0,
+      legitimacySignals: 0,
+      isConclusiveEvidence: false
+    };
+    
+    if (!searchResult || searchResult.error) {
+      return analysis;
+    }
+    
+    const results = searchResult.organic_results || searchResult.news_results || [];
+    analysis.resultCount = results.length;
+    
+    const fraudKeywords = [
+      'penipuan', 'scam', 'fraud', 'penipu', 'gugatan', 'sanksi',
+      'bermasalah', 'bangkrut', 'korban', 'tertipu', 'investasi bodong'
+    ];
+    
+    const legitimacyKeywords = [
+      'resmi', 'terdaftar', 'ojk', 'sertifikat', 'izin', 'akreditasi',
+      'kementerian', 'official', 'licensed', 'certified'
+    ];
+    
+    for (const result of results) {
+      const text = `${result.title || ''} ${result.snippet || ''}`.toLowerCase();
+      
+      // Count fraud indicators
+      const fraudMatches = fraudKeywords.filter(keyword => text.includes(keyword)).length;
+      if (fraudMatches > 0) {
+        analysis.fraudSignals++;
+      }
+      
+      // Count legitimacy signals
+      const legitimacyMatches = legitimacyKeywords.filter(keyword => text.includes(keyword)).length;
+      if (legitimacyMatches > 0) {
+        analysis.legitimacySignals++;
+      }
+      
+      // Check for conclusive evidence patterns
+      if (searchType === 'regulatory' && (text.includes('sanksi') || text.includes('peringatan'))) {
+        analysis.isConclusiveEvidence = true;
+      }
+      
+      if (searchType === 'fraud' && fraudMatches >= 2) {
+        analysis.isConclusiveEvidence = true;
+      }
+      
+      if (searchType === 'victims' && text.includes('korban')) {
+        analysis.isConclusiveEvidence = true;
+      }
+    }
+    
+    return analysis;
+  }
+
+  /**
+   * Check if early termination should be triggered
+   */
+  shouldTerminateEarly(serpResults, strategy) {
+    if (!strategy.earlyTermination) return false;
+    
+    const { summary } = serpResults;
+    const threshold = strategy.terminationThreshold || 8;
+    
+    // Terminate if conclusive evidence found
+    if (summary.conclusiveEvidence) return true;
+    
+    // Terminate if enough evidence collected
+    if (summary.totalResults >= threshold) {
+      // Strong fraud evidence
+      if (summary.fraudIndicators >= 3) return true;
+      // Strong legitimacy evidence
+      if (summary.legitimacySignals >= 5) return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * Execute HTTP fallback for missing critical data
+   */
+  async executeHTTPFallback(companyName, serpResults, strategy) {
+    const fallbackNeeded = this.identifyFallbackNeeds(serpResults);
+    
+    if (fallbackNeeded.length === 0) {
+      console.log(`📋 No HTTP fallback needed for: ${companyName}`);
+      return null;
+    }
+    
+    console.log(`🔄 Executing HTTP fallback for: ${fallbackNeeded.join(', ')}`);
+    
+    const fallbackResults = {};
+    
+    for (const source of fallbackNeeded.slice(0, 2)) { // Limit fallback sources
+      try {
+        switch (source) {
+          case 'ojk_direct':
+            fallbackResults.ojkDirect = await this.checkOJKDirect(companyName);
+            break;
+          case 'business_registry':
+            fallbackResults.businessRegistry = await this.checkBusinessRegistry(companyName);
+            break;
+          case 'indonesian_news':
+            fallbackResults.indonesianNews = await this.checkIndonesianNews(companyName);
+            break;
+        }
+      } catch (error) {
+        console.warn(`HTTP fallback ${source} failed: ${error.message}`);
+      }
+    }
+    
+    return fallbackResults;
+  }
+
+  /**
+   * Identify which sources need HTTP fallback
+   */
+  identifyFallbackNeeds(serpResults) {
+    const needs = [];
+    
+    // Check if OJK data is insufficient
+    if (!serpResults.searches.regulatory || 
+        serpResults.searches.regulatory.error ||
+        (serpResults.searches.regulatory.organic_results || []).length === 0) {
+      needs.push('ojk_direct');
+    }
+    
+    // Check if business registration data is missing
+    if (!serpResults.searches.general || 
+        serpResults.searches.general.error ||
+        (serpResults.searches.general.organic_results || []).length < 3) {
+      needs.push('business_registry');
+    }
+    
+    // Check if Indonesian news coverage is insufficient
+    if (!serpResults.searches.news || 
+        serpResults.searches.news.error ||
+        (serpResults.searches.news.news_results || []).length === 0) {
+      needs.push('indonesian_news');
+    }
+    
+    return needs;
+  }
+
+  /**
+   * Combine SerpAPI and HTTP fallback results
+   */
+  combineSerpAPIAndHTTP(serpResults, httpFallback) {
+    const combined = { ...serpResults };
+    
+    if (httpFallback) {
+      combined.httpFallback = httpFallback;
+      
+      // Enhance summary with fallback data
+      if (httpFallback.ojkDirect?.found) {
+        combined.summary.legitimacySignals++;
+      }
+      
+      if (httpFallback.businessRegistry?.isIndonesianEntity) {
+        combined.summary.legitimacySignals++;
+      }
+    }
+    
+    return combined;
+  }
+
+  /**
+   * Format SerpAPI results for consumption
+   */
+  formatSerpAPIResults(results, earlyTermination) {
+    return {
+      companyName: results.companyName || 'unknown',
+      timestamp: new Date().toISOString(),
+      dataSource: 'serpapi_context_aware',
+      earlyTermination,
+      serpAPIResults: results,
+      summary: {
+        ...results.summary,
+        earlyTermination,
+        dataQuality: this.assessDataQuality(results),
+        searchEfficiency: this.calculateSearchEfficiency(results)
+      }
+    };
+  }
+
+  /**
+   * Assess overall data quality from SerpAPI results
+   */
+  assessDataQuality(results) {
+    const totalResults = results.summary?.totalResults || 0;
+    const searchCount = Object.keys(results.searches || {}).length;
+    
+    if (totalResults > 20 && searchCount > 4) return 'comprehensive';
+    if (totalResults > 10 && searchCount > 2) return 'good';
+    if (totalResults > 5) return 'limited';
+    return 'minimal';
+  }
+
+  /**
+   * Calculate search efficiency metrics
+   */
+  calculateSearchEfficiency(results) {
+    const searchCount = Object.keys(results.searches || {}).length;
+    const totalResults = results.summary?.totalResults || 0;
+    const evidenceFound = (results.summary?.fraudIndicators || 0) + 
+                         (results.summary?.legitimacySignals || 0);
+    
+    return {
+      searchesExecuted: searchCount,
+      resultsPerSearch: searchCount > 0 ? Math.round(totalResults / searchCount) : 0,
+      evidencePerSearch: searchCount > 0 ? Math.round(evidenceFound / searchCount) : 0,
+      costEfficiency: results.summary?.earlyTermination ? 'high' : 'standard'
+    };
+  }
+
+  /**
    * Enhanced company research with context-aware intelligence
    */
   async scrapeWithIntelligence(companyData, triageResults) {
@@ -180,19 +564,36 @@ class ContextAwareWebScraper extends WebScrapingService {
       const strategy = triageResults.scrapingStrategy;
       const startTime = Date.now();
       
-      // Generate contextual search terms based on industry and risk factors
-      const searchTerms = this.generateContextualSearchTerms(companyData, triageResults);
+      // STEP 1: Entity Resolution (canonicalize before scraping)
+      const entityData = this.entityUtils.resolveEntity(companyData.name, companyData.description);
+      console.log(`🏢 Entity resolved: ${entityData.canonicalName} (certainty: ${entityData.erCertainty})`);
       
-      // Select and prioritize sources based on strategy
+      // Use canonical name and aliases for more accurate searching
+      const enhancedCompanyData = {
+        ...companyData,
+        canonicalName: entityData.canonicalName,
+        aliases: entityData.aliases,
+        entityData: entityData
+      };
+      
+      // STEP 2: Generate contextual search terms (using canonical name + aliases)
+      const searchTerms = this.generateContextualSearchTerms(enhancedCompanyData, triageResults);
+      
+      // STEP 3: Select and prioritize sources based on strategy  
       const prioritizedSources = this.prioritizeSources(strategy, triageResults.riskLevel);
       
-      // Execute intelligent scraping with early termination logic
+      // STEP 4: Execute intelligent scraping with early termination logic
       const scrapingResults = await this.executeIntelligentScraping(
-        companyData.name,
+        enhancedCompanyData.canonicalName,
         searchTerms,
         prioritizedSources,
         strategy
       );
+      
+      // STEP 5: Collect domains for impersonation detection
+      const collectedDomains = this.collectDomains(scrapingResults);
+      const impersonationRisk = this.entityUtils.checkImpersonationRisk(collectedDomains);
+      console.log(`🚨 Impersonation risk: ${impersonationRisk.risk} (${collectedDomains.length} domains checked)`);
       
       // Analyze results for early termination conditions
       const conclusiveEvidence = this.analyzeForConclusiveEvidence(scrapingResults, triageResults.riskLevel);
@@ -209,22 +610,31 @@ class ContextAwareWebScraper extends WebScrapingService {
       
       console.log(`✅ Intelligent scraping completed in ${processingTime}ms - Quality: ${enhancedSummary.dataQuality}`);
       
-      return {
+      // FIXED: Collect and include evidence atoms in results
+      const finalResults = {
         companyName: companyData.name,
+        canonicalName: entityData.canonicalName,
+        entityResolution: entityData, // Include full ER data
         timestamp: new Date().toISOString(),
         processingTimeMs: processingTime,
         strategy: strategy,
         searchTermsUsed: searchTerms,
         sourcesScraped: prioritizedSources.length,
         sources: scrapingResults,
+        domains: collectedDomains,
+        impersonationRisk: impersonationRisk,
         conclusiveEvidence: conclusiveEvidence,
         summary: enhancedSummary,
         intelligence: {
           earlyTermination: conclusiveEvidence.triggered,
           terminationReason: conclusiveEvidence.reason,
           confidenceLevel: conclusiveEvidence.confidence
-        }
+        },
+        evidence: this.evidenceAtoms || [] // Include collected evidence atoms
       };
+      
+      // Ensure evidence atoms are properly collected from all sources
+      return this.collectAndReturnEvidence(finalResults);
       
     } catch (error) {
       console.error('Intelligent scraping failed:', error);
@@ -236,7 +646,7 @@ class ContextAwareWebScraper extends WebScrapingService {
    * Generates contextual search terms based on industry and risk patterns
    */
   generateContextualSearchTerms(companyData, triageResults) {
-    const { industry } = companyData;
+    const { name } = companyData;
     const { riskLevel, riskFactors } = triageResults;
     
     const searchTerms = {
@@ -244,43 +654,64 @@ class ContextAwareWebScraper extends WebScrapingService {
       legitimacy: [],
       fraud: [],
       regulatory: [],
-      contextual: []
+      contextual: [],
+      troubles: []  // New category for financial troubles
     };
     
-    // Get industry-specific patterns
-    const industryPatterns = this.contextPatterns[industry] || {
-      legitimacy: ['terdaftar resmi', 'legal business'],
-      fraud: ['penipuan', 'scam'],
-      regulatory: ['izin usaha', 'business permit']
-    };
+    // Universal fraud patterns (no industry bias)
+    const universalFraudPatterns = [
+      'penipuan', 'scam', 'penipu', 'fraud',
+      'investasi bodong', 'skema ponzi', 'money game',
+      'bermasalah', 'bermasalah financial', 'financial trouble',
+      'tutup usaha', 'bangkrut', 'bankruptcy', 'failed business',
+      'daftar hitam', 'blacklist', 'warning issued'
+    ];
     
-    // Add industry-specific terms
-    searchTerms.legitimacy.push(...industryPatterns.legitimacy.map(term => `"${companyData.name}" ${term}`));
-    searchTerms.fraud.push(...industryPatterns.fraud.map(term => `"${companyData.name}" ${term}`));
-    searchTerms.regulatory.push(...industryPatterns.regulatory.map(term => `"${companyData.name}" ${term}`));
+    // Add universal fraud search terms
+    searchTerms.fraud.push(...universalFraudPatterns.map(term => `"${companyData.name}" ${term}`));
+    
+    // Financial troubles and business problems
+    const troublePatterns = [
+      'dissolution', 'likuidasi', 'ceased operations', 'tutup', 
+      'gagal bayar', 'default payment', 'debt problems', 'hutang bermasalah',
+      'investigation', 'investigasi', 'under review', 'sedang diteliti'
+    ];
+    searchTerms.troubles.push(...troublePatterns.map(term => `"${companyData.name}" ${term}`));
+    
+    // Regulatory warnings and sanctions (evidence-based)
+    const regulatoryWarnings = [
+      'OJK peringatan', 'OJK warning', 'OJK sanctions',
+      'PPATK suspicious', 'PPATK investigation',
+      'government investigation', 'investigasi pemerintah',
+      'license revoked', 'izin dicabut', 'suspended operations'
+    ];
+    searchTerms.regulatory.push(...regulatoryWarnings.map(term => `"${companyData.name}" ${term}`));
     
     // Risk-based term prioritization
     if (riskLevel === 'critical' || riskLevel === 'high') {
-      // Focus on fraud investigation terms
+      // Focus on fraud investigation and victim testimonials
       searchTerms.fraud.push(
-        `"${companyData.name}" penipuan korban`,
-        `"${companyData.name}" scam victim`,
-        `"${companyData.name}" investasi bodong`,
-        `"${companyData.name}" kerugian investor`
+        `"${companyData.name}" korban testimoni`,
+        `"${companyData.name}" victim testimonial`,
+        `"${companyData.name}" complaint keluhan`,
+        `"${companyData.name}" "tidak bisa withdraw"`,
+        `"${companyData.name}" "cannot withdraw"`,
+        `"${companyData.name}" "gagal bayar investor"`
       );
       
-      // Add regulatory warning terms
-      searchTerms.regulatory.push(
-        `"${companyData.name}" OJK peringatan`,
-        `"${companyData.name}" PPATK suspicious`,
-        `"${companyData.name}" daftar hitam`
+      // Financial troubles for high-risk companies
+      searchTerms.troubles.push(
+        `"${companyData.name}" "financial difficulty"`,
+        `"${companyData.name}" "cash flow problem"`,
+        `"${companyData.name}" "investor losses"`
       );
     } else if (riskLevel === 'low') {
-      // Focus on legitimacy confirmation
+      // Focus on positive legitimacy indicators
       searchTerms.legitimacy.push(
-        `"${companyData.name}" award penghargaan`,
-        `"${companyData.name}" partnership kemitraan`,
-        `"${companyData.name}" media coverage positif`
+        `"${companyData.name}" "good reputation"`,
+        `"${companyData.name}" "reputasi baik"`,
+        `"${companyData.name}" "customer satisfaction"`,
+        `"${companyData.name}" "successful business"`
       );
     }
     
@@ -289,13 +720,22 @@ class ContextAwareWebScraper extends WebScrapingService {
       if (riskFactor.includes('ponzi') || riskFactor.includes('investment')) {
         searchTerms.contextual.push(
           `"${companyData.name}" "skema ponzi"`,
-          `"${companyData.name}" "investment fraud"`
+          `"${companyData.name}" "investment scam"`,
+          `"${companyData.name}" "pyramid scheme"`
         );
       }
       if (riskFactor.includes('guaranteed') || riskFactor.includes('profit')) {
         searchTerms.contextual.push(
-          `"${companyData.name}" "guaranteed return"`,
-          `"${companyData.name}" "profit guaranteed"`
+          `"${companyData.name}" "unrealistic returns"`,
+          `"${companyData.name}" "too good to be true"`,
+          `"${companyData.name}" "guaranteed profit scam"`
+        );
+      }
+      if (riskFactor.includes('financial') || riskFactor.includes('bank')) {
+        searchTerms.contextual.push(
+          `"${companyData.name}" "unlicensed financial"`,
+          `"${companyData.name}" "illegal banking"`,
+          `"${companyData.name}" "unregistered fintech"`
         );
       }
     }
@@ -400,27 +840,28 @@ class ContextAwareWebScraper extends WebScrapingService {
     
     switch (specialization) {
       case 'financial_crime':
-        return [...searchTerms.base, ...searchTerms.fraud, ...searchTerms.regulatory];
+        return [...searchTerms.base, ...searchTerms.fraud, ...searchTerms.regulatory, ...searchTerms.troubles];
         
       case 'business_registration':
         return [...searchTerms.base, ...searchTerms.legitimacy, ...searchTerms.regulatory];
         
       case 'news_coverage':
       case 'investigative_journalism':
-        return [...searchTerms.base, ...searchTerms.fraud, ...searchTerms.contextual];
+        return [...searchTerms.base, ...searchTerms.fraud, ...searchTerms.contextual, ...searchTerms.troubles];
         
       case 'social_sentiment':
-        return [...searchTerms.base, ...searchTerms.fraud];
+        return [...searchTerms.base, ...searchTerms.fraud, ...searchTerms.troubles];
         
       case 'business_directory':
         return [...searchTerms.base, ...searchTerms.legitimacy];
         
       default:
-        // Use all terms for general sources
+        // Use enhanced terms for general sources with fraud focus
         return [
           ...searchTerms.base,
-          ...searchTerms.legitimacy.slice(0, 2),
-          ...searchTerms.fraud.slice(0, 2),
+          ...searchTerms.fraud.slice(0, 3),
+          ...searchTerms.troubles.slice(0, 2),
+          ...searchTerms.legitimacy.slice(0, 1),
           ...searchTerms.contextual.slice(0, 1)
         ];
     }
@@ -553,7 +994,12 @@ class ContextAwareWebScraper extends WebScrapingService {
    * Integrates source results into the main results structure
    */
   integrateSourceResults(mainResults, sourceResults, sourceName) {
-    // Map source results to appropriate categories
+    // Initialize evidence atoms array if not exists
+    if (!this.evidenceAtoms) {
+      this.evidenceAtoms = [];
+    }
+    
+    // Map source results to appropriate categories AND create evidence atoms
     if (sourceName === 'ojk' || sourceName === 'ppatk') {
       // Regulatory sources
       mainResults.ojk.foundEntries += sourceResults.length;
@@ -561,11 +1007,29 @@ class ContextAwareWebScraper extends WebScrapingService {
       
       // Analyze for registration status
       const registrationSignals = sourceResults.filter(r => 
-        r.extractedSignals.some(s => s.type === 'positive' || s.type === 'regulatory')
+        r.extractedSignals && r.extractedSignals.some(s => s.type === 'positive' || s.type === 'regulatory')
       );
       
       if (registrationSignals.length > 0) {
         mainResults.ojk.registrationStatus = 'registered';
+        
+        // FIXED: Create Tier-1 evidence atoms for OJK registration
+        registrationSignals.forEach(result => {
+          if (result.extractedSignals) {
+            result.extractedSignals.forEach(signal => {
+              const evidenceAtom = this.createEvidenceAtom(
+                1, // Tier-1 for OJK
+                sourceName.toUpperCase(),
+                'registration',
+                'registered',
+                result.url || 'https://www.ojk.go.id',
+                'verified',
+                result.relevanceScore ? result.relevanceScore / 100 : 0.8
+              );
+              this.evidenceAtoms.push(evidenceAtom);
+            });
+          }
+        });
       }
       
     } else if (sourceName === 'ahu') {
@@ -573,21 +1037,57 @@ class ContextAwareWebScraper extends WebScrapingService {
       mainResults.businessInfo.foundSources += sourceResults.length;
       
       const legitimacySignals = sourceResults
-        .filter(r => r.extractedSignals.some(s => s.type === 'positive'))
+        .filter(r => r.extractedSignals && r.extractedSignals.some(s => s.type === 'positive'))
         .map(r => r.extractedSignals.filter(s => s.type === 'positive'))
         .flat()
         .map(s => s.keyword);
       
       mainResults.businessInfo.legitimacySignals.push(...legitimacySignals);
       
+      // FIXED: Create Tier-2 evidence atoms for business registration
+      sourceResults.forEach(result => {
+        if (result.extractedSignals) {
+          result.extractedSignals.forEach(signal => {
+            if (signal.type === 'positive') {
+              const evidenceAtom = this.createEvidenceAtom(
+                2, // Tier-2 for business registration
+                'AHU',
+                'business_registration',
+                signal.keyword,
+                result.url || 'https://ahu.go.id',
+                'partial',
+                result.relevanceScore ? result.relevanceScore / 100 : 0.6
+              );
+              this.evidenceAtoms.push(evidenceAtom);
+            }
+          });
+        }
+      });
+      
     } else if (['detik', 'kompas', 'tribunnews', 'tempo'].includes(sourceName)) {
-      // News sources
+      // News sources - ensure proper article structure with URLs
+      const validArticles = sourceResults
+        .filter(result => result && result.url && result.title)
+        .slice(0, 3)
+        .map(result => ({
+          title: result.title || 'Untitled Article',
+          url: result.url,
+          snippet: result.snippet || '',
+          source: sourceName,
+          relevanceScore: result.relevanceScore || 50,
+          sentiment: this.analyzeSentimentFromSignals(result.extractedSignals)
+        }));
+      
       mainResults.news.totalArticles += sourceResults.length;
-      mainResults.news.articles.push(...sourceResults.slice(0, 3));
+      mainResults.news.articles.push(...validArticles);
+      
+      // Log the URLs being added for debugging
+      console.log(`📰 Added ${validArticles.length} news articles from ${sourceName}:`, 
+        validArticles.map(a => a.url).slice(0, 2));
       
       // Analyze sentiment and fraud mentions
       const fraudArticles = sourceResults.filter(r => 
-        r.extractedSignals.some(s => s.type === 'negative')
+        r.extractedSignals && r.extractedSignals.some(s => s.type === 'negative')
       );
       
       mainResults.news.fraudMentions += fraudArticles.length;
@@ -600,6 +1100,41 @@ class ContextAwareWebScraper extends WebScrapingService {
         mainResults.news.sentiment = 'mixed';
       }
       
+      // FIXED: Create Tier-2 evidence atoms for news coverage  
+      validArticles.forEach(article => {
+        // Create evidence atom for news coverage
+        const evidenceAtom = this.createEvidenceAtom(
+          2, // Tier-2 for news coverage
+          sourceName.toUpperCase(),
+          'news_coverage',
+          article.sentiment || 'neutral',
+          article.url,
+          'partial',
+          article.relevanceScore ? article.relevanceScore / 100 : 0.5
+        );
+        this.evidenceAtoms.push(evidenceAtom);
+      });
+      
+      // Create evidence atoms for fraud mentions if found
+      fraudArticles.forEach(article => {
+        if (article.extractedSignals) {
+          article.extractedSignals.forEach(signal => {
+            if (signal.type === 'negative') {
+              const evidenceAtom = this.createEvidenceAtom(
+                2, // Tier-2 for news fraud mentions
+                sourceName.toUpperCase(),
+                'fraud_mention',
+                signal.keyword,
+                article.url || `https://www.${sourceName}`,
+                'partial',
+                article.relevanceScore ? article.relevanceScore / 100 : 0.7
+              );
+              this.evidenceAtoms.push(evidenceAtom);
+            }
+          });
+        }
+      });
+      
     } else {
       // Other sources go to enhanced results
       if (!mainResults.enhanced[sourceName]) {
@@ -607,6 +1142,22 @@ class ContextAwareWebScraper extends WebScrapingService {
       }
       mainResults.enhanced[sourceName].push(...sourceResults);
     }
+  }
+
+  /**
+   * Analyzes sentiment from extracted signals
+   */
+  analyzeSentimentFromSignals(extractedSignals) {
+    if (!extractedSignals || extractedSignals.length === 0) {
+      return 'neutral';
+    }
+    
+    const positiveCount = extractedSignals.filter(s => s.type === 'positive').length;
+    const negativeCount = extractedSignals.filter(s => s.type === 'negative').length;
+    
+    if (negativeCount > positiveCount) return 'negative';
+    if (positiveCount > negativeCount) return 'positive';
+    return 'mixed';
   }
 
   /**
@@ -823,6 +1374,144 @@ class ContextAwareWebScraper extends WebScrapingService {
     }
     
     return results;
+  }
+
+  /**
+   * Collect domains from scraping results for impersonation detection
+   */
+  collectDomains(scrapingResults) {
+    const domains = new Set();
+    
+    // Extract domains from various sources
+    Object.values(scrapingResults).forEach(sourceData => {
+      if (sourceData && typeof sourceData === 'object') {
+        // Check for URLs in results
+        if (sourceData.details && Array.isArray(sourceData.details)) {
+          sourceData.details.forEach(detail => {
+            if (detail.url) {
+              try {
+                const domain = new URL(detail.url).hostname;
+                domains.add(domain);
+              } catch (e) {
+                // Invalid URL, skip
+              }
+            }
+          });
+        }
+        
+        // Check business info for website domains
+        if (sourceData.websites && Array.isArray(sourceData.websites)) {
+          sourceData.websites.forEach(website => {
+            try {
+              const domain = new URL(website).hostname;
+              domains.add(domain);
+            } catch (e) {
+              // Invalid URL, skip
+            }
+          });
+        }
+      }
+    });
+    
+    return Array.from(domains);
+  }
+
+  /**
+   * Ensure summary.keyFindings is populated when sourcesScraped > 0
+   */
+  generateEnhancedResearchSummary(sources, triageResults, conclusiveEvidence, processingTime) {
+    const summary = super.generateResearchSummary ? super.generateResearchSummary(sources) : {};
+    
+    // Ensure keyFindings is non-empty when we have sources
+    const sourcesCount = Object.keys(sources).length;
+    if (sourcesCount > 0 && (!summary.keyFindings || summary.keyFindings.length === 0)) {
+      summary.keyFindings = this.extractKeyFindings(sources, triageResults);
+    }
+    
+    // Add intelligence insights
+    summary.intelligenceInsights = [
+      `Processed ${sourcesCount} sources in ${processingTime}ms`,
+      `Strategy: ${triageResults.scrapingStrategy.level}`,
+      conclusiveEvidence.triggered ? `Early termination: ${conclusiveEvidence.reason}` : 'Full analysis completed'
+    ];
+    
+    return summary;
+  }
+
+  /**
+   * Extract key findings from sources when none exist
+   */
+  extractKeyFindings(sources, triageResults) {
+    const findings = [];
+    
+    // IDX findings
+    if (sources.idx && sources.idx.isListed) {
+      findings.push(`Listed on IDX with ticker ${sources.idx.ticker}`);
+    }
+    
+    // OJK findings
+    if (sources.ojk && sources.ojk.registrationStatus !== 'not_found') {
+      findings.push(`OJK status: ${sources.ojk.registrationStatus}`);
+    }
+    
+    // News findings
+    if (sources.news && sources.news.totalArticles > 0) {
+      findings.push(`${sources.news.totalArticles} news articles found`);
+    }
+    
+    // Business info
+    if (sources.businessInfo && sources.businessInfo.digitalFootprint) {
+      findings.push(`Digital footprint: ${sources.businessInfo.digitalFootprint}`);
+    }
+    
+    // Fraud reports
+    if (sources.fraudReports && sources.fraudReports.fraudReportsFound > 0) {
+      findings.push(`${sources.fraudReports.fraudReportsFound} fraud reports found`);
+    }
+    
+    // If still no findings, add generic one
+    if (findings.length === 0) {
+      findings.push('Basic company information gathered');
+    }
+    
+    return findings;
+  }
+  
+  /**
+   * Create evidence atom with proper structure for fraud detection
+   * FIXED: Standardized evidence atom creation across all scraping sources
+   */
+  createEvidenceAtom(tier, source, field, value, url = '', verification = 'partial', confidence = 0.7) {
+    return {
+      tier: Number(tier),
+      source: String(source),
+      field: String(field),
+      value: String(value),
+      url: String(url),
+      timestamp: new Date().toISOString(),
+      verification: String(verification),
+      confidence: Math.min(1.0, Math.max(0.0, Number(confidence)))
+    };
+  }
+  
+  /**
+   * Ensure evidence atoms are collected and returned with scraping results
+   * FIXED: Makes sure evidence atoms are always included in analysis
+   */
+  collectAndReturnEvidence(scrapingResults) {
+    // Ensure evidence atoms from context-aware scraper are included
+    if (this.evidenceAtoms && this.evidenceAtoms.length > 0) {
+      scrapingResults.evidence = [...(scrapingResults.evidence || []), ...this.evidenceAtoms];
+      console.log(`🧩 Collected ${this.evidenceAtoms.length} evidence atoms from context-aware scraping`);
+    }
+    
+    // Also ensure evidence from base web scraper is included
+    if (this.webScraper && this.webScraper.evidenceAtoms && this.webScraper.evidenceAtoms.length > 0) {
+      scrapingResults.evidence = [...(scrapingResults.evidence || []), ...this.webScraper.evidenceAtoms];
+      console.log(`🧩 Collected ${this.webScraper.evidenceAtoms.length} evidence atoms from base web scraping`);
+    }
+    
+    return scrapingResults;
   }
 }
 

@@ -1305,7 +1305,7 @@ private func cleanUrl(url : Text) : Text {
   
   // Extract evidence snippets from company data
   private func extractEvidenceSnippets(
-    companyName: Text,
+    _companyName: Text,
     description: Text,
     context: Types.VerificationContext
   ) : [Types.EvidenceSnippet] {

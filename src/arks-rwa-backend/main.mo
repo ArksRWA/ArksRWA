@@ -271,7 +271,7 @@ persistent actor class ARKSRWA(init_admin: ?Principal, ai_service_url: ?Text, ai
   } = actor("aaaaa-aa");
 
   // Transform function for HTTP responses (removes headers for consensus)
-  private func transformResponse(args : TransformArgs) : HttpResponse {
+  private func _transformResponse(args : TransformArgs) : HttpResponse {
     {
       status = args.response.status;
       headers = []; // Remove headers for consensus
@@ -395,13 +395,13 @@ persistent actor class ARKSRWA(init_admin: ?Principal, ai_service_url: ?Text, ai
   };
 
   // Extract number from JSON string (simplified)
-  private func extractNumberFromJson(json : Text, key : Text) : ?Nat {
+  private func extractNumberFromJson(_json : Text, _key : Text) : ?Nat {
     // Very simplified - in production use proper JSON parser
     null; // Would implement JSON parsing logic
   };
 
   // Extract text from JSON string (simplified)
-  private func extractTextFromJson(json : Text, key : Text) : ?Text {
+  private func extractTextFromJson(_json : Text, _key : Text) : ?Text {
     // Very simplified - in production use proper JSON parser
     null; // Would implement JSON parsing logic
   };
@@ -1133,7 +1133,7 @@ persistent actor class ARKSRWA(init_admin: ?Principal, ai_service_url: ?Text, ai
             apiKey
           );
           ?profile;
-        } catch (error) {
+        } catch (_error) {
           null; // Return null on error for testing
         };
       };
@@ -1153,7 +1153,7 @@ persistent actor class ARKSRWA(init_admin: ?Principal, ai_service_url: ?Text, ai
         try {
           let profile = await verificationEngine.refreshCompanyVerification(companyId, company.name);
           ?profile;
-        } catch (error) {
+        } catch (_error) {
           null;
         };
       };

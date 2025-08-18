@@ -220,7 +220,7 @@ module {
       };
       
       // Add cycles for the HTTP request (reduced from legacy Google searches)
-      Cycles.add(Constants.SCORER_API_MAX_CYCLES);
+      Cycles.add<system>(Constants.SCORER_API_MAX_CYCLES);
       
       try {
         let response : HttpResponse = await ic.http_request(httpRequest);
@@ -327,7 +327,7 @@ module {
       };
 
       // Add cycles for the HTTP request
-      Cycles.add(config.maxCycles);
+      Cycles.add<system>(config.maxCycles);
 
       try {
         let response : HttpResponse = await ic.http_request(request);
@@ -353,7 +353,7 @@ module {
     };
 
     // Transform function for HTTP responses (required for consensus)  
-    private func transformResponse(args : TransformArgs) : TransformResult {
+    private func _transformResponse(args : TransformArgs) : TransformResult {
       {
         response = {
           status = args.response.status;
@@ -559,7 +559,7 @@ module {
     public func performEnhancedVerification(
       companyId : Nat, 
       companyName : Text, 
-      companyDescription : Text,
+      _companyDescription : Text,
       priority : JobPriority
     ) : async Nat {
       // For now, delegate to standard verification

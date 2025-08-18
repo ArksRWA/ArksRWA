@@ -219,11 +219,8 @@ module {
         transform = null; // Simplified for now
       };
       
-      // Add cycles for the HTTP request (reduced from legacy Google searches)
-      Cycles.add<system>(Constants.SCORER_API_MAX_CYCLES);
-      
       try {
-        let response : HttpResponse = await ic.http_request(httpRequest);
+        let response : HttpResponse = await (with cycles = Constants.SCORER_API_MAX_CYCLES) ic.http_request(httpRequest);
         
         if (response.status == 200) {
           let responseText = textFromBytes(response.body);
@@ -326,11 +323,8 @@ module {
         transform = null; // Simplified for now - remove transform function
       };
 
-      // Add cycles for the HTTP request
-      Cycles.add<system>(config.maxCycles);
-
       try {
-        let response : HttpResponse = await ic.http_request(request);
+        let response : HttpResponse = await (with cycles = config.maxCycles) ic.http_request(request);
         
         if (response.status == 200) {
           let contentText = textFromBytes(response.body);

@@ -11,7 +11,6 @@ import HashMap "mo:base/HashMap";
 import Hash "mo:base/Hash";
 import Iter "mo:base/Iter";
 import Blob "mo:base/Blob";
-import Cycles "mo:base/ExperimentalCycles";
 import Debug "mo:base/Debug";
 
 // Import verification system
@@ -327,11 +326,8 @@ persistent actor class ARKSRWA(init_admin: ?Principal, ai_service_url: ?Text, ai
             transform = null; // Simplified - no transform for now
           };
 
-          // Add cycles for HTTP request
-          Cycles.add<system>(2_000_000_000); // 2 billion cycles
-
           Debug.print("Calling AI service at: " # url);
-          let response = await ic.http_request(request);
+          let response = await (with cycles = 2_000_000_000) ic.http_request(request);
 
           if (response.status == 200) {
             let responseText = textFromBytes(response.body);

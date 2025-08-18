@@ -576,6 +576,105 @@ class WebScrapingService {
   }
 
   /**
+   * Research company using SerpAPI (compatibility method for legacy code)
+   * This method provides a bridge for existing code that expects researchCompany()
+   */
+  async researchCompany(companyName, region = 'Indonesia') {
+    console.log(`🔍 Researching company via SerpAPI: ${companyName}`);
+    
+    try {
+      // Use SerpAPI for comprehensive research
+      const serpResults = await serpAPIService.analyzeCompany(companyName, {
+        priority: 'balanced',
+        maxSearches: 5
+      });
+      
+      // Add fallback HTTP research if SerpAPI data is limited
+      let httpResults = null;
+      const dataQuality = this.assessSerpAPIDataQuality(serpResults);
+      
+      if (dataQuality < 3) {
+        console.log('🔄 SerpAPI data limited, adding HTTP fallback...');
+        httpResults = await this.performHTTPFallback(companyName);
+      }
+      
+      // Convert to standard format expected by legacy code
+      const sources = this.convertSerpAPIToSources(serpResults, httpResults);
+      
+      return {
+        companyName,
+        canonicalName: companyName,
+        region,
+        sources,
+        summary: {
+          dataQuality: dataQuality > 5 ? 'high' : dataQuality > 2 ? 'medium' : 'low',
+          sourcesUsed: Object.keys(sources).length,
+          totalDataPoints: this.countDataPoints(sources),
+          processingTimeMs: Date.now() - Date.now(), // Will be set by caller
+          methodology: 'serpapi_with_http_fallback'
+        },
+        serpAPIResults: serpResults,
+        httpFallbackResults: httpResults,
+        fallback: false
+      };
+      
+    } catch (error) {
+      console.error('Research company failed:', error);
+      
+      // Return minimal fallback structure
+      return {
+        companyName,
+        canonicalName: companyName,
+        region,
+        sources: {
+          businessInfo: { legitimacySignals: [], sources: [] },
+          news: { articles: [], sentiment: 'neutral' },
+          ojk: { foundEntries: 0, registrationStatus: 'unknown' },
+          fraudReports: { fraudReportsFound: 0, reports: [] }
+        },
+        summary: {
+          dataQuality: 'low',
+          sourcesUsed: 0,
+          totalDataPoints: 0,
+          processingTimeMs: 0,
+          methodology: 'fallback_only'
+        },
+        error: error.message,
+        fallback: true
+      };
+    }
+  }
+  
+  /**
+   * Assess SerpAPI data quality for fallback decision
+   */
+  assessSerpAPIDataQuality(serpResults) {
+    if (!serpResults?.searches) return 0;
+    
+    let quality = 0;
+    Object.values(serpResults.searches).forEach(search => {
+      if (!search.error) {
+        const results = search.organic_results || search.news_results || [];
+        quality += results.length;
+      }
+    });
+    
+    return quality;
+  }
+  
+  /**
+   * Count total data points in sources structure
+   */
+  countDataPoints(sources) {
+    let count = 0;
+    if (sources.businessInfo?.legitimacySignals) count += sources.businessInfo.legitimacySignals.length;
+    if (sources.news?.articles) count += sources.news.articles.length;
+    if (sources.ojk?.foundEntries) count += sources.ojk.foundEntries;
+    if (sources.fraudReports?.fraudReportsFound) count += sources.fraudReports.fraudReportsFound;
+    return count;
+  }
+
+  /**
    * Cleanup browser resources
    */
   async cleanup() {

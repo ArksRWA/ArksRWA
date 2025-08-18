@@ -1,5 +1,4 @@
 import WebScrapingService from './web-scraper.js';
-import EntityUtils from './entity-utils.js';
 import { serpAPIService } from './serpapi-service.js';
 import puppeteer from 'puppeteer';
 import * as cheerio from 'cheerio';
@@ -14,8 +13,7 @@ class ContextAwareWebScraper extends WebScrapingService {
   constructor() {
     super();
     
-    // Initialize entity resolution utility
-    this.entityUtils = new EntityUtils();
+    // Removed entity resolution utility - using simple name passthrough
     
     // Enhanced Indonesian sources configuration
     this.enhancedSources = {
@@ -154,6 +152,107 @@ class ContextAwareWebScraper extends WebScrapingService {
   }
   
   /**
+   * Generate contextual search terms based on company data, triage results, and SerpAPI insights
+   * FIXED: Implemented missing method for contextual search term generation
+   */
+  generateContextualSearchTerms(companyData, triageResults, serpResults = null) {
+    const searchTerms = {
+      base: [`"${companyData.name}"`],
+      legitimacy: [],
+      fraud: [],
+      regulatory: [],
+      contextual: [],
+      aliases: []
+    };
+
+    // Simple search terms using original name only
+    // Removed complex alias processing
+
+    // Determine industry-specific search patterns
+    const industry = companyData.entityData?.industry || this.determineIndustryFromName(companyData.name);
+    const contextPatterns = this.contextPatterns[industry] || this.contextPatterns.manufacturing; // fallback
+
+    // Add industry-specific legitimacy terms using original name
+    searchTerms.legitimacy.push(...contextPatterns.legitimacy.map(term => 
+      `"${companyData.name}" ${term}`
+    ));
+
+    // Add industry-specific fraud terms using original name
+    searchTerms.fraud.push(...contextPatterns.fraud.map(term => 
+      `"${companyData.name}" ${term}`
+    ));
+
+    // Add regulatory search terms using original name
+    searchTerms.regulatory.push(...contextPatterns.regulatory.map(term => 
+      `"${companyData.name}" ${term}`
+    ));
+
+    // Enhanced contextual terms based on SerpAPI insights
+    if (serpResults && serpResults.summary) {
+      const { fraudIndicators, legitimacySignals } = serpResults.summary;
+      
+      // If initial SerpAPI shows fraud indicators, add more fraud-specific terms using original name
+      if (fraudIndicators > legitimacySignals) {
+        searchTerms.contextual.push(
+          `"${companyData.name}" victim complaint`,
+          `"${companyData.name}" penipuan korban`,
+          `"${companyData.name}" scam report`
+        );
+      }
+      
+      // If initial SerpAPI shows legitimacy signals, add verification terms using original name
+      if (legitimacySignals > fraudIndicators) {
+        searchTerms.contextual.push(
+          `"${companyData.name}" terdaftar resmi`,
+          `"${companyData.name}" licensed certified`,
+          `"${companyData.name}" legitimate business`
+        );
+      }
+    }
+
+    // Add triage-based contextual terms
+    if (triageResults && triageResults.riskLevel) {
+      const riskLevel = triageResults.riskLevel;
+      
+      if (riskLevel === 'high' || riskLevel === 'critical') {
+        searchTerms.contextual.push(
+          `"${companyData.name}" investigation`,
+          `"${companyData.name}" warning`,
+          `"${companyData.name}" sanctions`
+        );
+      } else if (riskLevel === 'low') {
+        searchTerms.contextual.push(
+          `"${companyData.name}" award`,
+          `"${companyData.name}" recognition`,
+          `"${companyData.name}" partnership`
+        );
+      }
+    }
+
+    console.log(`🔍 Generated ${Object.values(searchTerms).flat().length} contextual search terms for ${companyData.name}`);
+    
+    return searchTerms;
+  }
+
+  /**
+   * Helper method to determine industry from company name
+   */
+  determineIndustryFromName(name) {
+    const nameLower = name.toLowerCase();
+    
+    if (nameLower.includes('bank') || nameLower.includes('finance')) return 'banking';
+    if (nameLower.includes('fintech') || nameLower.includes('payment') || nameLower.includes('digital wallet')) return 'fintech';
+    if (nameLower.includes('invest') || nameLower.includes('fund')) return 'investment';
+    if (nameLower.includes('tech') || nameLower.includes('digital') || nameLower.includes('software')) return 'technology';
+    if (nameLower.includes('crypto') || nameLower.includes('blockchain') || nameLower.includes('bitcoin')) return 'cryptocurrency';
+    if (nameLower.includes('manufaktur') || nameLower.includes('pabrik') || nameLower.includes('industri')) return 'manufacturing';
+    if (nameLower.includes('pertanian') || nameLower.includes('agriculture') || nameLower.includes('fishery')) return 'agriculture';
+    if (nameLower.includes('retail') || nameLower.includes('trading') || nameLower.includes('perdagangan')) return 'retail';
+    
+    return 'manufacturing'; // default fallback
+  }
+
+  /**
    * Generate intelligent search terms for SerpAPI prioritization
    */
   generateIntelligentSearchTerms(companyData, triageResults) {
@@ -232,22 +331,31 @@ class ContextAwareWebScraper extends WebScrapingService {
       const strategy = this.determineScrapingStrategy(triageResults);
       const startTime = Date.now();
       
-      // STEP 1: Entity Resolution (canonicalize before scraping)
-      const entityData = this.entityUtils.resolveEntity(companyData.name, companyData.description);
-      console.log(`🏢 Entity resolved: ${entityData.canonicalName} (certainty: ${entityData.erCertainty})`);
+      // STEP 1: Simple entity data (removed complex entity resolution)
+      const entityData = {
+        canonicalName: companyData.name,
+        aliases: [companyData.name],
+        entityType: 'unknown',
+        industry: 'unknown',
+        jurisdiction: 'Indonesia',
+        registrationStatus: 'unknown',
+        confidence: 0.5,
+        erCertainty: 0.5
+      };
+      console.log(`🏢 Using company name as-is: ${entityData.canonicalName}`);
       
-      // Use canonical name and aliases for more accurate searching
+      // Use original name for searching
       const enhancedCompanyData = {
         ...companyData,
-        canonicalName: entityData.canonicalName,
-        aliases: entityData.aliases,
+        canonicalName: companyData.name,
+        aliases: [companyData.name],
         entityData: entityData
       };
       
       // STEP 2: Execute SerpAPI data collection first
       console.log(`🔍 Step 2A: Collecting SerpAPI data...`);
       const serpResults = await this.executeSerpAPISearches(
-        enhancedCompanyData.canonicalName,
+        companyData.name,
         this.determineSerpAPIPriority(triageResults, {}),
         strategy
       );
@@ -262,19 +370,19 @@ class ContextAwareWebScraper extends WebScrapingService {
       );
       
       // STEP 4: Generate contextual search terms (using canonical name + SerpAPI insights)
-      const searchTerms = this.generateContextualSearchTerms(enhancedCompanyData, triageResults);
+      const searchTerms = this.generateContextualSearchTerms(enhancedCompanyData, triageResults, serpResults);
       
       // STEP 5: HTTP fallback for missing critical data (if needed)
       const httpFallback = await this.executeHTTPFallbackIfNeeded(
-        enhancedCompanyData.canonicalName,
+        companyData.name,
         scrapingResults,
         strategy
       );
       
-      // STEP 6: Collect domains for impersonation detection
+      // STEP 6: Simple domain collection (removed complex impersonation detection)
       const collectedDomains = this.collectDomainsFromBothSources(scrapingResults, serpResults);
-      const impersonationRisk = this.entityUtils.checkImpersonationRisk(collectedDomains);
-      console.log(`🚨 Impersonation risk: ${impersonationRisk.risk} (${collectedDomains.length} domains checked)`);
+      const impersonationRisk = { risk: 'unknown', domains: collectedDomains };
+      console.log(`🚨 Collected ${collectedDomains.length} domains (impersonation detection removed)`);
       
       // STEP 7: Analyze results for early termination conditions
       const conclusiveEvidence = this.analyzeForConclusiveEvidenceWithSerpAPI(scrapingResults, serpResults, triageResults.riskLevel);
@@ -295,7 +403,7 @@ class ContextAwareWebScraper extends WebScrapingService {
       // STEP 9: Build comprehensive results with SerpAPI data integration
       const finalResults = {
         companyName: companyData.name,
-        canonicalName: entityData.canonicalName,
+        canonicalName: companyData.name,
         entityResolution: entityData,
         timestamp: new Date().toISOString(),
         processingTimeMs: processingTime,
@@ -325,7 +433,50 @@ class ContextAwareWebScraper extends WebScrapingService {
       
       // Generate fallback research result
       console.log(`🔄 Generating fallback research for: ${companyData.name}`);
-      return this.generateFallbackResearch(companyData.name, companyData.region || 'Indonesia', error);
+      
+      // Create minimal fallback research structure
+      const fallbackResults = {
+        companyName: companyData.name,
+        canonicalName: companyData.name,
+        entityResolution: {
+          canonicalName: companyData.name,
+          entityType: 'unknown',
+          industry: 'unknown',
+          jurisdiction: 'Indonesia',
+          registrationStatus: 'unknown',
+          aliases: [companyData.name],
+          confidence: 0.5
+        },
+        timestamp: new Date().toISOString(),
+        processingTimeMs: 0,
+        strategy: { level: 'fallback', maxSources: 0 },
+        searchTermsUsed: {},
+        sourcesScraped: 0,
+        sources: {},
+        domains: [],
+        impersonationRisk: { risk: 'unknown', domains: [] },
+        conclusiveEvidence: { triggered: false, reason: 'fallback', confidence: 0 },
+        summary: {
+          overallRisk: 'unknown',
+          confidence: 30,
+          dataQuality: 'minimal',
+          keyFindings: ['Analysis failed, using fallback'],
+          totalSources: 0,
+          enhancedVerification: false
+        },
+        intelligence: {
+          earlyTermination: false,
+          terminationReason: 'error_fallback',
+          confidenceLevel: 30
+        },
+        serpAPIResults: null,
+        httpFallback: null,
+        evidence: [],
+        fallback: true,
+        error: error.message
+      };
+      
+      return fallbackResults;
     }
   }
 
@@ -829,6 +980,145 @@ class ContextAwareWebScraper extends WebScrapingService {
     };
     
     return mappings[searchType] || 'enhanced';
+  }
+  
+  /**
+   * Calculate relevance score for SerpAPI results based on search specialization
+   */
+  calculateRelevanceScore(result, specialization) {
+    let score = 0;
+    const title = (result.title || '').toLowerCase();
+    const snippet = (result.snippet || '').toLowerCase();
+    const link = (result.link || '').toLowerCase();
+    const text = `${title} ${snippet}`;
+    
+    // Base scoring based on specialization
+    switch (specialization) {
+      case 'business_registration':
+        // Higher score for official government sites
+        if (link.includes('.go.id') || link.includes('ojk.go.id') || link.includes('kemenkeu.go.id')) {
+          score += 40;
+        }
+        if (text.includes('terdaftar') || text.includes('registered') || text.includes('npwp') || text.includes('nib')) {
+          score += 30;
+        }
+        break;
+        
+      case 'investigative_journalism':
+        // Higher score for fraud-related content
+        const fraudKeywords = ['penipuan', 'scam', 'fraud', 'penipu', 'gugatan', 'sanksi'];
+        const fraudMatches = fraudKeywords.filter(keyword => text.includes(keyword)).length;
+        score += fraudMatches * 15;
+        
+        // Bonus for news sites
+        if (link.includes('detik.com') || link.includes('kompas.com') || link.includes('tempo.co')) {
+          score += 20;
+        }
+        break;
+        
+      case 'financial_crime':
+        // Financial trouble indicators
+        if (text.includes('bangkrut') || text.includes('likuidasi') || text.includes('bermasalah finansial')) {
+          score += 35;
+        }
+        if (text.includes('pailit') || text.includes('debt') || text.includes('kerugian')) {
+          score += 25;
+        }
+        break;
+        
+      case 'news_coverage':
+        // General news relevance
+        if (link.includes('news') || link.includes('berita')) {
+          score += 20;
+        }
+        // Recency bonus (if available in result metadata)
+        if (result.date && this.isRecentDate(result.date)) {
+          score += 15;
+        }
+        break;
+        
+      case 'social_sentiment':
+        // User complaints and reviews
+        if (text.includes('korban') || text.includes('pengalaman buruk') || text.includes('review')) {
+          score += 25;
+        }
+        if (text.includes('tertipu') || text.includes('complaint') || text.includes('keluhan')) {
+          score += 30;
+        }
+        break;
+        
+      default:
+        // Basic relevance for business directory
+        if (text.includes('company') || text.includes('perusahaan') || text.includes('bisnis')) {
+          score += 10;
+        }
+    }
+    
+    // General quality indicators
+    if (link.includes('https://')) score += 5;
+    if (title.length > 10 && title.length < 100) score += 5;
+    if (snippet && snippet.length > 50) score += 10;
+    
+    // Penalty for spam-like results
+    if (text.includes('click here') || text.includes('free money') || link.includes('bit.ly')) {
+      score -= 20;
+    }
+    
+    return Math.max(0, Math.min(100, score));
+  }
+  
+  /**
+   * Check if a date string represents recent content (within last 6 months)
+   */
+  isRecentDate(dateStr) {
+    try {
+      const resultDate = new Date(dateStr);
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      return resultDate > sixMonthsAgo;
+    } catch {
+      return false;
+    }
+  }
+  
+  /**
+   * Extract specialized signals based on search specialization
+   */
+  extractSpecializedSignals(result, specialization) {
+    const signals = [];
+    const title = (result.title || '').toLowerCase();
+    const snippet = (result.snippet || '').toLowerCase();
+    const text = `${title} ${snippet}`;
+    
+    switch (specialization) {
+      case 'business_registration':
+        if (text.includes('terdaftar')) signals.push('registered');
+        if (text.includes('npwp')) signals.push('tax_registered');
+        if (text.includes('nib')) signals.push('business_id');
+        if (text.includes('.go.id')) signals.push('official_source');
+        break;
+        
+      case 'investigative_journalism':
+        if (text.includes('penipuan')) signals.push('fraud_allegation');
+        if (text.includes('gugatan')) signals.push('legal_action');
+        if (text.includes('sanksi')) signals.push('sanctions');
+        if (text.includes('investigation')) signals.push('under_investigation');
+        break;
+        
+      case 'financial_crime':
+        if (text.includes('bangkrut')) signals.push('bankruptcy');
+        if (text.includes('likuidasi')) signals.push('liquidation');
+        if (text.includes('bermasalah finansial')) signals.push('financial_trouble');
+        break;
+        
+      case 'social_sentiment':
+        if (text.includes('korban')) signals.push('victims');
+        if (text.includes('tertipu')) signals.push('cheated');
+        if (text.includes('pengalaman buruk')) signals.push('bad_experience');
+        break;
+    }
+    
+    return signals;
   }
   
   /**

@@ -367,9 +367,19 @@ class DataValidator {
 
     // Validate data quality
     if (summary.dataQuality !== undefined) {
-      if (!['comprehensive', 'good', 'limited', 'minimal', 'unavailable'].includes(summary.dataQuality)) {
+      // FIXED: Accept both legacy ('high', 'medium', 'low') and new ('comprehensive', 'good', 'limited', 'minimal', 'unavailable') data quality levels
+      const validLevels = ['comprehensive', 'good', 'limited', 'minimal', 'unavailable', 'high', 'medium', 'low'];
+      if (!validLevels.includes(summary.dataQuality)) {
         issues.push(`Invalid data quality level: ${summary.dataQuality}`);
         cleanedData.dataQuality = 'unavailable';
+      } else {
+        // Convert legacy levels to new standard
+        const levelMapping = {
+          'high': 'comprehensive',
+          'medium': 'good', 
+          'low': 'limited'
+        };
+        cleanedData.dataQuality = levelMapping[summary.dataQuality] || summary.dataQuality;
       }
     } else {
       cleanedData.dataQuality = 'unavailable';
@@ -641,7 +651,7 @@ class GeminiService {
     
     if (!this.testMode) {
       this.genAI = new GoogleGenerativeAI(this.apiKey);
-      this.model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+      this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
     } else {
       console.log('Running in test mode - using mock responses for Gemini API');
     }
@@ -720,7 +730,7 @@ ${validatedWebData.sources.fraudReports.warnings.length > 0 ?
 **Research Summary:**
 - Overall risk from web research: ${validatedWebData.summary.overallRisk}
 - Data confidence: ${validatedWebData.summary.confidence}%
-- Key findings: ${validatedWebData.summary.keyFindings.join(', ')}
+- Key findings: ${Array.isArray(validatedWebData.summary.keyFindings) ? validatedWebData.summary.keyFindings.join(', ') : 'None available'}
 - Data quality: ${validatedWebData.summary.dataQuality}`;
     }
 
@@ -731,7 +741,7 @@ Analyze this company purely based on evidence found in the company description a
 
     return prompt + `
 
-1. **FRAUD INDICATORS & FINANCIAL TROUBLES** (Weight: 40%)
+1. **FRAUD INDICATORS & FINANCIAL TROUBLES** (Weight: 50%)
    - Scan for fraud keywords: "investasi bodong", "skema ponzi", "money game", "penipuan", "scam"
    - Look for unrealistic profit promises or "guaranteed returns"
    - Check for pyramid scheme language or MLM red flags
@@ -739,7 +749,7 @@ Analyze this company purely based on evidence found in the company description a
    - Look for victim testimonials, complaints, or withdrawal problems
    ${webResearch ? '- Analyze news reports, fraud mentions, and negative sentiment from research' : ''}
 
-2. **REGULATORY WARNINGS & SANCTIONS** (Weight: 30%)
+2. **REGULATORY WARNINGS & SANCTIONS** (Weight: 25%)
    - Check for any OJK warnings, sanctions, or blacklist mentions (ONLY if company claims financial services)
    - Look for PPATK suspicious transaction reports or investigations  
    - Search for government investigations or regulatory actions
@@ -747,7 +757,7 @@ Analyze this company purely based on evidence found in the company description a
    - Check for any official warnings from Indonesian authorities
    ${webResearch ? '- Review internet research findings about regulatory status and warnings' : ''}
 
-3. **BUSINESS LEGITIMACY EVIDENCE** (Weight: 20%)
+3. **BUSINESS LEGITIMACY EVIDENCE** (Weight: 25%)
    - Look for proper Indonesian business entity indicators: "PT", "CV", "Tbk"
    - Check for mentions of NPWP, NIB, or other business registration documents
    - Analyze language for professional business communication vs. suspicious marketing
@@ -762,6 +772,8 @@ Analyze this company purely based on evidence found in the company description a
    - Find evidence of customer dissatisfaction or problems
    - Look for any public advisories or community warnings
    ${webResearch ? '- Analyze sentiment and public opinion from internet research findings' : ''}
+
+**CRITICAL: Your response must be valid JSON only. Do not include any text before or after the JSON object.**
 
 **OUTPUT REQUIREMENTS:**
 Respond with a JSON object in this exact format:
@@ -1476,13 +1488,61 @@ ${index + 1}. Title: ${result.title}
       const response = await result.response;
       const text = response.text();
       
-      // Extract JSON from response
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      // Debug logging
+      console.log('🤖 Gemini raw response length:', text.length);
+      console.log('🤖 Gemini raw response preview:', text.substring(0, 200));
+      
+      // Extract JSON from response with better error handling
+      let jsonMatch = text.match(/\{[\s\S]*\}/);
+      
+      // Try to find JSON in different formats
       if (!jsonMatch) {
-        throw new Error('No valid JSON response found in Gemini output');
+        // Look for JSON wrapped in code blocks
+        const codeBlockMatch = text.match(/```(?:json)?([\s\S]*?)```/);
+        if (codeBlockMatch) {
+          jsonMatch = codeBlockMatch[1].match(/\{[\s\S]*\}/);
+        }
       }
       
-      const analysisResult = JSON.parse(jsonMatch[0]);
+      if (!jsonMatch) {
+        console.warn('❌ No valid JSON response found in Gemini output:');
+        console.warn('Full response:', text);
+        // Return a fallback analysis instead of throwing
+        return {
+          success: false,
+          error: 'Invalid JSON response format from Gemini AI',
+          fallbackScore: this.calculateFallbackScore(companyData),
+          timestamp: new Date().toISOString()
+        };
+      }
+      
+      let analysisResult;
+      try {
+        analysisResult = JSON.parse(jsonMatch[0]);
+      } catch (parseError) {
+        console.warn('JSON parsing failed:', parseError.message);
+        console.warn('Raw JSON:', jsonMatch[0].substring(0, 200));
+        
+        // Try to clean up common JSON issues
+        let cleanedJson = jsonMatch[0]
+          .replace(/\n/g, ' ')  // Remove newlines
+          .replace(/\t/g, ' ')  // Remove tabs
+          .replace(/\s+/g, ' ') // Normalize spaces
+          .trim();
+        
+        // Try parsing cleaned JSON
+        try {
+          analysisResult = JSON.parse(cleanedJson);
+        } catch (secondParseError) {
+          console.warn('Even cleaned JSON parsing failed, using fallback');
+          return {
+            success: false,
+            error: 'JSON parsing error: ' + parseError.message,
+            fallbackScore: this.calculateFallbackScore(companyData),
+            timestamp: new Date().toISOString()
+          };
+        }
+      }
       
       // Validate required fields
       this.validateAnalysisResult(analysisResult);

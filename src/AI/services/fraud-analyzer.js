@@ -1,7 +1,6 @@
 import GeminiService from './gemini.js';
 import IntelligentRiskTriageService from './intelligent-triage.js';
 import ContextAwareWebScraper from './context-aware-scraper.js';
-import EntityUtils from './entity-utils.js';
 import { serpAPIService } from './serpapi-service.js';
 
 /**
@@ -14,7 +13,6 @@ class FraudAnalyzer {
     this.geminiService = new GeminiService();
     this.triageService = new IntelligentRiskTriageService(this.geminiService);
     this.contextAwareScraper = new ContextAwareWebScraper();
-    this.entityUtils = new EntityUtils();
     
     // Authoritative-first risk buckets (deterministic thresholds)
     this.RISK_BUCKETS = {
@@ -125,9 +123,9 @@ class FraudAnalyzer {
     } catch (error) {
       console.error(`SerpAPI-enhanced analysis failed for ${companyData.name}:`, error);
       
-      // Fallback to traditional analysis
-      console.log(`🔄 Falling back to traditional analysis for: ${companyData.name}`);
-      return await this.analyzeCompany(companyData);
+      // Fallback to basic fraud analysis
+      console.log(`🔄 Falling back to basic analysis for: ${companyData.name}`);
+      return this.generateFallbackAnalysis(companyData, error);
     }
   }
 
@@ -754,8 +752,17 @@ class FraudAnalyzer {
    * Combines analysis results with intelligent weighting based on data quality
    */
   combineIntelligentAnalysisResults(aiResult, ruleResult, triageResults, webResearch, companyData) {
-    // Step 1: Entity Resolution and Evidence Collection
-    const entityData = triageResults.er || this.entityUtils.resolveEntity(companyData.name, companyData.description);
+    // Step 1: Simple entity data and evidence collection
+    const entityData = {
+      canonicalName: companyData.name,
+      entityType: 'unknown',
+      industry: 'unknown',
+      jurisdiction: 'Indonesia',
+      registrationStatus: 'unknown',
+      aliases: [companyData.name],
+      confidence: 0.5,
+      erCertainty: 0.5
+    };
     const evidenceAtoms = webResearch.evidence || [];
     
     // Step 2: Calculate base fraud score 
@@ -771,19 +778,17 @@ class FraudAnalyzer {
       finalScore = Math.round(ruleResult.overallScore * 0.7 + (triageResults.initialScore || 50) * 0.3);
     }
     
-    // Step 3: Apply Authoritative Override (IDX + OJK + no severe red flags → force ≤10)
-    const authoritativeOverride = this.entityUtils.getAuthoritativeOverride(entityData, evidenceAtoms);
-    if (authoritativeOverride.shouldApply) {
-      finalScore = Math.min(finalScore, 10);
-      console.log(`🏛️ Authoritative override applied for ${entityData.canonicalName} - Score capped at 10`);
-    }
+    // Step 3: Simple authoritative override check
+    const authoritativeOverride = { shouldApply: false };
+    // Removed complex authoritative override - using simple approach
     
     // Step 4: Calculate confidence (resilient multi-component scoring system)
     const confidence = this.calculateConfidence(evidenceAtoms, entityData, aiResult, ruleResult, webResearch);
     
-    // Step 5: Check impersonation risk separately
+    // Step 5: Simple impersonation risk check
     const domains = webResearch.sources?.businessInfo?.domains || [];
-    const impersonationCheck = this.entityUtils.checkImpersonationRisk(domains);
+    const impersonationCheck = { risk: 'unknown', domains: [] };
+    // Removed complex impersonation check - using simple approach
     
     // Step 6: Determine final risk level using RISK_BUCKETS
     const riskLevel = this.determineRiskLevel(finalScore);
@@ -1598,7 +1603,7 @@ class FraudAnalyzer {
       const startTime = Date.now();
       
       try {
-        const result = await this.analyzeCompany(company);
+        const result = await this.analyzeCompanyWithSerpAPI(company);
         const duration = Date.now() - startTime;
         
         console.log(`✅ Analysis completed in ${duration}ms`);

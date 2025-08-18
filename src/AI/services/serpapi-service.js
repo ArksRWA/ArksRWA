@@ -1,12 +1,16 @@
 /**
  * SerpAPI Service for Indonesian Fraud Detection
  * 
- * Provides multi-engine search capabilities with Indonesian localization
- * and specialized fraud detection queries optimized for Indonesian companies.
+ * Provides news-focused search capabilities with tiered Indonesian news sources
+ * and specialized fraud detection queries optimized for credible journalism.
  */
 
 import { getJson } from 'serpapi';
 import chalk from 'chalk';
+import dotenv from 'dotenv';
+
+// Ensure environment variables are loaded
+dotenv.config();
 
 export class SerpAPIService {
   constructor() {
@@ -25,7 +29,76 @@ export class SerpAPIService {
     // Rate limiting
     this.lastRequest = 0;
     
-    console.log(chalk.blue('🔍 SerpAPI Service initialized with Indonesian fraud detection queries'));
+    // Tiered Indonesian News Sources with Credibility Scoring
+    this.newsSources = {
+      tier1: { // Highest credibility (100% weight)
+        sources: ['liputan6.com', 'cnn.indonesia.com', 'kompas.com'],
+        weight: 1.0,
+        description: 'Premium national news sources'
+      },
+      tier2: { // High credibility (80% weight)
+        sources: ['detik.com', 'tempo.co', 'republika.co.id', 'antara.com'],
+        weight: 0.8,
+        description: 'Established national news sources'
+      },
+      tier3: { // Financial focus (90% weight for financial topics)
+        sources: ['kontan.co.id', 'bisnis.com', 'investor.id', 'bareksa.com'],
+        weight: 0.9,
+        description: 'Financial and business news specialists'
+      },
+      tier4: { // Investigative (95% weight)
+        sources: ['tirto.id', 'theconversation.com'],
+        weight: 0.95,
+        description: 'Investigative and analytical journalism'
+      }
+    };
+    
+    // All news sources for comprehensive searches
+    this.allNewsSources = [
+      ...this.newsSources.tier1.sources,
+      ...this.newsSources.tier2.sources,
+      ...this.newsSources.tier3.sources,
+      ...this.newsSources.tier4.sources
+    ];
+    
+    console.log(chalk.blue('📰 SerpAPI Service initialized with tiered Indonesian news sources'));
+    console.log(chalk.gray(`   Total sources: ${this.allNewsSources.length} across 4 tiers`));
+  }
+
+  /**
+   * Build site query string for specific news sources
+   */
+  buildSiteQuery(sources) {
+    return sources.map(site => `site:${site}`).join(' OR ');
+  }
+
+  /**
+   * Get credibility weight for a specific source
+   */
+  getSourceCredibility(domain) {
+    for (const tier of Object.values(this.newsSources)) {
+      if (tier.sources.some(source => domain.includes(source))) {
+        return tier.weight;
+      }
+    }
+    return 0.5; // Default weight for unknown sources
+  }
+
+  /**
+   * Calculate article recency weight (more recent = higher weight)
+   */
+  getRecencyWeight(dateString) {
+    if (!dateString) return 0.5;
+    
+    const now = new Date();
+    const articleDate = new Date(dateString);
+    const daysDiff = Math.floor((now - articleDate) / (1000 * 60 * 60 * 24));
+    
+    if (daysDiff <= 7) return 1.0;        // Last week: full weight
+    if (daysDiff <= 30) return 0.8;       // Last month: 80%
+    if (daysDiff <= 90) return 0.6;       // Last quarter: 60%
+    if (daysDiff <= 365) return 0.4;      // Last year: 40%
+    return 0.2;                           // Older: 20%
   }
 
   /**
@@ -208,115 +281,171 @@ export class SerpAPIService {
   }
 
   /**
-   * Indonesian Fraud Detection Queries
+   * Specialized News-Focused Search Functions
    */
-  async searchCompanyGeneral(companyName) {
-    const query = `"${companyName}" Indonesia business`;
+
+  /**
+   * Search for investigative journalism on fraud
+   */
+  async searchFraudInvestigativeNews(companyName) {
+    const investigativeSources = this.buildSiteQuery([
+      ...this.newsSources.tier4.sources, // Investigative journalism
+      ...this.newsSources.tier1.sources  // Premium sources
+    ]);
+    
+    const query = `(${investigativeSources}) "${companyName}" AND (penipuan OR "investasi bodong" OR penyidikan OR "kasus fraud" OR "modus operandi" OR "korban masyarakat")`;
+    
     return await this.executeSearch('google', query, {
       gl: 'id',
       hl: 'id',
       location: 'Indonesia',
-      num: 10
-    });
-  }
-
-  async searchCompanyFraud(companyName) {
-    const query = `"${companyName}" penipuan scam fraud investasi bodong`;
-    return await this.executeSearch('google', query, {
-      gl: 'id',
-      hl: 'id',
-      location: 'Indonesia',
-      num: 10
-    });
-  }
-
-  async searchCompanyFinancialTroubles(companyName) {
-    const query = `"${companyName}" bangkrut tutup bermasalah finansial likuidasi`;
-    return await this.executeSearch('google', query, {
-      gl: 'id',
-      hl: 'id',
-      location: 'Indonesia',
-      num: 10
-    });
-  }
-
-  async searchCompanyRegulatory(companyName) {
-    const query = `site:ojk.go.id "${companyName}" OR "${companyName}" OJK sanksi peringatan`;
-    return await this.executeSearch('google', query, {
-      gl: 'id',
-      hl: 'id',
-      location: 'Indonesia',
-      num: 10
-    });
-  }
-
-  async searchCompanyNews(companyName) {
-    const query = `"${companyName}" berita Indonesia site:detik.com OR site:kompas.com OR site:tempo.co`;
-    return await this.executeSearch('google_news', query, {
-      gl: 'id',
-      hl: 'id',
-      location: 'Indonesia',
-      num: 10,
-      tbm: 'nws'
-    });
-  }
-
-  async searchCompanyVictims(companyName) {
-    const query = `"${companyName}" korban pengalaman review buruk tertipu`;
-    return await this.executeSearch('google', query, {
-      gl: 'id',
-      hl: 'id',
-      location: 'Indonesia',
-      num: 10
-    });
-  }
-
-  async searchCompanyOfficialSites(companyName) {
-    const query = `"${companyName}" site:go.id OR site:kemenkeu.go.id OR site:bi.go.id`;
-    return await this.executeSearch('google', query, {
-      gl: 'id',
-      hl: 'id',
-      location: 'Indonesia',
-      num: 5
+      num: 15
     });
   }
 
   /**
-   * Comprehensive company analysis with early termination
+   * Search for financial crime coverage in business news
+   */
+  async searchFinancialCrimeNews(companyName) {
+    const financialSources = this.buildSiteQuery([
+      ...this.newsSources.tier3.sources, // Financial specialists
+      ...this.newsSources.tier1.sources  // Premium sources
+    ]);
+    
+    const query = `(${financialSources}) "${companyName}" AND ("money laundering" OR pencucian uang OR "financial fraud" OR "investment scam" OR "ponzi scheme" OR "kasus keuangan")`;
+    
+    return await this.executeSearch('google', query, {
+      gl: 'id',
+      hl: 'id',
+      location: 'Indonesia',
+      num: 12
+    });
+  }
+
+  /**
+   * Search for regulatory news alerts and official actions
+   */
+  async searchRegulatoryNewsAlerts(companyName) {
+    const allSources = this.buildSiteQuery(this.allNewsSources);
+    
+    const query = `(${allSources}) "${companyName}" AND (OJK OR "Bank Indonesia" OR "Kementerian Keuangan" OR sanksi OR peringatan OR "tindakan hukum" OR "investigasi otoritas")`;
+    
+    return await this.executeSearch('google', query, {
+      gl: 'id',
+      hl: 'id',
+      location: 'Indonesia',
+      num: 10
+    });
+  }
+
+  /**
+   * Search for victim testimonials covered by professional journalism
+   */
+  async searchVictimTestimonialsInNews(companyName) {
+    const credibleSources = this.buildSiteQuery([
+      ...this.newsSources.tier1.sources,
+      ...this.newsSources.tier2.sources
+    ]);
+    
+    const query = `(${credibleSources}) "${companyName}" AND (korban OR "investor kecewa" OR "kehilangan uang" OR "laporan masyarakat" OR "pengalaman buruk" OR testimonial OR "cerita korban")`;
+    
+    return await this.executeSearch('google', query, {
+      gl: 'id',
+      hl: 'id',
+      location: 'Indonesia',
+      num: 12
+    });
+  }
+
+  /**
+   * Search for general company reputation in news
+   */
+  async searchCompanyReputationNews(companyName) {
+    const tier1Sources = this.buildSiteQuery(this.newsSources.tier1.sources);
+    
+    const query = `(${tier1Sources}) "${companyName}" AND (reputasi OR kredibilitas OR "track record" OR prestasi OR penghargaan OR "kinerja perusahaan")`;
+    
+    return await this.executeSearch('google', query, {
+      gl: 'id',
+      hl: 'id',
+      location: 'Indonesia',
+      num: 10
+    });
+  }
+
+  /**
+   * Search official government sites for regulatory mentions
+   */
+  async searchOfficialRegulatoryMentions(companyName) {
+    const query = `site:ojk.go.id OR site:bi.go.id OR site:kemenkeu.go.id OR site:bapepam.go.id "${companyName}"`;
+    
+    return await this.executeSearch('google', query, {
+      gl: 'id',
+      hl: 'id',
+      location: 'Indonesia',
+      num: 8
+    });
+  }
+
+  /**
+   * Search for recent news trends about the company
+   */
+  async searchRecentNewsTrends(companyName) {
+    const allSources = this.buildSiteQuery(this.allNewsSources);
+    
+    const query = `(${allSources}) "${companyName}"`;
+    
+    return await this.executeSearch('google', query, {
+      gl: 'id',
+      hl: 'id',
+      location: 'Indonesia',
+      num: 15,
+      tbs: 'qdr:m3' // Last 3 months
+    });
+  }
+
+  /**
+   * News-focused company analysis with credibility scoring
    */
   async analyzeCompany(companyName, options = {}) {
     const {
       skipOnConclusiveEvidence = true,
-      maxSearches = 7,
+      maxSearches = 6,
       priority = 'balanced' // 'speed', 'balanced', 'thorough'
     } = options;
 
-    console.log(chalk.blue(`🔍 Starting comprehensive SerpAPI analysis for: ${companyName}`));
+    console.log(chalk.blue(`📰 Starting news-focused SerpAPI analysis for: ${companyName}`));
     
     const results = {
       companyName,
       timestamp: new Date().toISOString(),
       searches: {},
+      credibilityAnalysis: {},
       summary: {
         totalResults: 0,
-        fraudIndicators: 0,
-        legitimacySignals: 0,
+        weightedFraudScore: 0,
+        weightedLegitimacyScore: 0,
         conclusiveEvidence: false,
-        earlyTermination: false
+        earlyTermination: false,
+        highestCredibilitySource: null,
+        averageSourceCredibility: 0
       }
     };
 
-    // Define search priority based on strategy
+    // Define search priority with news focus first
     let searchOrder;
     if (priority === 'speed') {
-      searchOrder = ['fraud', 'regulatory', 'general'];
+      searchOrder = ['fraudInvestigative', 'regulatoryNews', 'officialRegulatory'];
     } else if (priority === 'thorough') {
-      searchOrder = ['general', 'news', 'fraud', 'regulatory', 'financial', 'victims', 'official'];
+      searchOrder = ['fraudInvestigative', 'financialCrime', 'regulatoryNews', 'victimTestimonials', 'reputationNews', 'recentTrends', 'officialRegulatory'];
     } else {
-      searchOrder = ['general', 'fraud', 'regulatory', 'news', 'financial'];
+      // Balanced: prioritize news-based searches over generic searches
+      searchOrder = ['fraudInvestigative', 'regulatoryNews', 'financialCrime', 'victimTestimonials', 'reputationNews', 'officialRegulatory'];
     }
 
     let searchCount = 0;
+    let totalCredibilityScore = 0;
+    let credibilityCount = 0;
     
     for (const searchType of searchOrder) {
       if (searchCount >= maxSearches) break;
@@ -325,26 +454,26 @@ export class SerpAPIService {
         let searchResult;
         
         switch (searchType) {
-          case 'general':
-            searchResult = await this.searchCompanyGeneral(companyName);
+          case 'fraudInvestigative':
+            searchResult = await this.searchFraudInvestigativeNews(companyName);
             break;
-          case 'fraud':
-            searchResult = await this.searchCompanyFraud(companyName);
+          case 'financialCrime':
+            searchResult = await this.searchFinancialCrimeNews(companyName);
             break;
-          case 'financial':
-            searchResult = await this.searchCompanyFinancialTroubles(companyName);
+          case 'regulatoryNews':
+            searchResult = await this.searchRegulatoryNewsAlerts(companyName);
             break;
-          case 'regulatory':
-            searchResult = await this.searchCompanyRegulatory(companyName);
+          case 'victimTestimonials':
+            searchResult = await this.searchVictimTestimonialsInNews(companyName);
             break;
-          case 'news':
-            searchResult = await this.searchCompanyNews(companyName);
+          case 'reputationNews':
+            searchResult = await this.searchCompanyReputationNews(companyName);
             break;
-          case 'victims':
-            searchResult = await this.searchCompanyVictims(companyName);
+          case 'recentTrends':
+            searchResult = await this.searchRecentNewsTrends(companyName);
             break;
-          case 'official':
-            searchResult = await this.searchCompanyOfficialSites(companyName);
+          case 'officialRegulatory':
+            searchResult = await this.searchOfficialRegulatoryMentions(companyName);
             break;
           default:
             continue;
@@ -353,41 +482,63 @@ export class SerpAPIService {
         results.searches[searchType] = searchResult;
         searchCount++;
 
-        // Analyze results for early termination
-        if (skipOnConclusiveEvidence) {
-          const analysis = this.analyzeSearchResults(searchResult, searchType);
-          results.summary.totalResults += analysis.resultCount;
-          results.summary.fraudIndicators += analysis.fraudSignals;
-          results.summary.legitimacySignals += analysis.legitimacySignals;
+        // Analyze results with credibility scoring
+        const analysis = this.analyzeNewsSearchResults(searchResult, searchType);
+        results.credibilityAnalysis[searchType] = analysis;
+        
+        results.summary.totalResults += analysis.resultCount;
+        results.summary.weightedFraudScore += analysis.weightedFraudScore;
+        results.summary.weightedLegitimacyScore += analysis.weightedLegitimacyScore;
+        
+        if (analysis.averageCredibility > 0) {
+          totalCredibilityScore += analysis.averageCredibility;
+          credibilityCount++;
+        }
+        
+        if (analysis.highestCredibilitySource && 
+           (!results.summary.highestCredibilitySource || 
+            analysis.highestCredibilitySource.credibility > results.summary.highestCredibilitySource.credibility)) {
+          results.summary.highestCredibilitySource = analysis.highestCredibilitySource;
+        }
 
-          // Early termination conditions
-          if (analysis.isConclusiveEvidence) {
-            console.log(chalk.yellow(`⚡ Early termination: Conclusive evidence found in ${searchType} search`));
-            results.summary.conclusiveEvidence = true;
-            results.summary.earlyTermination = true;
-            break;
-          }
+        // Early termination conditions for news sources
+        if (skipOnConclusiveEvidence && analysis.isConclusiveEvidence) {
+          console.log(chalk.yellow(`⚡ Early termination: Conclusive evidence found in ${searchType} from credible news sources`));
+          results.summary.conclusiveEvidence = true;
+          results.summary.earlyTermination = true;
+          break;
         }
 
       } catch (error) {
-        console.log(chalk.red(`❌ Search failed for ${searchType}: ${error.message}`));
+        console.log(chalk.red(`❌ News search failed for ${searchType}: ${error.message}`));
         results.searches[searchType] = { error: error.message };
       }
     }
 
-    console.log(chalk.green(`✅ SerpAPI analysis completed for ${companyName} (${searchCount} searches)`));
+    // Calculate final credibility metrics
+    results.summary.averageSourceCredibility = credibilityCount > 0 ? 
+      (totalCredibilityScore / credibilityCount) : 0;
+
+    console.log(chalk.green(`✅ News-focused analysis completed for ${companyName}`));
+    console.log(chalk.gray(`   Searches: ${searchCount}, Avg credibility: ${results.summary.averageSourceCredibility.toFixed(2)}`));
+    
     return results;
   }
 
   /**
-   * Analyze search results for fraud indicators and early termination
+   * Analyze news search results with credibility scoring
    */
-  analyzeSearchResults(searchResult, searchType) {
+  analyzeNewsSearchResults(searchResult, searchType) {
     const analysis = {
       resultCount: 0,
-      fraudSignals: 0,
-      legitimacySignals: 0,
-      isConclusiveEvidence: false
+      rawFraudSignals: 0,
+      rawLegitimacySignals: 0,
+      weightedFraudScore: 0,
+      weightedLegitimacyScore: 0,
+      averageCredibility: 0,
+      highestCredibilitySource: null,
+      isConclusiveEvidence: false,
+      sourceBreakdown: {}
     };
 
     if (!searchResult || searchResult.error) {
@@ -397,46 +548,115 @@ export class SerpAPIService {
     const results = searchResult.organic_results || searchResult.news_results || [];
     analysis.resultCount = results.length;
 
+    if (results.length === 0) return analysis;
+
     const fraudKeywords = [
       'penipuan', 'scam', 'fraud', 'penipu', 'gugatan', 'sanksi',
-      'bermasalah', 'bangkrut', 'korban', 'tertipu', 'investasi bodong'
+      'bermasalah', 'bangkrut', 'korban', 'tertipu', 'investasi bodong',
+      'penyidikan', 'modus operandi', 'kasus fraud', 'pencucian uang',
+      'money laundering', 'ponzi scheme'
     ];
 
     const legitimacyKeywords = [
       'resmi', 'terdaftar', 'OJK', 'sertifikat', 'izin', 'akreditasi',
-      'kementerian', 'official', 'licensed', 'certified'
+      'kementerian', 'official', 'licensed', 'certified', 'reputasi',
+      'kredibilitas', 'prestasi', 'penghargaan', 'kinerja perusahaan'
     ];
+
+    let totalCredibility = 0;
+    let highestCredibility = 0;
 
     for (const result of results) {
       const text = `${result.title} ${result.snippet}`.toLowerCase();
+      const domain = new URL(result.link).hostname;
       
-      // Count fraud indicators
+      // Get source credibility
+      const sourceCredibility = this.getSourceCredibility(domain);
+      totalCredibility += sourceCredibility;
+      
+      // Get recency weight if date available
+      const recencyWeight = this.getRecencyWeight(result.date);
+      const finalWeight = sourceCredibility * recencyWeight;
+      
+      // Track source breakdown
+      if (!analysis.sourceBreakdown[domain]) {
+        analysis.sourceBreakdown[domain] = {
+          count: 0,
+          credibility: sourceCredibility,
+          fraudSignals: 0,
+          legitimacySignals: 0
+        };
+      }
+      analysis.sourceBreakdown[domain].count++;
+      
+      // Count fraud indicators with weighting
       const fraudMatches = fraudKeywords.filter(keyword => text.includes(keyword)).length;
       if (fraudMatches > 0) {
-        analysis.fraudSignals++;
+        analysis.rawFraudSignals++;
+        analysis.weightedFraudScore += fraudMatches * finalWeight;
+        analysis.sourceBreakdown[domain].fraudSignals++;
       }
 
-      // Count legitimacy signals
+      // Count legitimacy signals with weighting
       const legitimacyMatches = legitimacyKeywords.filter(keyword => text.includes(keyword)).length;
       if (legitimacyMatches > 0) {
-        analysis.legitimacySignals++;
+        analysis.rawLegitimacySignals++;
+        analysis.weightedLegitimacyScore += legitimacyMatches * finalWeight;
+        analysis.sourceBreakdown[domain].legitimacySignals++;
       }
 
-      // Check for conclusive evidence
-      if (searchType === 'regulatory' && (text.includes('sanksi') || text.includes('peringatan'))) {
-        analysis.isConclusiveEvidence = true;
+      // Track highest credibility source
+      if (sourceCredibility > highestCredibility) {
+        highestCredibility = sourceCredibility;
+        analysis.highestCredibilitySource = {
+          domain,
+          credibility: sourceCredibility,
+          title: result.title,
+          url: result.link
+        };
       }
-      
-      if (searchType === 'fraud' && fraudMatches >= 3) {
-        analysis.isConclusiveEvidence = true;
+
+      // Check for conclusive evidence from credible sources
+      if (sourceCredibility >= 0.8) { // High credibility sources only
+        if ((searchType === 'regulatoryNews' || searchType === 'officialRegulatory') && 
+            (text.includes('sanksi') || text.includes('peringatan') || text.includes('investigasi otoritas'))) {
+          analysis.isConclusiveEvidence = true;
+        }
+        
+        if (searchType === 'fraudInvestigative' && fraudMatches >= 2) {
+          analysis.isConclusiveEvidence = true;
+        }
+        
+        if (searchType === 'financialCrime' && 
+            (text.includes('money laundering') || text.includes('ponzi scheme') || text.includes('pencucian uang'))) {
+          analysis.isConclusiveEvidence = true;
+        }
       }
     }
+
+    analysis.averageCredibility = totalCredibility / results.length;
 
     return analysis;
   }
 
   /**
-   * Get service statistics
+   * Legacy analysis function for backward compatibility
+   * @deprecated Use analyzeNewsSearchResults instead
+   */
+  analyzeSearchResults(searchResult, searchType) {
+    const newsAnalysis = this.analyzeNewsSearchResults(searchResult, searchType);
+    
+    // Convert to legacy format
+    return {
+      resultCount: newsAnalysis.resultCount,
+      fraudSignals: newsAnalysis.rawFraudSignals,
+      legitimacySignals: newsAnalysis.rawLegitimacySignals,
+      isConclusiveEvidence: newsAnalysis.isConclusiveEvidence
+    };
+  }
+
+  /**
+   * Get service statistics including news source information
    */
   getStats() {
     this.resetQuotaIfNewDay();
@@ -446,7 +666,44 @@ export class SerpAPIService {
       quotaRemaining: this.dailyQuota - this.quotaUsed,
       cacheSize: this.cache.size,
       lastReset: this.lastReset,
-      isOperational: this.apiKey && this.apiKey !== 'your-serpapi-key-here'
+      isOperational: this.apiKey && this.apiKey !== 'your-serpapi-key-here',
+      newsSources: {
+        totalSources: this.allNewsSources.length,
+        tier1Sources: this.newsSources.tier1.sources.length,
+        tier2Sources: this.newsSources.tier2.sources.length,
+        tier3Sources: this.newsSources.tier3.sources.length,
+        tier4Sources: this.newsSources.tier4.sources.length,
+        sourcesByTier: this.newsSources
+      },
+      searchCapabilities: [
+        'Fraud Investigative News',
+        'Financial Crime Coverage',
+        'Regulatory News Alerts',
+        'Victim Testimonials in News',
+        'Company Reputation News',
+        'Official Regulatory Mentions',
+        'Recent News Trends'
+      ]
+    };
+  }
+
+  /**
+   * Get detailed news source information
+   */
+  getNewsSourceInfo() {
+    return {
+      tiers: Object.keys(this.newsSources).map(tierKey => {
+        const tier = this.newsSources[tierKey];
+        return {
+          tier: tierKey,
+          weight: tier.weight,
+          description: tier.description,
+          sources: tier.sources,
+          count: tier.sources.length
+        };
+      }),
+      allSources: this.allNewsSources,
+      totalCount: this.allNewsSources.length
     };
   }
 

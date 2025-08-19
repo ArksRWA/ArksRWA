@@ -168,8 +168,8 @@ class ContextAwareWebScraper extends WebScrapingService {
     // Simple search terms using original name only
     // Removed complex alias processing
 
-    // Determine industry-specific search patterns
-    const industry = companyData.entityData?.industry || this.determineIndustryFromName(companyData.name);
+    // Use industry-specific search patterns if provided
+    const industry = companyData.entityData?.industry || companyData.industry || 'general';
     const contextPatterns = this.contextPatterns[industry] || this.contextPatterns.manufacturing; // fallback
 
     // Add industry-specific legitimacy terms using original name
@@ -237,28 +237,11 @@ class ContextAwareWebScraper extends WebScrapingService {
   /**
    * Helper method to determine industry from company name
    */
-  determineIndustryFromName(name) {
-    const nameLower = name.toLowerCase();
-    
-    if (nameLower.includes('bank') || nameLower.includes('finance')) return 'banking';
-    if (nameLower.includes('fintech') || nameLower.includes('payment') || nameLower.includes('digital wallet')) return 'fintech';
-    if (nameLower.includes('invest') || nameLower.includes('fund')) return 'investment';
-    if (nameLower.includes('tech') || nameLower.includes('digital') || nameLower.includes('software')) return 'technology';
-    if (nameLower.includes('crypto') || nameLower.includes('blockchain') || nameLower.includes('bitcoin')) return 'cryptocurrency';
-    if (nameLower.includes('manufaktur') || nameLower.includes('pabrik') || nameLower.includes('industri')) return 'manufacturing';
-    if (nameLower.includes('pertanian') || nameLower.includes('agriculture') || nameLower.includes('fishery')) return 'agriculture';
-    if (nameLower.includes('retail') || nameLower.includes('trading') || nameLower.includes('perdagangan')) return 'retail';
-    
-    return 'manufacturing'; // default fallback
-  }
 
   /**
    * Generate intelligent search terms for SerpAPI prioritization
    */
-  generateIntelligentSearchTerms(companyData, triageResults) {
-    const riskLevel = triageResults?.riskLevel || 'medium';
-    const riskFactors = triageResults?.riskFactors || [];
-    
+  generateIntelligentSearchTerms(companyData) {
     const searchTerms = {
       base: [`"${companyData.name}"`],
       legitimacy: [],
@@ -491,7 +474,7 @@ class ContextAwareWebScraper extends WebScrapingService {
       return ['general', 'news', 'regulatory', 'fraud'];
     }
     
-    const { riskLevel, riskFactors, priorityPatterns } = triageResults.data;
+    const { riskLevel } = triageResults.data;
     
     // High-risk companies: Focus on fraud evidence first
     if (riskLevel === 'critical' || riskLevel === 'high') {
@@ -1658,7 +1641,7 @@ class ContextAwareWebScraper extends WebScrapingService {
    * Ensure summary.keyFindings is populated when sourcesScraped > 0
    */
   generateEnhancedResearchSummary(sources, triageResults, conclusiveEvidence, processingTime) {
-    const summary = super.generateResearchSummary ? super.generateResearchSummary(sources) : {};
+    const summary = super.generateSerpAPIResearchSummary ? super.generateSerpAPIResearchSummary(sources) : {};
     
     // Ensure keyFindings is non-empty when we have sources
     const sourcesCount = Object.keys(sources).length;

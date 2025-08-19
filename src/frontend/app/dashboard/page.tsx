@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { backendService, Company } from '../../services/backend';
 import { authService, AuthUser } from '../../services/auth';
+import StatusBadge, { getCompanyRiskStatus } from '../components/StatusBadge';
 
 interface UserHolding {
   company: Company;
@@ -38,7 +39,7 @@ export default function DashboardPage() {
       setCurrentUser(user);
       loadDashboardData();
     };
-    
+
     checkAuth();
   }, [router]);
 
@@ -46,11 +47,11 @@ export default function DashboardPage() {
     try {
       setLoading(true);
       setError('');
-      
+
       // Load all companies first
       const companiesList = await backendService.listCompanies();
       setCompanies(companiesList);
-      
+
       // Load user holdings for each company
       const holdingsPromises = companiesList.map(async (company) => {
         const amount = await backendService.getUserHoldings(company.id);
@@ -60,7 +61,7 @@ export default function DashboardPage() {
           const investmentValue = amount * company.base_price;
           const profitLoss = currentValue - investmentValue;
           const profitLossPercent = investmentValue > 0 ? (profitLoss / investmentValue) * BigInt(100) : BigInt(0);
-          
+
           return {
             company,
             amount,
@@ -72,22 +73,22 @@ export default function DashboardPage() {
         }
         return null;
       });
-      
+
       const holdingsResults = await Promise.all(holdingsPromises);
       const validHoldings = holdingsResults.filter(h => h !== null) as UserHolding[];
       setHoldings(validHoldings);
-      
+
       // Calculate portfolio totals
       const totalVal = validHoldings.reduce((sum, h) => sum + h.currentValue, BigInt(0));
       const totalInv = validHoldings.reduce((sum, h) => sum + h.investmentValue, BigInt(0));
       const totalPL = validHoldings.reduce((sum, h) => sum + h.profitLoss, BigInt(0));
       const totalPLPercent = totalInv > 0 ? (totalPL / totalInv) * BigInt(100) : BigInt(0);
-      
+
       setTotalValue(totalVal);
       setTotalInvested(totalInv);
       setTotalProfitLoss(totalPL);
       setTotalProfitLossPercent(totalPLPercent);
-      
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
     } finally {
@@ -129,7 +130,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Portfolio Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
           <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-gray-400">Total Portfolio Value</h3>
@@ -176,7 +177,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Holdings Table */}
-        <div className="bg-card-bg border border-gray-700 rounded-lg p-6 mb-8">
+        <div className="bg-card-bg border border-gray-700 rounded-lg p-6 mb-12">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-white">Your Holdings</h2>
             <div className="flex gap-2">
@@ -200,7 +201,7 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
-          
+
           {holdings.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -220,21 +221,26 @@ export default function DashboardPage() {
                   {holdings.map((holding) => (
                     <tr key={holding.company.id} className="border-b border-gray-700 hover:bg-gray-800/50">
                       <td className="py-4 px-4">
-                        <div className="flex items-center gap-3">
-                          {holding.company.logo_url ? (
-                            <img 
-                              src={holding.company.logo_url} 
-                              alt={holding.company.name}
-                              className="w-8 h-8 rounded-lg object-cover"
-                            />
-                          ) : (
-                            <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-                              <span className="text-sm font-bold text-primary">{holding.company.symbol[0]}</span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            {holding.company.logo_url ? (
+                              <img
+                                src={holding.company.logo_url}
+                                alt={holding.company.name}
+                                className="w-8 h-8 rounded-lg object-cover"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                                <span className="text-sm font-bold text-primary">{holding.company.symbol[0]}</span>
+                              </div>
+                            )}
+                            <div>
+                              <div className="font-medium text-white">{holding.company.name}</div>
+                              <div className="text-sm text-gray-400">{holding.company.symbol}</div>
                             </div>
-                          )}
-                          <div>
-                            <div className="font-medium text-white">{holding.company.name}</div>
-                            <div className="text-sm text-gray-400">{holding.company.symbol}</div>
+                          </div>
+                          <div className="ml-4">
+                            <StatusBadge status={getCompanyRiskStatus(holding.company)} size="small" />
                           </div>
                         </div>
                       </td>
@@ -249,16 +255,16 @@ export default function DashboardPage() {
                         {Number(holding.profitLossPercent) >= 0 ? '+' : ''}{Number(holding.profitLossPercent).toFixed(2)}%
                       </td>
                       <td className="py-4 px-4 text-right">
-                        <div className="flex gap-1 justify-end">
+                        <div className="flex gap-2 justify-end">
                           <button
                             onClick={() => router.push(`/transfer?company=${holding.company.id}`)}
-                            className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs"
+                            className="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs"
                           >
                             Transfer
                           </button>
                           <button
                             onClick={() => router.push(`/company?id=${holding.company.id}`)}
-                            className="px-2 py-1 bg-primary text-white rounded hover:bg-primary/90 transition-colors text-xs"
+                            className="px-3 py-1.5 bg-primary text-white rounded hover:bg-primary/90 transition-colors text-xs"
                           >
                             Trade
                           </button>
@@ -285,18 +291,19 @@ export default function DashboardPage() {
         {/* Market Overview */}
         <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
           <h2 className="text-xl font-semibold text-white mb-6">Market Overview</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {companies.slice(0, 6).map((company) => (
               <div
                 key={company.id}
                 className="bg-gray-800 border border-gray-600 rounded-lg p-4 hover:border-primary/50 transition-colors cursor-pointer"
                 onClick={() => router.push(`/company?id=${company.id}`)}
               >
-                <div className="flex items-center gap-3 mb-3">
+
+                <div className="flex items-center gap-3 flex-1">
                   {company.logo_url ? (
-                    <img 
-                      src={company.logo_url} 
+                    <img
+                      src={company.logo_url}
                       alt={company.name}
                       className="w-8 h-8 rounded-lg object-cover"
                     />
@@ -305,12 +312,23 @@ export default function DashboardPage() {
                       <span className="text-sm font-bold text-primary">{company.symbol[0]}</span>
                     </div>
                   )}
-                  <div>
-                    <h3 className="font-medium text-white">{company.name}</h3>
+
+                  <div className="flex-1">
+                    {/* Name + Badge in the same row */}
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-medium text-white">{company.name}</h3>
+                      <StatusBadge status={getCompanyRiskStatus(company)} size="small" />
+                    </div>
+
+                    {/* Symbol goes below */}
                     <p className="text-sm text-gray-400">{company.symbol}</p>
                   </div>
                 </div>
-                
+
+
+
+
+
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-400">Price:</span>
@@ -324,7 +342,7 @@ export default function DashboardPage() {
               </div>
             ))}
           </div>
-          
+
           <div className="mt-6 text-center">
             <button
               onClick={() => router.push('/companies')}

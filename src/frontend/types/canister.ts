@@ -10,6 +10,9 @@ export type {
   _SERVICE
 } from '../../declarations/arks-rwa-backend/arks-rwa-backend.did';
 
+// Risk level status type
+export type CompanyRiskStatus = 'low' | 'medium' | 'high';
+
 // Frontend-friendly types that convert bigint to number for easier use
 export interface Company {
   id: number;
@@ -25,6 +28,7 @@ export interface Company {
   logo_url: string;
   description: string;
   created_at: number;
+  status: CompanyRiskStatus;
 }
 
 export interface TokenHolder {
@@ -59,6 +63,8 @@ export const candidCompanyToFrontend = (candidCompany: import('../../declaration
     logo_url: candidCompany.logo_url,
     description: candidCompany.description,
     created_at: Number(candidCompany.created_at),
+    // Default to 'medium' risk status until backend provides this field
+    status: (candidCompany as any).status || 'medium',
   };
 };
 

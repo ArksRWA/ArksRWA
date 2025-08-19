@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { backendService, Company } from '../../services/backend';
 import { authService } from '../../services/auth';
+import StatusBadge, { getCompanyRiskStatus } from '../components/StatusBadge';
+import RiskScoreDetail from '../components/RiskScoreDetail';
 
 // helpers
 const toBig = (v: unknown): bigint => {
@@ -159,7 +161,7 @@ export default function CompanyDetailsPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4 pt-20">
       <div className="max-w-6xl mx-auto">
         {isOwner && (
-          <div className="flex justify-end mb-6">
+          <div className="flex justify-end mt-4 mb-6">
             <button
               onClick={() => router.push(`/manage-company/${companyId}`)}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -188,7 +190,12 @@ export default function CompanyDetailsPage() {
                   </div>
                 )}
                 <div className="flex-1">
-                  <h1 className="text-3xl font-bold text-white mb-2">{(company as any).name}</h1>
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <h1 className="text-3xl font-bold text-white">{(company as any).name}</h1>
+                    <div className="ml-4">
+                      <StatusBadge status={getCompanyRiskStatus(company)} size="large" />
+                    </div>
+                  </div>
                   <p className="text-xl text-gray-300 mb-4">{(company as any).symbol}</p>
                   <p className="text-gray-400">{(company as any).description}</p>
                 </div>
@@ -196,7 +203,7 @@ export default function CompanyDetailsPage() {
             </div>
 
             {/* Stats */}
-            <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
+            <div className="bg-card-bg border border-gray-700 rounded-lg p-6 mt-2">
               <h2 className="text-xl font-semibold text-white mb-4">Company Statistics</h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Stat label="Valuation" value={toBig((company as any).valuation)} />
@@ -204,6 +211,11 @@ export default function CompanyDetailsPage() {
                 <Stat label="Total Supply" value={toBig((company as any).supply)} />
                 <Stat label="Available" value={toBig((company as any).remaining)} />
               </div>
+            </div>
+
+            {/* Risk Assessment */}
+            <div className="mt-6">
+              <RiskScoreDetail company={company} />
             </div>
           </div>
 

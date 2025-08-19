@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { Company } from '../../services/backend';
+import StatusBadge, { getCompanyRiskStatus } from './StatusBadge';
 
 interface CompanyCardProps {
   company: Company;
@@ -46,9 +47,12 @@ export default function CompanyCard({
           </div>
         )}
         <div className="flex-1">
-          <h3 className="font-semibold text-white group-hover:text-primary transition-colors">
-            {company.name}
-          </h3>
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <h3 className="font-semibold text-white group-hover:text-primary transition-colors">
+              {company.name}
+            </h3>
+            <StatusBadge status={getCompanyRiskStatus(company)} size="small" showTooltip={false} />
+          </div>
           <p className="text-sm text-gray-400">{company.symbol}</p>
         </div>
       </div>

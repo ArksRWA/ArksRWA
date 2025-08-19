@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { backendService, Company } from '../../services/backend';
 import { authService } from '../../services/auth';
-import CompanyCard from './CompanyCard';
+import StatusBadge, { getCompanyRiskStatus } from './StatusBadge';
 
 interface CompanyListProps {
   maxCompanies?: number;
@@ -56,6 +56,7 @@ export default function CompanyList({
               <thead>
                 <tr className="border-b border-gray-700">
                   <th className="text-left py-3 px-4 text-gray-300 font-medium">Trending Company</th>
+                  <th className="text-left py-3 px-4 text-gray-300 font-medium">Risk Level</th>
                   <th className="text-left py-3 px-4 text-gray-300 font-medium">Price</th>
                   <th className="text-left py-3 px-4 text-gray-300 font-medium">Total Supply</th>
                   <th className="text-center py-3 px-4 text-gray-300 font-medium">Action</th>
@@ -72,6 +73,9 @@ export default function CompanyList({
                           <div className="h-3 bg-gray-700 rounded w-16"></div>
                         </div>
                       </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="h-6 bg-gray-700 rounded-full w-20"></div>
                     </td>
                     <td className="py-4 px-4">
                       <div className="h-4 bg-gray-700 rounded mb-2 w-20"></div>
@@ -121,6 +125,7 @@ export default function CompanyList({
                 <thead>
                   <tr className="border-b border-gray-700">
                     <th className="text-left py-3 px-4 text-gray-300 font-medium">Company</th>
+                    <th className="text-left py-3 px-4 text-gray-300 font-medium">Risk Level</th>
                     <th className="text-left py-3 px-4 text-gray-300 font-medium">Price</th>
                     <th className="text-left py-3 px-4 text-gray-300 font-medium">Total Supply</th>
                     <th className="text-center py-3 px-4 text-gray-300 font-medium">Action</th>
@@ -152,6 +157,9 @@ export default function CompanyList({
                             <div className="text-sm text-gray-400">{company.symbol}</div>
                           </div>
                         </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <StatusBadge status={getCompanyRiskStatus(company)} size="small" />
                       </td>
                       <td className="py-4 px-4">
                         <div className="text-white font-medium">

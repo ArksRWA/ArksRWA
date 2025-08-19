@@ -879,8 +879,22 @@ class FraudAnalyzer {
         
       case 'PERPETRATOR':
         // Company committed fraud - should have high fraud score
-        if (confidence >= 70) {
-          adjustedScore = Math.max(originalScore, 80); // Minimum high risk
+        // Check if this involves executive/leadership fraud for enhanced penalties
+        const isExecutiveFraud = this.detectExecutiveFraud(actorRoleAnalysis.reasoning, actorRoleAnalysis);
+        
+        if (confidence >= 90 && isExecutiveFraud) {
+          // Executive fraud with very high confidence - maximum penalty
+          adjustedScore = Math.max(originalScore, 90);
+          fairnessReason = `Company PERPETRATOR with executive/leadership fraud (${confidence}% confidence). Score elevated to 90+ due to management-level corruption.`;
+          console.log(`🚨 EXECUTIVE FRAUD PERPETRATOR penalty: ${originalScore} → ${adjustedScore}`);
+        } else if (confidence >= 80 && isExecutiveFraud) {
+          // Executive fraud with high confidence - strong penalty
+          adjustedScore = Math.max(originalScore, 85);
+          fairnessReason = `Company PERPETRATOR with executive fraud (${confidence}% confidence). Score elevated to 85+ due to leadership involvement.`;
+          console.log(`⚠️ EXECUTIVE FRAUD PERPETRATOR penalty: ${originalScore} → ${adjustedScore}`);
+        } else if (confidence >= 70) {
+          // General fraud PERPETRATOR - standard high penalty
+          adjustedScore = Math.max(originalScore, 80);
           fairnessReason = `Company identified as fraud PERPETRATOR with ${confidence}% confidence. Score raised to minimum 80.`;
           console.log(`⚠️ PERPETRATOR penalty applied: ${originalScore} → ${adjustedScore}`);
         } else if (confidence >= 50) {
@@ -920,6 +934,75 @@ class FraudAnalyzer {
       roleConfidence: confidence,
       roleReasoning: reasoning
     };
+  }
+
+  /**
+   * Detect if fraud involves company executives or leadership
+   */
+  detectExecutiveFraud(reasoning, actorRoleAnalysis) {
+    if (!reasoning && !actorRoleAnalysis) return false;
+    
+    const text = (reasoning + ' ' + JSON.stringify(actorRoleAnalysis)).toLowerCase();
+    
+    // Executive fraud keywords (English)
+    const executiveKeywords = [
+      'ceo', 'cfo', 'director', 'founder', 'executive', 'management', 'senior', 'board',
+      'chief', 'president', 'chairman', 'leadership', 'officer', 'partner'
+    ];
+    
+    // Indonesian executive fraud keywords
+    const indonesianExecutiveKeywords = [
+      'direktur utama', 'direktur', 'komisaris', 'pendiri', 'pimpinan', 'manajemen',
+      'eksekutif', 'petinggi', 'pengurus', 'direksi', 'bos', 'pemimpin'
+    ];
+    
+    // Fraud action keywords
+    const fraudActionKeywords = [
+      'arrested', 'charged', 'indicted', 'convicted', 'embezzled', 'stole', 'fraud',
+      'corruption', 'bribery', 'scandal', 'investigation', 'suspect',
+      'ditangkap', 'tersangka', 'terdakwa', 'korupsi', 'suap', 'penipuan',
+      'skandal', 'diselidiki', 'mencuri', 'menggelapkan'
+    ];
+    
+    // Check for executive titles + fraud actions
+    const hasExecutiveTitle = executiveKeywords.some(keyword => text.includes(keyword)) ||
+                              indonesianExecutiveKeywords.some(keyword => text.includes(keyword));
+    
+    const hasFraudAction = fraudActionKeywords.some(keyword => text.includes(keyword));
+    
+    // Look for specific executive fraud patterns
+    const executiveFraudPatterns = [
+      'ceo arrested', 'cfo charged', 'director indicted', 'founder fraud',
+      'management embezzled', 'executive corruption', 'leadership scandal',
+      'direktur utama ditangkap', 'cfo tersangka', 'manajemen korupsi',
+      'pimpinan penipuan', 'eksekutif skandal', 'direksi suap'
+    ];
+    
+    const hasExecutiveFraudPattern = executiveFraudPatterns.some(pattern => 
+      text.includes(pattern)
+    );
+    
+    // Check evidence details if available
+    let hasExecutiveEvidence = false;
+    if (actorRoleAnalysis?.evidenceDetails?.perpetratorEvidence) {
+      const evidenceText = actorRoleAnalysis.evidenceDetails.perpetratorEvidence.join(' ').toLowerCase();
+      hasExecutiveEvidence = executiveKeywords.some(keyword => evidenceText.includes(keyword)) ||
+                            indonesianExecutiveKeywords.some(keyword => evidenceText.includes(keyword));
+    }
+    
+    const isExecutiveFraud = hasExecutiveFraudPattern || 
+                            (hasExecutiveTitle && hasFraudAction) || 
+                            hasExecutiveEvidence;
+    
+    if (isExecutiveFraud) {
+      console.log('🚨 Executive fraud detected in actor role analysis');
+      console.log('   Executive title found:', hasExecutiveTitle);
+      console.log('   Fraud action found:', hasFraudAction);
+      console.log('   Pattern match:', hasExecutiveFraudPattern);
+      console.log('   Evidence match:', hasExecutiveEvidence);
+    }
+    
+    return isExecutiveFraud;
   }
 
   /**

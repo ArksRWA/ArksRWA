@@ -1010,6 +1010,28 @@ Determine the role of "${companyName}" in fraud-related incidents based on the n
 - Regulatory sanctions against the company for fraudulent practices
 - Court cases where company is defendant in fraud cases
 
+**EXECUTIVE/LEADERSHIP FRAUD (Company becomes PERPETRATOR):**
+- CEO, CFO, directors, or senior management arrested/indicted for fraud
+- Executive embezzlement or theft of company/customer funds
+- Leadership running investment schemes using company platform or resources
+- Management insider trading, securities violations, or financial manipulation
+- Executive corruption, bribery, or money laundering involving company operations
+- Founders or board members orchestrating fraud schemes through the company
+- Senior management falsifying financial records, reports, or business metrics
+- Leadership using company name, reputation, or resources for personal fraud schemes
+- Company executives as masterminds of customer deception or financial crimes
+- Management-led corporate fraud, accounting scandals, or investor deception
+
+**INDONESIAN EXECUTIVE FRAUD TERMS:**
+- "direktur utama ditangkap" (CEO arrested), "CFO tersangka" (CFO suspect)
+- "manajemen tersangka penipuan" (management suspected of fraud)
+- "pimpinan perusahaan korupsi" (company leadership corruption)
+- "eksekutif terlibat skandal keuangan" (executive involved in financial scandal)
+- "komisaris dituduh suap" (commissioner accused of bribery)
+- "pendiri perusahaan penipuan" (company founder fraud)
+- "direksi terlibat pencucian uang" (directors involved in money laundering)
+- "manajemen senior tersangka" (senior management suspect)
+
 **VICTIM Indicators:**
 - Company suffered data breaches or cyberattacks
 - Company customers were targeted by impersonation scams
@@ -1060,6 +1082,22 @@ Determine the role of "${companyName}" in fraud-related incidents based on the n
 - Look for direct quotes and factual reporting
 - Consider the tone of articles (accusatory vs. sympathetic)
 - Distinguish between allegations and proven facts
+
+**EXECUTIVE FRAUD CLASSIFICATION RULES:**
+- If executives used company resources/platform for fraud → Company = PERPETRATOR (80-95% confidence)
+- If executives acted in official company capacity for fraud → Company = PERPETRATOR (85-95% confidence)
+- If company directly profited from executive fraud → Company = PERPETRATOR (90-95% confidence)
+- If company culture enabled/encouraged fraud → Company = PERPETRATOR (75-90% confidence)
+- If isolated personal executive crime unrelated to business → Evaluate context (50-70% confidence)
+- If multiple executives involved in fraud scheme → Company = PERPETRATOR (90-95% confidence)
+- If executives have official fraud charges/convictions → High confidence PERPETRATOR (85-95%)
+
+**CONFIDENCE SCORING FOR EXECUTIVE CASES:**
+- 90-95%: Clear evidence of executive fraud using company, multiple sources, official charges
+- 80-89%: Strong evidence of management fraud, credible reporting, some official action
+- 70-79%: Credible allegations of executive fraud, investigation ongoing
+- 60-69%: Allegations exist but limited credible sources or unclear company involvement
+- 50-59%: Unclear relationship between executive actions and company operations
 - Weight multiple consistent reports higher than single mentions
 - Consider the company's response and defense statements
 

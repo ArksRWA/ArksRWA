@@ -537,25 +537,25 @@ class ContextAwareWebScraper extends WebScrapingService {
         let searchResult;
         switch (searchType) {
           case 'general':
-            searchResult = await serpAPIService.searchCompanyGeneral(companyName);
+            searchResult = await serpAPIService.searchCompanyReputationNews(companyName);
             break;
           case 'fraud':
-            searchResult = await serpAPIService.searchCompanyFraud(companyName);
+            searchResult = await serpAPIService.searchFraudInvestigativeNews(companyName);
             break;
           case 'financial':
-            searchResult = await serpAPIService.searchCompanyFinancialTroubles(companyName);
+            searchResult = await serpAPIService.searchFinancialCrimeNews(companyName);
             break;
           case 'regulatory':
-            searchResult = await serpAPIService.searchCompanyRegulatory(companyName);
+            searchResult = await serpAPIService.searchRegulatoryNewsAlerts(companyName);
             break;
           case 'news':
-            searchResult = await serpAPIService.searchCompanyNews(companyName);
+            searchResult = await serpAPIService.searchRecentNewsTrends(companyName);
             break;
           case 'victims':
-            searchResult = await serpAPIService.searchCompanyVictims(companyName);
+            searchResult = await serpAPIService.searchVictimTestimonialsInNews(companyName);
             break;
           case 'official':
-            searchResult = await serpAPIService.searchCompanyOfficialSites(companyName);
+            searchResult = await serpAPIService.searchOfficialRegulatoryMentions(companyName);
             break;
           default:
             continue;

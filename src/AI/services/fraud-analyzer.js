@@ -78,8 +78,15 @@ class FraudAnalyzer {
         triageResults
       );
       
-      // STAGE 3B: Enhanced Rule-Based Analysis (with SerpAPI data)
-      console.log(`📊 Stage 3B: Rule-based analysis with SerpAPI insights...`);
+      // STAGE 3B: Actor Role Analysis (VICTIM vs PERPETRATOR)
+      console.log(`🎭 Stage 3B: Actor role analysis for fair fraud scoring...`);
+      const actorRoleAnalysis = await this.performActorRoleAnalysis(
+        enhancedData,
+        intelligentWebResearch
+      );
+      
+      // STAGE 3C: Enhanced Rule-Based Analysis (with SerpAPI data)
+      console.log(`📊 Stage 3C: Rule-based analysis with SerpAPI insights...`);
       const ruleBasedAnalysis = this.performEnhancedRuleBasedAnalysis(
         enhancedData, 
         intelligentWebResearch, 
@@ -92,7 +99,8 @@ class FraudAnalyzer {
         ruleBasedAnalysis, 
         triageResults,
         intelligentWebResearch,
-        enhancedData
+        enhancedData,
+        actorRoleAnalysis
       );
       
       // Add performance metrics
@@ -673,6 +681,248 @@ class FraudAnalyzer {
   }
 
   /**
+   * Performs actor role analysis to determine if company is fraud VICTIM or PERPETRATOR
+   */
+  async performActorRoleAnalysis(enhancedData, webResearch) {
+    try {
+      console.log(`🎭 Analyzing actor role for: ${enhancedData.name}`);
+      
+      // Extract news articles from web research for analysis
+      const newsArticles = this.extractNewsArticlesForActorAnalysis(webResearch);
+      
+      if (newsArticles.length === 0) {
+        console.log('📰 No news articles found for actor role analysis');
+        return {
+          actorRole: 'UNCLEAR',
+          confidence: 30,
+          reasoning: 'No news articles available for actor role analysis',
+          articles: [],
+          success: true
+        };
+      }
+      
+      console.log(`📰 Analyzing ${newsArticles.length} news articles for actor role`);
+      
+      // Use Gemini AI to analyze the actor role
+      const actorAnalysis = await this.geminiService.analyzeActorRole(
+        enhancedData.name,
+        newsArticles
+      );
+      
+      if (actorAnalysis.success) {
+        console.log(`✅ Actor role determined: ${actorAnalysis.actorRole} (${actorAnalysis.confidence}% confidence)`);
+        console.log(`🎯 Reasoning: ${actorAnalysis.reasoning.substring(0, 100)}...`);
+      } else {
+        console.warn('⚠️ Actor role analysis failed, using default');
+      }
+      
+      return actorAnalysis;
+      
+    } catch (error) {
+      console.error('❌ Actor role analysis error:', error.message);
+      return {
+        actorRole: 'UNCLEAR',
+        confidence: 30,
+        reasoning: 'Actor role analysis failed due to technical error',
+        articles: [],
+        error: error.message,
+        success: false
+      };
+    }
+  }
+  
+  /**
+   * Extract news articles from web research for actor role analysis
+   */
+  extractNewsArticlesForActorAnalysis(webResearch) {
+    const articles = [];
+    
+    try {
+      // Extract from news sources
+      if (webResearch?.sources?.news?.articles) {
+        webResearch.sources.news.articles.forEach(article => {
+          articles.push({
+            title: article.title,
+            content: article.content || article.snippet,
+            source: article.source,
+            link: article.link,
+            date: article.date,
+            type: 'news'
+          });
+        });
+      }
+      
+      // Extract from fraud reports
+      if (webResearch?.sources?.fraudReports?.reports) {
+        webResearch.sources.fraudReports.reports.forEach(report => {
+          articles.push({
+            title: report.title,
+            content: report.content || report.snippet,
+            source: report.source,
+            link: report.link,
+            date: report.date,
+            type: 'fraud_report'
+          });
+        });
+      }
+      
+      // Extract from enhanced SerpAPI results if available  
+      if (webResearch?.serpAPIResults?.searches) {
+        Object.entries(webResearch.serpAPIResults.searches).forEach(([searchType, searchData]) => {
+          if (searchData.organic_results) {
+            searchData.organic_results.forEach(result => {
+              articles.push({
+                title: result.title,
+                content: result.snippet,
+                source: result.source || 'SerpAPI',
+                link: result.link,
+                date: result.date,
+                type: `serpapi_${searchType}`
+              });
+            });
+          }
+          
+          if (searchData.news_results) {
+            searchData.news_results.forEach(result => {
+              articles.push({
+                title: result.title,
+                content: result.snippet,
+                source: result.source || 'News',
+                link: result.link,
+                date: result.date,
+                type: 'serpapi_news'
+              });
+            });
+          }
+        });
+      }
+      
+      // ADDITIONAL: Extract from news-focused SerpAPI analysis results
+      if (webResearch?.newsFocusedResults?.searches) {
+        Object.entries(webResearch.newsFocusedResults.searches).forEach(([searchType, searchData]) => {
+          if (searchData.organic_results) {
+            searchData.organic_results.forEach(result => {
+              articles.push({
+                title: result.title,
+                content: result.snippet,
+                source: result.source || `News-${searchType}`,
+                link: result.link,
+                date: result.date,
+                type: `news_focused_${searchType}`
+              });
+            });
+          }
+        });
+      }
+      
+      // ADDITIONAL: Extract from direct search results in sources
+      if (webResearch?.sources) {
+        Object.entries(webResearch.sources).forEach(([sourceType, sourceData]) => {
+          if (sourceData?.searchResults) {
+            sourceData.searchResults.forEach(result => {
+              articles.push({
+                title: result.title,
+                content: result.snippet || result.content,
+                source: result.source || sourceType,
+                link: result.link,
+                date: result.date,
+                type: `source_${sourceType}`
+              });
+            });
+          }
+        });
+      }
+      
+      // Limit to most relevant articles (max 10 for efficiency)
+      return articles.slice(0, 10);
+      
+    } catch (error) {
+      console.warn('⚠️ Error extracting news articles:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Apply fair scoring based on actor role analysis
+   */
+  applyActorRoleFairScoring(originalScore, actorRoleAnalysis, companyName) {
+    if (!actorRoleAnalysis || !actorRoleAnalysis.success) {
+      console.log('⚖️ No actor role analysis available, using original score');
+      return {
+        adjustedScore: originalScore,
+        fairnessReason: 'Actor role analysis not available'
+      };
+    }
+    
+    const { actorRole, confidence, reasoning } = actorRoleAnalysis;
+    
+    console.log(`⚖️ Applying fair scoring for ${companyName}: ${actorRole} (${confidence}% confidence)`);
+    
+    let adjustedScore = originalScore;
+    let fairnessReason = '';
+    
+    switch (actorRole) {
+      case 'VICTIM':
+        // Company was a fraud victim - should have low fraud score
+        if (confidence >= 70) {
+          adjustedScore = Math.min(originalScore, 25); // Cap at very low risk
+          fairnessReason = `Company identified as fraud VICTIM with ${confidence}% confidence. Score capped at 25 to avoid unfair penalization.`;
+          console.log(`🛡️ VICTIM protection applied: ${originalScore} → ${adjustedScore}`);
+        } else if (confidence >= 50) {
+          adjustedScore = Math.min(originalScore, 40); // Moderate protection
+          fairnessReason = `Company likely fraud VICTIM with ${confidence}% confidence. Score capped at 40 for fairness.`;
+          console.log(`🛡️ Moderate VICTIM protection: ${originalScore} → ${adjustedScore}`);
+        } else {
+          fairnessReason = `Low confidence (${confidence}%) VICTIM classification. No score adjustment applied.`;
+        }
+        break;
+        
+      case 'PERPETRATOR':
+        // Company committed fraud - should have high fraud score
+        if (confidence >= 70) {
+          adjustedScore = Math.max(originalScore, 80); // Minimum high risk
+          fairnessReason = `Company identified as fraud PERPETRATOR with ${confidence}% confidence. Score raised to minimum 80.`;
+          console.log(`⚠️ PERPETRATOR penalty applied: ${originalScore} → ${adjustedScore}`);
+        } else if (confidence >= 50) {
+          adjustedScore = Math.max(originalScore, 65); // Moderate penalty
+          fairnessReason = `Company likely fraud PERPETRATOR with ${confidence}% confidence. Score raised to minimum 65.`;
+          console.log(`⚠️ Moderate PERPETRATOR penalty: ${originalScore} → ${adjustedScore}`);
+        } else {
+          fairnessReason = `Low confidence (${confidence}%) PERPETRATOR classification. No score adjustment applied.`;
+        }
+        break;
+        
+      case 'NEUTRAL':
+        // Company in neutral context (e.g., fraud prevention services)
+        if (confidence >= 60) {
+          // Slight reduction for companies in fraud prevention context
+          adjustedScore = Math.max(10, originalScore - 10);
+          fairnessReason = `Company in NEUTRAL fraud prevention context with ${confidence}% confidence. Score slightly reduced.`;
+          console.log(`🔄 NEUTRAL context adjustment: ${originalScore} → ${adjustedScore}`);
+        } else {
+          fairnessReason = `Low confidence (${confidence}%) NEUTRAL classification. No score adjustment applied.`;
+        }
+        break;
+        
+      case 'UNCLEAR':
+      default:
+        // Insufficient information - use original score with slightly reduced confidence
+        fairnessReason = `Actor role UNCLEAR with ${confidence}% confidence. Original score maintained but with noted uncertainty.`;
+        console.log(`❓ UNCLEAR actor role: maintaining original score ${originalScore}`);
+        break;
+    }
+    
+    return {
+      adjustedScore: Math.round(adjustedScore),
+      fairnessReason,
+      originalScore,
+      actorRole,
+      roleConfidence: confidence,
+      roleReasoning: reasoning
+    };
+  }
+
+  /**
    * Performs enhanced AI analysis with web research and triage context
    */
   async performEnhancedAIAnalysis(enhancedData, webResearch, triageResults) {
@@ -751,7 +1001,7 @@ class FraudAnalyzer {
   /**
    * Combines analysis results with intelligent weighting based on data quality
    */
-  combineIntelligentAnalysisResults(aiResult, ruleResult, triageResults, webResearch, companyData) {
+  combineIntelligentAnalysisResults(aiResult, ruleResult, triageResults, webResearch, companyData, actorRoleAnalysis) {
     // Step 1: Simple entity data and evidence collection
     const entityData = {
       canonicalName: companyData.name,
@@ -777,6 +1027,14 @@ class FraudAnalyzer {
     } else {
       finalScore = Math.round(ruleResult.overallScore * 0.7 + (triageResults.initialScore || 50) * 0.3);
     }
+    
+    // Step 2.5: Actor Role-Based Fair Scoring Adjustment
+    const { adjustedScore, fairnessReason } = this.applyActorRoleFairScoring(
+      finalScore, 
+      actorRoleAnalysis, 
+      companyData.name
+    );
+    finalScore = adjustedScore;
     
     // Step 3: Simple authoritative override check
     const authoritativeOverride = { shouldApply: false };
@@ -812,6 +1070,12 @@ class FraudAnalyzer {
         dataQuality: webResearch.summary?.dataQuality || 'minimal',
         keyFindings: webResearch.summary?.keyFindings || [],
         sourcesUsed: webResearch.sourcesScraped || 0
+      },
+      actorRole: {
+        role: actorRoleAnalysis?.actorRole || 'UNCLEAR',
+        confidence: actorRoleAnalysis?.confidence || 0,
+        reasoning: actorRoleAnalysis?.reasoning || 'No actor role analysis performed',
+        fairnessAdjustment: fairnessReason || 'No fairness adjustment applied'
       }
     };
     
@@ -826,7 +1090,9 @@ class FraudAnalyzer {
       stageResults: {
         stage1_triage: triageResults,
         stage2_scraping: webResearch,
-        stage3_analysis: { ai: aiResult, rules: ruleResult }
+        stage3a_ai: aiResult,
+        stage3b_actorRole: actorRoleAnalysis,
+        stage3c_rules: ruleResult
       }
     };
   }

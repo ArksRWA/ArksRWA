@@ -675,164 +675,395 @@ class GeminiService {
   }
 
   /**
+   * Safe getter function for accessing nested object properties
+   */
+  safeGet(obj, path, fallback = null) {
+    return path.split('.').reduce((o, k) => o?.[k], obj) ?? fallback;
+  }
+
+  /**
    * Creates specialized Indonesian fraud detection prompt with web research data
+   * Enhanced with structured format, explicit weighting, and defensive programming
    */
   createIndonesianFraudPrompt(companyData, webResearch = null) {
     // Validate company data before creating prompt
     const validation = this.dataValidator.validateCompanyData(companyData);
     if (!validation.isValid) {
-      throw new Error(`Invalid company  ${validation.issues.join(', ')}`);
+      throw new Error(`Invalid company data: ${validation.issues.join(', ')}`);
     }
     
     const { name, description, region } = validation.cleanedData;
     
-    // Build enhanced prompt with web research (evidence-based analysis)
+    // Safe access to web research data with fallbacks
+    const safeWebResearch = webResearch && !webResearch.fallback ? {
+      ojk: {
+        registrationStatus: this.safeGet(webResearch, 'sources.ojk.registrationStatus', 'not found'),
+        foundEntries: this.safeGet(webResearch, 'sources.ojk.foundEntries', 0),
+        details: this.safeGet(webResearch, 'sources.ojk.details', [])
+      },
+      news: {
+        totalArticles: this.safeGet(webResearch, 'sources.news.totalArticles', 0),
+        sentiment: this.safeGet(webResearch, 'sources.news.sentiment', 'neutral'),
+        fraudMentions: this.safeGet(webResearch, 'sources.news.fraudMentions', 0),
+        articles: this.safeGet(webResearch, 'sources.news.articles', [])
+      },
+      businessInfo: {
+        businessRegistration: this.safeGet(webResearch, 'sources.businessInfo.businessRegistration', 'unknown'),
+        digitalFootprint: this.safeGet(webResearch, 'sources.businessInfo.digitalFootprint', 'minimal'),
+        legitimacySignals: this.safeGet(webResearch, 'sources.businessInfo.legitimacySignals', [])
+      },
+      fraudReports: {
+        fraudReportsFound: this.safeGet(webResearch, 'sources.fraudReports.fraudReportsFound', 0),
+        riskLevel: this.safeGet(webResearch, 'sources.fraudReports.riskLevel', 'unknown'),
+        warnings: this.safeGet(webResearch, 'sources.fraudReports.warnings', [])
+      },
+      summary: {
+        overallRisk: this.safeGet(webResearch, 'summary.overallRisk', 'unknown'),
+        confidence: this.safeGet(webResearch, 'summary.confidence', 0),
+        keyFindings: this.safeGet(webResearch, 'summary.keyFindings', []),
+        dataQuality: this.safeGet(webResearch, 'summary.dataQuality', 'unavailable')
+      }
+    } : null;
+
+    // === CONTEXT SECTION ===
     let prompt = `
-Analyze the following company for fraud risk based on evidence found through web research and content analysis. Focus purely on the company name and description without making industry assumptions or bias.
+INDONESIAN FRAUD DETECTION ANALYSIS
 
 **COMPANY INFORMATION:**
 - Name: ${name}
 - Description: ${description}
-- Region: ${region || 'Indonesia'}`;
+- Region: ${region || 'Indonesia'}
 
-    // Add web research section if available
-    if (webResearch && !webResearch.fallback) {
-      // Validate web research data
-      const webValidation = this.dataValidator.validateWebResearchData(webResearch);
-      const validatedWebData = webValidation.isValid ? webValidation.cleanedData : webResearch;
-      
+**INDONESIAN REGULATORY CONTEXT:**
+• Financial services companies require OJK (Otoritas Jasa Keuangan) registration
+• Non-financial companies (retail, manufacturing, agriculture) are NOT expected to have OJK registration
+• Traditional businesses may have minimal digital presence without being fraudulent
+• Focus on actual evidence rather than assumptions about business type
+
+**LEGITIMATE INDONESIAN BANKS (Score 0-15 unless fraud evidence found):**
+• PT Bank Mandiri (Persero) Tbk - State bank, OJK & BI regulated
+• PT Bank Negara Indonesia (Persero) Tbk / BNI - State bank, OJK & BI regulated
+• PT Bank Rakyat Indonesia (Persero) Tbk / BRI - State bank, OJK & BI regulated
+• PT Bank Central Asia Tbk / BCA - Major private bank, OJK regulated
+• PT Bank Tabungan Negara (Persero) Tbk / BTN - State bank, OJK regulated`;
+
+    // === WEB RESEARCH DATA SECTION ===
+    if (safeWebResearch) {
       prompt += `
 
 **INTERNET RESEARCH FINDINGS:**
-**OJK Registration Status:** ${validatedWebData.sources.ojk.registrationStatus}
-- Found ${validatedWebData.sources.ojk.foundEntries} OJK-related entries
-${validatedWebData.sources.ojk.details.length > 0 ? 
-  '- Key findings: ' + validatedWebData.sources.ojk.details.map(d => d.title).join('; ') : ''}
+**OJK Registration Status:** ${safeWebResearch.ojk.registrationStatus}
+- Found ${safeWebResearch.ojk.foundEntries} OJK-related entries
+${safeWebResearch.ojk.details.length > 0 ? 
+  '- Key findings: ' + safeWebResearch.ojk.details.slice(0, 3).map(d => d.title || 'untitled').join('; ') : ''}
 
 **News Coverage Analysis:**
-- Total articles found: ${validatedWebData.sources.news.totalArticles}
-- News sentiment: ${validatedWebData.sources.news.sentiment}
-- Fraud mentions: ${validatedWebData.sources.news.fraudMentions}
-${validatedWebData.sources.news.articles.length > 0 ?
-  '- Recent headlines: ' + validatedWebData.sources.news.articles.slice(0, 2).map(a => a.title).join('; ') : ''}
+- Total articles found: ${safeWebResearch.news.totalArticles}
+- News sentiment: ${safeWebResearch.news.sentiment}
+- Fraud mentions: ${safeWebResearch.news.fraudMentions}
+${safeWebResearch.news.articles.length > 0 ?
+  '- Recent headlines: ' + safeWebResearch.news.articles.slice(0, 2).map(a => a.title || 'untitled').join('; ') : ''}
 
 **Business Registration:**
-- Registration status: ${validatedWebData.sources.businessInfo.businessRegistration}
-- Digital footprint: ${validatedWebData.sources.businessInfo.digitalFootprint}
-- Legitimacy signals: ${validatedWebData.sources.businessInfo.legitimacySignals.join(', ')}
+- Registration status: ${safeWebResearch.businessInfo.businessRegistration}
+- Digital footprint: ${safeWebResearch.businessInfo.digitalFootprint}
+- Legitimacy signals: ${Array.isArray(safeWebResearch.businessInfo.legitimacySignals) ? 
+    safeWebResearch.businessInfo.legitimacySignals.join(', ') : 'none found'}
 
 **Fraud Reports:**
-- Fraud reports found: ${validatedWebData.sources.fraudReports.fraudReportsFound}
-- Risk assessment: ${validatedWebData.sources.fraudReports.riskLevel}
-${validatedWebData.sources.fraudReports.warnings.length > 0 ?
-  '- Warnings: ' + validatedWebData.sources.fraudReports.warnings.map(w => w.title).join('; ') : ''}
+- Fraud reports found: ${safeWebResearch.fraudReports.fraudReportsFound}
+- Risk assessment: ${safeWebResearch.fraudReports.riskLevel}
+${safeWebResearch.fraudReports.warnings.length > 0 ?
+  '- Warnings: ' + safeWebResearch.fraudReports.warnings.slice(0, 2).map(w => w.title || 'untitled').join('; ') : ''}
 
 **Research Summary:**
-- Overall risk from web research: ${validatedWebData.summary.overallRisk}
-- Data confidence: ${validatedWebData.summary.confidence}%
-- Key findings: ${Array.isArray(validatedWebData.summary.keyFindings) ? validatedWebData.summary.keyFindings.join(', ') : 'None available'}
-- Data quality: ${validatedWebData.summary.dataQuality}`;
+- Overall risk from web research: ${safeWebResearch.summary.overallRisk}
+- Data confidence: ${safeWebResearch.summary.confidence}%
+- Key findings: ${Array.isArray(safeWebResearch.summary.keyFindings) ? 
+    safeWebResearch.summary.keyFindings.join(', ') : 'none available'}
+- Data quality: ${safeWebResearch.summary.dataQuality}`;
     }
 
+    // === ANALYSIS RULES SECTION ===
     prompt += `
 
-**EVIDENCE-BASED ANALYSIS FRAMEWORK:**
-Analyze this company purely based on evidence found in the company description and internet research. Do not make assumptions based on business categories or industries.`;
+**ANALYSIS RULES:**
 
-    return prompt + `
+**SCORING FORMULA:**
+fraudScore = (fraudIndicators.score × 0.5) + (regulatoryWarnings.score × 0.25) + (legitimacyEvidence.score × 0.25) + (publicSentiment.score × 0.1)
 
-1. **FRAUD INDICATORS & FINANCIAL TROUBLES** (Weight: 50%)
-   - Scan for fraud keywords: "investasi bodong", "skema ponzi", "money game", "penipuan", "scam"
-   - Look for unrealistic profit promises or "guaranteed returns"
-   - Check for pyramid scheme language or MLM red flags
-   - Search for evidence of financial difficulties, bankruptcy, or business closure
-   - Look for victim testimonials, complaints, or withdrawal problems
-   ${webResearch ? '- Analyze news reports, fraud mentions, and negative sentiment from research' : ''}
+**ANALYSIS CATEGORIES:**
 
-2. **REGULATORY WARNINGS & SANCTIONS** (Weight: 25%)
-   - Check for any OJK warnings, sanctions, or blacklist mentions (ONLY if company claims financial services)
-   - Look for PPATK suspicious transaction reports or investigations  
-   - Search for government investigations or regulatory actions
-   - Find evidence of license revocations or suspended operations
-   - Check for any official warnings from Indonesian authorities
-   ${webResearch ? '- Review internet research findings about regulatory status and warnings' : ''}
+1. **FRAUD INDICATORS (50% weight)**
+   • Scan for Indonesian fraud terms: "investasi bodong", "skema ponzi", "money game", "penipuan", "scam"
+   • Look for unrealistic profit promises or "guaranteed returns"
+   • Check for pyramid scheme/MLM language
+   • Evidence of financial troubles, bankruptcy, business closure
+   • Victim testimonials, complaints, withdrawal problems
+   ${safeWebResearch ? '• Weight news reports and fraud mentions heavily' : ''}
 
-3. **BUSINESS LEGITIMACY EVIDENCE** (Weight: 25%)
-   - Look for proper Indonesian business entity indicators: "PT", "CV", "Tbk"
-   - Check for mentions of NPWP, NIB, or other business registration documents
-   - Analyze language for professional business communication vs. suspicious marketing
-   - Look for evidence of established operations and real business activities
-   - Search for positive customer reviews, awards, or recognition
-   ${webResearch ? '- Consider business registration and legitimacy signals from internet research' : ''}
+2. **REGULATORY WARNINGS (25% weight)**
+   • OJK warnings/sanctions (ONLY for financial services companies)
+   • PPATK suspicious transaction reports
+   • Government investigations or regulatory actions
+   • License revocations or suspended operations
+   • Official warnings from Indonesian authorities
+   ${safeWebResearch ? '• Factor in regulatory findings from web research' : ''}
 
-4. **NEGATIVE PUBLIC SENTIMENT** (Weight: 10%)
-   - Search for negative news coverage or media reports
-   - Look for social media complaints or warning posts
-   - Check for discussion forum complaints (Kaskus, etc.)
-   - Find evidence of customer dissatisfaction or problems
-   - Look for any public advisories or community warnings
-   ${webResearch ? '- Analyze sentiment and public opinion from internet research findings' : ''}
+3. **LEGITIMACY EVIDENCE (25% weight - INVERTED SCORING)**
+   • Indonesian business entities: "PT", "CV", "Tbk"
+   • Business registration docs: NPWP, NIB, OSS
+   • Professional communication vs suspicious marketing
+   • Established operations and real business activities
+   • Positive reviews, awards, recognition
+   ${safeWebResearch ? '• Consider registration and legitimacy signals from research' : ''}
 
-**CRITICAL: Your response must be valid JSON only. Do not include any text before or after the JSON object.**
+4. **PUBLIC SENTIMENT (10% weight)**
+   • Negative news coverage or media reports
+   • Social media complaints or warning posts
+   • Forum complaints (Kaskus, etc.)
+   • Customer dissatisfaction evidence
+   • Public advisories or community warnings
+   ${safeWebResearch ? '• Include sentiment analysis from web research' : ''}
 
-**OUTPUT REQUIREMENTS:**
-Respond with a JSON object in this exact format:
+**CRITICAL EDGE CASES:**
+• When legitimacy evidence conflicts with fraud reports: Weight recent, specific fraud evidence higher
+• Traditional businesses with minimal digital presence: Do NOT penalize for weak online footprint
+• Financial vs non-financial companies: Only expect OJK compliance for financial services
+• Fraud prevention companies: Reduce fraud keyword penalties when business is fraud prevention services
+
+**STRICT JSON OUTPUT REQUIREMENT:**
+⚠️ WARNING: Your response MUST be valid JSON only. Any non-JSON text will cause system failure.
+⚠️ Do NOT include explanations, comments, or text before/after the JSON object.
+⚠️ Ensure all fields are present and properly formatted as shown in the example below.
+
+**REQUIRED OUTPUT FORMAT WITH EXAMPLE:**
+⚠️ CRITICAL: riskLevel must be exactly one of: "low", "medium", "high", "critical" (no other values allowed)
 
 {
-  "fraudScore": [0-100 integer],
-  "riskLevel": "[low|medium|high|critical]",
-  "confidence": [0-100 integer],
+  "fraudScore": 25,
+  "riskLevel": "low",
+  "confidence": 85,
   "analysis": {
     "fraudIndicators": {
-      "score": [0-100],
-      "detectedKeywords": ["list of fraud keywords found"],
-      "financialTroubles": ["evidence of financial problems or bankruptcy"],
-      "victimReports": ["testimonials or complaints found"]
+      "score": 15,
+      "detectedKeywords": ["none found"],
+      "financialTroubles": ["no evidence of financial problems"],
+      "victimReports": ["no victim testimonials found"]
     },
     "regulatoryWarnings": {
-      "score": [0-100],
-      "officialWarnings": ["list of government warnings or sanctions"],
-      "investigations": ["ongoing or past investigations"]
+      "score": 10,
+      "officialWarnings": ["no official warnings found"],
+      "investigations": ["no ongoing investigations"]
     },
     "legitimacyEvidence": {
-      "score": [0-100],
-      "businessMarkers": ["list of legitimate business indicators"],
-      "registrationEvidence": ["business registration documents found"]
+      "score": 90,
+      "businessMarkers": ["PT entity", "professional description", "established business"],
+      "registrationEvidence": ["proper business entity structure"]
     },
     "publicSentiment": {
-      "score": [0-100],
-      "negativeReports": ["negative news or media coverage"],
-      "customerComplaints": ["social media or forum complaints"]
+      "score": 20,
+      "negativeReports": ["no negative media coverage"],
+      "customerComplaints": ["no customer complaints found"]
     },
     "webResearchImpact": {
-      "score": [0-100],
-      "keyFindings": ["list of important internet research findings"],
-      "dataQuality": "[comprehensive|good|limited|minimal|unavailable]"
+      "score": ${safeWebResearch ? '25' : '0'},
+      "keyFindings": ${safeWebResearch ? '["OJK registration confirmed", "positive news coverage"]' : '["no web research conducted"]'},
+      "dataQuality": "${safeWebResearch ? safeWebResearch.summary.dataQuality : 'unavailable'}"
     }
   },
-  "reasoning": "Brief explanation of the overall assessment incorporating all available data",
-  "recommendations": ["list of specific recommendations"],
-  "requiresManualReview": boolean
+  "reasoning": "Company shows strong legitimacy markers with PT entity structure and professional description. No fraud indicators detected. ${safeWebResearch ? 'Web research confirms positive standing.' : 'Analysis based on description only.'}",
+  "recommendations": ["Monitor for any future regulatory changes", "Verify business registration documents if needed"],
+  "requiresManualReview": false
 }
 
-**EVIDENCE-BASED SCORING GUIDE:**
-- 0-20: Very Low Risk (Strong legitimacy evidence, no fraud indicators, positive reputation)
-- 21-40: Low Risk (Good legitimacy evidence, minimal concerns, stable business)
-- 41-60: Medium Risk (Limited evidence, some concerns, needs more investigation)
-- 61-80: High Risk (Multiple fraud indicators, negative evidence, financial troubles)
-- 81-100: Critical Risk (Clear fraud evidence, victim reports, regulatory warnings)
+**SCORING GUIDELINES:**
+• 0-20: Very Low Risk (Strong legitimacy, no fraud indicators)
+• 21-40: Low Risk (Good legitimacy, minimal concerns)
+• 41-60: Medium Risk (Limited evidence, some concerns)
+• 61-80: High Risk (Multiple fraud indicators, significant concerns)
+• 81-100: Critical Risk (Clear fraud evidence, regulatory warnings)
 
-**IMPORTANT ANALYSIS PRINCIPLES:**
-- Base assessment ONLY on evidence found, not on industry assumptions
-- Prioritize factual internet research findings over speculation
-- Look for actual fraud reports, victim testimonials, and regulatory warnings
-- Focus on financial troubles, bankruptcy, or business closure evidence
-- Consider negative sentiment and public complaints as risk indicators
-- Search for specific scam patterns (Ponzi schemes, guaranteed returns, MLM)
-- Distinguish between fraud prevention companies vs fraudulent operations
-${webResearch ? '- Weight internet research findings heavily in final assessment' : ''}
+**ANALYSIS PRINCIPLES:**
+• Evidence-based assessment only - no industry assumptions
+• Absence of fraud evidence is positive (lowers score)
+• Absence of news coverage is neutral (doesn't increase score)
+• Prioritize recent, specific evidence over general patterns
+• ${safeWebResearch ? 'Weight internet research findings heavily in final assessment' : 'Base analysis on company description and name only'}
 
-Begin your analysis now:`;
+BEGIN ANALYSIS - RESPOND WITH JSON ONLY:`;
+
+    return prompt;
+  }
+
+  /**
+   * Analyze actor role in fraud cases (VICTIM vs PERPETRATOR) for fair scoring
+   */
+  async analyzeActorRole(companyName, newsArticles = []) {
+    if (this.testMode) {
+      return {
+        actorRole: 'UNCLEAR',
+        confidence: 50,
+        reasoning: 'Test mode - no actual analysis performed',
+        articles: []
+      };
+    }
+
+    try {
+      const prompt = this.createActorRolePrompt(companyName, newsArticles);
+      
+      const result = await this.model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: this.config,
+      });
+
+      const response = await result.response;
+      const text = response.text();
+      
+      console.log('🎭 Actor role analysis response length:', text.length);
+      console.log('🎭 Actor role analysis preview:', text.substring(0, 200));
+      
+      // Extract JSON from response
+      let jsonMatch = text.match(/\{[\s\S]*\}/);
+      
+      if (!jsonMatch) {
+        const codeBlockMatch = text.match(/```(?:json)?([\s\S]*?)```/);
+        if (codeBlockMatch) {
+          jsonMatch = codeBlockMatch[1].match(/\{[\s\S]*\}/);
+        }
+      }
+      
+      if (!jsonMatch) {
+        console.warn('❌ No valid JSON in actor role analysis:', text);
+        return {
+          actorRole: 'UNCLEAR',
+          confidence: 30,
+          reasoning: 'Failed to parse actor role analysis',
+          articles: [],
+          error: 'Invalid JSON response'
+        };
+      }
+
+      const analysis = JSON.parse(jsonMatch[0]);
+      console.log('✅ Actor role analysis completed:', analysis.actorRole, `(${analysis.confidence}% confidence)`);
+      
+      return {
+        actorRole: analysis.actorRole || 'UNCLEAR',
+        confidence: analysis.confidence || 30,
+        reasoning: analysis.reasoning || 'No reasoning provided',
+        articles: analysis.articles || [],
+        evidenceDetails: analysis.evidenceDetails || {},
+        success: true
+      };
+
+    } catch (error) {
+      console.error('❌ Actor role analysis failed:', error.message);
+      return {
+        actorRole: 'UNCLEAR',
+        confidence: 30,
+        reasoning: 'Analysis failed due to technical error',
+        articles: [],
+        error: error.message,
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Creates prompt for actor role analysis
+   */
+  createActorRolePrompt(companyName, newsArticles = []) {
+    const articlesText = newsArticles.map((article, index) => 
+      `**Article ${index + 1}:**
+Title: ${article.title || 'No title'}
+Source: ${article.source || 'Unknown source'}
+Content: ${article.snippet || article.content || 'No content'}
+URL: ${article.link || 'No URL'}
+Date: ${article.date || 'No date'}
+---`
+    ).join('\n\n');
+
+    return `
+ACTOR ROLE ANALYSIS FOR FRAUD CASES
+
+**COMPANY TO ANALYZE:** ${companyName}
+
+**NEWS ARTICLES AND REPORTS:**
+${articlesText}
+
+**ANALYSIS TASK:**
+Determine the role of "${companyName}" in fraud-related incidents based on the news articles provided. This is critical for fair fraud scoring.
+
+**POSSIBLE ROLES:**
+1. **PERPETRATOR** - Company committed fraud, scammed customers, ran illegal schemes
+2. **VICTIM** - Company was targeted by fraudsters, suffered from cybercrime, had data breached
+3. **NEUTRAL** - Company mentioned in fraud prevention context, expert commentary, or regulatory guidance
+4. **UNCLEAR** - Insufficient information or ambiguous role
+
+**ANALYSIS CRITERIA:**
+
+**PERPETRATOR Indicators:**
+- Company accused of scamming customers
+- Company running Ponzi schemes, investment fraud, MLM scams
+- Company leaders arrested for fraud
+- Customers reporting losses due to company actions
+- Regulatory sanctions against the company for fraudulent practices
+- Court cases where company is defendant in fraud cases
+
+**VICTIM Indicators:**
+- Company suffered data breaches or cyberattacks
+- Company customers were targeted by impersonation scams
+- Company reported fraud attempts to authorities
+- Company warned customers about scams using their name
+- Company was subject to false advertising or impersonation
+- Company is plaintiff in fraud cases against others
+
+**NEUTRAL Indicators:**
+- Company provides fraud prevention services
+- Company executives giving expert opinions on fraud
+- Company mentioned in regulatory guidelines as example
+- Company participating in anti-fraud initiatives
+
+**INDONESIAN CONTEXT:**
+- Major Indonesian banks (BNI, BRI, Mandiri, BCA, BTN) are state-regulated institutions - default to NEUTRAL unless specific evidence
+- Consider OJK warnings (against company = PERPETRATOR, by company = VICTIM/NEUTRAL)
+- Analyze victim testimonials ("korban", "tertipu", "rugi")
+- Check investigation status ("diselidiki", "tersangka" = PERPETRATOR)
+- Look for company statements defending against accusations
+- Banks mentioned in fraud prevention context = NEUTRAL, not UNCLEAR
+
+**CRITICAL: Your response must be valid JSON only.**
+
+**OUTPUT FORMAT:**
+{
+  "actorRole": "[PERPETRATOR|VICTIM|NEUTRAL|UNCLEAR]",
+  "confidence": [0-100 integer],
+  "reasoning": "Detailed explanation of the decision based on evidence",
+  "articles": [
+    {
+      "articleIndex": 1,
+      "relevance": "[HIGH|MEDIUM|LOW]",
+      "roleEvidence": "What this article reveals about the company's role",
+      "keyQuotes": ["relevant quotes from the article"]
+    }
+  ],
+  "evidenceDetails": {
+    "perpetratorEvidence": ["list of evidence suggesting company committed fraud"],
+    "victimEvidence": ["list of evidence suggesting company was fraud victim"],
+    "neutralEvidence": ["list of evidence suggesting neutral role"],
+    "ambiguousEvidence": ["evidence that could support multiple interpretations"]
+  }
+}
+
+**ANALYSIS PRINCIPLES:**
+- Prioritize recent and credible news sources
+- Look for direct quotes and factual reporting
+- Consider the tone of articles (accusatory vs. sympathetic)
+- Distinguish between allegations and proven facts
+- Weight multiple consistent reports higher than single mentions
+- Consider the company's response and defense statements
+
+Begin analysis now:`;
   }
 
   /**

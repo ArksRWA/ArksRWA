@@ -132,34 +132,34 @@ export default function DashboardPage() {
         {/* Portfolio Overview */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
           <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-400">Portfolio</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-normal text-gray-600 uppercase tracking-wider">Portfolio</h3>
               <svg className="w-12 h-12 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
               </svg>
             </div>
-            <div className="text-2xl font-bold text-white">{Number(totalValue).toLocaleString()}</div>
+            <div className="text-4xl font-black text-white">{Number(totalValue).toLocaleString()}</div>
           </div>
 
           <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-400">Invested</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-normal text-gray-600 uppercase tracking-wider">Invested</h3>
               <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
             </div>
-            <div className="text-2xl font-bold text-white">{Number(totalInvested).toLocaleString()}</div>
+            <div className="text-4xl font-black text-white">{Number(totalInvested).toLocaleString()}</div>
           </div>
 
           <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-400">P&L</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-normal text-gray-600 uppercase tracking-wider">P&L</h3>
               <svg className="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
               </svg>
             </div>
             <div className="flex items-center justify-between gap-4">
-              <div className={`text-2xl font-bold ${Number(totalProfitLoss) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              <div className={`text-3xl font-black ${Number(totalProfitLoss) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                 {Number(totalProfitLoss) >= 0 ? '+' : ''}{Number(totalProfitLoss).toLocaleString()}
               </div>
               <div className={`text-2xl font-bold ${Number(totalProfitLossPercent) >= 0 ? 'text-green-400' : 'text-red-400'}`}>

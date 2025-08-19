@@ -47,10 +47,22 @@ router.get('/test-connection', async (req, res) => {
 
 /**
  * POST /analyze-company/serpapi
- * NEW: Enhanced fraud analysis using SerpAPI + Gemini AI
+ * NEW: Enhanced fraud analysis using SerpAPI + Gemini AI with 15-minute timeout support
  * Superior data quality and evidence-based scoring
  */
 router.post('/analyze-company/serpapi', async (req, res) => {
+  // Set extended timeout for this request (15 minutes)
+  const requestTimeout = parseInt(process.env.REQUEST_TIMEOUT_MS) || 900000; // 15 minutes
+  req.setTimeout(requestTimeout);
+  res.setTimeout(requestTimeout);
+  
+  // Create timeout promise for graceful handling
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(`Analysis timeout: Request exceeded ${requestTimeout/60000} minutes limit`));
+    }, requestTimeout);
+  });
+  
   try {
     // Validate request data
     const { error, value } = companyAnalysisSchema.validate(req.body);
@@ -64,12 +76,16 @@ router.post('/analyze-company/serpapi', async (req, res) => {
 
     const companyData = value;
     
-    // Log SerpAPI analysis request
+    // Log SerpAPI analysis request with timeout info
     console.log(`🔍 Starting SerpAPI-enhanced analysis for: ${companyData.name}`);
+    console.log(`⏱️ Request timeout set to: ${requestTimeout}ms (${requestTimeout/60000} minutes)`);
     
-    // Perform SerpAPI-enhanced fraud analysis
+    // Perform SerpAPI-enhanced fraud analysis with timeout protection
     const analysisStart = Date.now();
-    const result = await fraudAnalyzer.analyzeCompanyWithSerpAPI(companyData);
+    const analysisPromise = fraudAnalyzer.analyzeCompanyWithSerpAPI(companyData);
+    
+    // Race between analysis and timeout
+    const result = await Promise.race([analysisPromise, timeoutPromise]);
     const analysisTime = Date.now() - analysisStart;
     
     console.log(`✅ SerpAPI analysis completed in ${analysisTime}ms - Score: ${result.fraudScore}, Risk: ${result.riskLevel}`);
@@ -144,6 +160,25 @@ router.post('/analyze-company/serpapi', async (req, res) => {
   } catch (error) {
     console.error(`SerpAPI analysis error for ${req.body?.name || 'unknown'}:`, error);
     
+    // Handle timeout specifically
+    if (error.message.includes('timeout') || error.message.includes('exceeded')) {
+      return res.status(408).json({
+        success: false,
+        error: 'Analysis timeout',
+        message: `Analysis exceeded the ${requestTimeout/60000}-minute time limit`,
+        details: {
+          timeoutMs: requestTimeout,
+          timeoutMinutes: requestTimeout/60000,
+          suggestion: 'Try with a simpler company analysis or check if the company exists',
+          fallbackAvailable: true
+        },
+        fallback: 'Traditional analysis method available',
+        recommendation: 'Use /analyze-company endpoint for faster analysis',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Handle other errors
     res.status(500).json({
       success: false,
       error: 'SerpAPI analysis failed',

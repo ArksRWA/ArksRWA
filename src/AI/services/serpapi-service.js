@@ -17,7 +17,8 @@ export class SerpAPIService {
     this.apiKey = process.env.SERPAPI_API_KEY;
     this.rateLimit = parseInt(process.env.SERPAPI_RATE_LIMIT_MS) || 1000;
     this.maxRetries = parseInt(process.env.SERPAPI_MAX_RETRIES) || 3;
-    this.timeout = parseInt(process.env.SERPAPI_TIMEOUT_MS) || 10000;
+    this.timeout = parseInt(process.env.SERPAPI_TIMEOUT_MS) || 120000;
+    this.extendedTimeout = parseInt(process.env.SERPAPI_EXTENDED_TIMEOUT_MS) || 300000;
     this.dailyQuota = parseInt(process.env.SERPAPI_QUOTA_DAILY) || 1000;
     this.cacheTTL = parseInt(process.env.SERPAPI_CACHE_TTL_HOURS) || 24;
     
@@ -172,7 +173,7 @@ export class SerpAPIService {
   }
 
   /**
-   * Execute SerpAPI search with retry logic
+   * Execute SerpAPI search with retry logic and extended timeout support
    */
   async executeSearch(engine, query, options = {}) {
     if (!this.apiKey || this.apiKey === 'your-serpapi-key-here') {
@@ -204,10 +205,14 @@ export class SerpAPIService {
       try {
         console.log(chalk.blue(`🔍 SerpAPI search (attempt ${attempt}): ${query.substring(0, 50)}...`));
         
+        // Use extended timeout for comprehensive analysis or regular timeout for quick searches
+        const timeoutMs = options.useExtendedTimeout ? this.extendedTimeout : this.timeout;
+        console.log(chalk.gray(`   Using ${timeoutMs}ms timeout (${timeoutMs === this.extendedTimeout ? 'extended' : 'standard'})`));
+        
         const result = await Promise.race([
           getJson(searchParams),
           new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Search timeout')), this.timeout)
+            setTimeout(() => reject(new Error(`Search timeout after ${timeoutMs}ms`)), timeoutMs)
           )
         ]);
 
@@ -287,7 +292,7 @@ export class SerpAPIService {
   /**
    * Search for investigative journalism on fraud
    */
-  async searchFraudInvestigativeNews(companyName) {
+  async searchFraudInvestigativeNews(companyName, options = {}) {
     const investigativeSources = this.buildSiteQuery([
       ...this.newsSources.tier4.sources, // Investigative journalism
       ...this.newsSources.tier1.sources  // Premium sources
@@ -299,14 +304,15 @@ export class SerpAPIService {
       gl: 'id',
       hl: 'id',
       location: 'Indonesia',
-      num: 15
+      num: 15,
+      ...options
     });
   }
 
   /**
    * Search for financial crime coverage in business news
    */
-  async searchFinancialCrimeNews(companyName) {
+  async searchFinancialCrimeNews(companyName, options = {}) {
     const financialSources = this.buildSiteQuery([
       ...this.newsSources.tier3.sources, // Financial specialists
       ...this.newsSources.tier1.sources  // Premium sources
@@ -318,7 +324,8 @@ export class SerpAPIService {
       gl: 'id',
       hl: 'id',
       location: 'Indonesia',
-      num: 12
+      num: 12,
+      ...options
     });
   }
 
@@ -405,13 +412,14 @@ export class SerpAPIService {
   }
 
   /**
-   * News-focused company analysis with credibility scoring
+   * News-focused company analysis with credibility scoring and extended timeout support
    */
   async analyzeCompany(companyName, options = {}) {
     const {
       skipOnConclusiveEvidence = true,
       maxSearches = 6,
-      priority = 'balanced' // 'speed', 'balanced', 'thorough'
+      priority = 'balanced', // 'speed', 'balanced', 'thorough'
+      useExtendedTimeout = false // Enable for 15-minute timeout scenarios
     } = options;
 
     console.log(chalk.blue(`📰 Starting news-focused SerpAPI analysis for: ${companyName}`));
@@ -453,27 +461,30 @@ export class SerpAPIService {
       try {
         let searchResult;
         
+        // Pass extended timeout option to all search methods
+        const searchOptions = useExtendedTimeout ? { useExtendedTimeout: true } : {};
+        
         switch (searchType) {
           case 'fraudInvestigative':
-            searchResult = await this.searchFraudInvestigativeNews(companyName);
+            searchResult = await this.searchFraudInvestigativeNews(companyName, searchOptions);
             break;
           case 'financialCrime':
-            searchResult = await this.searchFinancialCrimeNews(companyName);
+            searchResult = await this.searchFinancialCrimeNews(companyName, searchOptions);
             break;
           case 'regulatoryNews':
-            searchResult = await this.searchRegulatoryNewsAlerts(companyName);
+            searchResult = await this.searchRegulatoryNewsAlerts(companyName, searchOptions);
             break;
           case 'victimTestimonials':
-            searchResult = await this.searchVictimTestimonialsInNews(companyName);
+            searchResult = await this.searchVictimTestimonialsInNews(companyName, searchOptions);
             break;
           case 'reputationNews':
-            searchResult = await this.searchCompanyReputationNews(companyName);
+            searchResult = await this.searchCompanyReputationNews(companyName, searchOptions);
             break;
           case 'recentTrends':
-            searchResult = await this.searchRecentNewsTrends(companyName);
+            searchResult = await this.searchRecentNewsTrends(companyName, searchOptions);
             break;
           case 'officialRegulatory':
-            searchResult = await this.searchOfficialRegulatoryMentions(companyName);
+            searchResult = await this.searchOfficialRegulatoryMentions(companyName, searchOptions);
             break;
           default:
             continue;

@@ -22,12 +22,13 @@ class FraudAnalyzer {
       critical: [86, 100]
     };
     
-    // Evidence-based configuration (no industry bias)
+    // Evidence-based configuration (no industry bias)  
     this.config = {
       // Cache settings
       cacheExpiryHours: 24,
       maxRetries: 3,
-      timeoutMs: 30000
+      timeoutMs: parseInt(process.env.ANALYSIS_TIMEOUT_MS) || 900000, // 15 minutes default
+      extendedTimeoutMs: parseInt(process.env.EXTENDED_ANALYSIS_TIMEOUT_MS) || 900000
     };
     
     // Analysis cache
@@ -60,11 +61,12 @@ class FraudAnalyzer {
       console.log(`🧠 Stage 1: Performing intelligent triage...`);
       const triageResults = await this.triageService.performInitialTriage(companyData);
       
-      // STAGE 2: SerpAPI-Enhanced Context-Aware Web Scraping
+      // STAGE 2: SerpAPI-Enhanced Context-Aware Web Scraping with extended timeout
       console.log(`🌐 Stage 2: SerpAPI-enhanced context-aware scraping (${triageResults.scrapingStrategy.level} strategy)...`);
       const intelligentWebResearch = await this.contextAwareScraper.scrapeWithSerpAPI(
         companyData, 
-        triageResults
+        triageResults,
+        { useExtendedTimeout: true } // Enable 15-minute timeout for comprehensive analysis
       );
 
       // Prepare enhanced company data with triage insights

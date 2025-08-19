@@ -84,12 +84,20 @@ app.use('*', (req, res) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
+// Start server with extended timeout support
+const server = app.listen(PORT, () => {
   console.log(`🚀 ARKS RWA AI Service running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔐 Auth required: ${process.env.AUTH_TOKEN ? 'Yes' : 'No'}`);
   console.log(`🤖 Gemini API: ${process.env.GEMINI_API_KEY ? 'Configured' : 'Missing'}`);
+  
+  // Configure extended timeout support for worst-case scenarios (15 minutes)
+  const serverTimeout = parseInt(process.env.EXPRESS_SERVER_TIMEOUT_MS) || 960000; // 16 minutes default
+  server.timeout = serverTimeout;
+  server.keepAliveTimeout = serverTimeout;
+  server.headersTimeout = serverTimeout + 1000; // Slightly longer than server timeout
+  
+  console.log(`⏱️ Server timeout configured: ${serverTimeout}ms (${serverTimeout/60000} minutes)`);
 });
 
 // Graceful shutdown

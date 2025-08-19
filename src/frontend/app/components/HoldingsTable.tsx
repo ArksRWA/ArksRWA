@@ -20,29 +20,21 @@ interface HoldingData {
 
 interface HoldingsTableProps {
   holdings: HoldingData[];
-  onTransfer?: (companyId: number) => void;
   onTrade?: (companyId: number) => void;
-  showActions?: boolean;
   showHeader?: boolean;
   className?: string;
 }
 
 export default function HoldingsTable({ 
   holdings, 
-  onTransfer, 
   onTrade, 
-  showActions = true,
   showHeader = true,
   className = "" 
 }: HoldingsTableProps) {
   const router = useRouter();
 
-  const handleTransfer = (companyId: number) => {
-    if (onTransfer) {
-      onTransfer(companyId);
-    } else {
-      router.push(`/transfer?company=${companyId}`);
-    }
+  const handleTransfer = () => {
+    router.push('/transfer');
   };
 
   const handleTrade = (companyId: number) => {
@@ -77,14 +69,16 @@ export default function HoldingsTable({
             <th className="text-right py-3 px-4 text-gray-400 font-medium">Invested</th>
             <th className="text-right py-3 px-4 text-gray-400 font-medium">P&L</th>
             <th className="text-right py-3 px-4 text-gray-400 font-medium">P&L %</th>
-            {showActions && (
-              <th className="text-right py-3 px-4 text-gray-400 font-medium">Actions</th>
-            )}
           </tr>
         </thead>
         <tbody>
           {holdings.map((holding) => (
-            <tr key={holding.company.id} className="border-b border-gray-700 hover:bg-gray-800/50">
+            <tr 
+              key={holding.company.id} 
+              className="border-b border-gray-700 hover:bg-gray-800/70 cursor-pointer transition-colors duration-200"
+              onClick={() => handleTrade(holding.company.id)}
+              title="Click to trade this company's tokens"
+            >
               <td className="py-4 px-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -119,24 +113,6 @@ export default function HoldingsTable({
               <td className={`py-4 px-4 text-right ${Number(holding.profitLossPercent) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                 {Number(holding.profitLossPercent) >= 0 ? '+' : ''}{(Number(holding.profitLossPercent) / 100).toFixed(2)}%
               </td>
-              {showActions && (
-                <td className="py-4 px-4 text-right">
-                  <div className="flex gap-2 justify-end">
-                    <button
-                      onClick={() => handleTransfer(holding.company.id)}
-                      className="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs"
-                    >
-                      Transfer
-                    </button>
-                    <button
-                      onClick={() => handleTrade(holding.company.id)}
-                      className="px-3 py-1.5 bg-primary text-white rounded hover:bg-primary/90 transition-colors text-xs"
-                    >
-                      Trade
-                    </button>
-                  </div>
-                </td>
-              )}
             </tr>
           ))}
         </tbody>
@@ -154,7 +130,7 @@ export default function HoldingsTable({
         <h2 className="text-xl font-semibold text-white">Your Holdings</h2>
         <div className="flex gap-2">
           <button
-            onClick={() => router.push('/transfer')}
+            onClick={handleTransfer}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

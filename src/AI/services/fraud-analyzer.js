@@ -2,6 +2,7 @@ import GeminiService from './gemini.js';
 import IntelligentRiskTriageService from './intelligent-triage.js';
 import ContextAwareWebScraper from './context-aware-scraper.js';
 import { serpAPIService } from './serpapi-service.js';
+import WebsiteVerificationService from './website-verification-service.js';
 
 /**
  * Indonesian Fraud Analysis Service
@@ -13,6 +14,7 @@ class FraudAnalyzer {
     this.geminiService = new GeminiService();
     this.triageService = new IntelligentRiskTriageService(this.geminiService);
     this.contextAwareScraper = new ContextAwareWebScraper();
+    this.websiteVerificationService = new WebsiteVerificationService();
     
     // Authoritative-first risk buckets (deterministic thresholds)
     this.RISK_BUCKETS = {
@@ -95,6 +97,13 @@ class FraudAnalyzer {
         triageResults
       );
       
+      // STAGE 3D: Website Verification (new)
+      console.log(`🔍 Stage 3D: Website verification with badges...`);
+      const websiteVerification = await this.websiteVerificationService.verifyCompanyWebsite(
+        enhancedData,
+        intelligentWebResearch.serpAPIResults
+      );
+      
       // STAGE 4: Intelligent Result Combination (full pipeline)
       const combinedAnalysis = this.combineIntelligentAnalysisResults(
         aiAnalysis, 
@@ -102,7 +111,8 @@ class FraudAnalyzer {
         triageResults,
         intelligentWebResearch,
         enhancedData,
-        actorRoleAnalysis
+        actorRoleAnalysis,
+        websiteVerification
       );
       
       // Add performance metrics
@@ -1086,7 +1096,7 @@ class FraudAnalyzer {
   /**
    * Combines analysis results with intelligent weighting based on data quality
    */
-  combineIntelligentAnalysisResults(aiResult, ruleResult, triageResults, webResearch, companyData, actorRoleAnalysis) {
+  combineIntelligentAnalysisResults(aiResult, ruleResult, triageResults, webResearch, companyData, actorRoleAnalysis, websiteVerification = null) {
     // Step 1: Simple entity data and evidence collection
     const entityData = {
       canonicalName: companyData.name,
@@ -1170,6 +1180,11 @@ class FraudAnalyzer {
       confidence: confidence,
       analysis: analysis,
       companyData: companyData,
+      verification: websiteVerification || {
+        country: 'ID',
+        websiteVerified: false,
+        badges: []
+      },
       timestamp: new Date().toISOString(),
       source: 'enhanced_intelligent_analysis',
       stageResults: {
@@ -1177,7 +1192,8 @@ class FraudAnalyzer {
         stage2_scraping: webResearch,
         stage3a_ai: aiResult,
         stage3b_actorRole: actorRoleAnalysis,
-        stage3c_rules: ruleResult
+        stage3c_rules: ruleResult,
+        stage3d_websiteVerification: websiteVerification
       }
     };
   }

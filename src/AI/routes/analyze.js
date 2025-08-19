@@ -120,6 +120,13 @@ router.post('/analyze-company/serpapi', async (req, res) => {
         // Evidence breakdown (from full pipeline)
         evidenceBreakdown: result.analysis?.evidence || [],
         
+        // Website verification with badges
+        verification: result.verification || {
+          country: 'ID',
+          websiteVerified: false,
+          badges: []
+        },
+        
         // Data sources (comprehensive extraction)
         dataSources: dataSources,
         

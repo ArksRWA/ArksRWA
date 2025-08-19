@@ -46,33 +46,6 @@ router.get('/test-connection', async (req, res) => {
 });
 
 /**
- * GET /analyze-company/demo
- * Demo endpoint with sample Indonesian companies using SerpAPI
- */
-router.get('/analyze-company/demo', async (req, res) => {
-  try {
-    const demoResults = await fraudAnalyzer.testAnalyzer();
-    
-    res.json({
-      success: true,
-      message: 'Demo analysis completed',
-      results: demoResults,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('Demo analysis error:', error);
-    
-    res.status(500).json({
-      success: false,
-      error: 'Demo analysis failed',
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-/**
  * POST /analyze-company/serpapi
  * NEW: Enhanced fraud analysis using SerpAPI + Gemini AI
  * Superior data quality and evidence-based scoring
@@ -255,73 +228,6 @@ router.post('/serpapi/search', async (req, res) => {
       success: false,
       error: 'SerpAPI search failed',
       message: error.message
-    });
-  }
-});
-
-
-/**
- * GET /analyze-company/sources-demo
- * Demo endpoint showcasing data source transparency
- */
-router.get('/analyze-company/sources-demo', async (req, res) => {
-  try {
-    // Analyze a legitimate Indonesian company
-    const legitimateCompany = {
-      name: 'PT Bank Mandiri (Persero) Tbk',
-      description: 'Bank BUMN terbesar Indonesia yang terdaftar di OJK dengan layanan perbankan digital'
-    };
-    
-    console.log('🎯 Demo: Analyzing legitimate company for source transparency...');
-    const result = await fraudAnalyzer.analyzeCompanyWithSerpAPI(legitimateCompany);
-    const dataSources = router.extractDataSources(result);
-    
-    // Analyze a suspicious company
-    const suspiciousCompany = {
-      name: 'PT Investasi Ponzi Guaranteed',
-      description: 'Investasi dengan guaranteed profit 50% per bulan tanpa risiko money game'
-    };
-    
-    console.log('🚨 Demo: Analyzing suspicious company for source comparison...');
-    const suspiciousResult = await fraudAnalyzer.analyzeCompanyWithSerpAPI(suspiciousCompany);
-    const suspiciousDataSources = router.extractDataSources(suspiciousResult);
-    
-    res.json({
-      success: true,
-      message: 'Data source transparency demonstration',
-      examples: {
-        legitimate: {
-          company: legitimateCompany.name,
-          fraudScore: result.fraudScore,
-          riskLevel: result.riskLevel,
-          dataSources: dataSources,
-          explanation: 'Legitimate companies typically show multiple regulatory sources, positive news coverage, and strong business verification.'
-        },
-        suspicious: {
-          company: suspiciousCompany.name,
-          fraudScore: suspiciousResult.fraudScore,
-          riskLevel: suspiciousResult.riskLevel,
-          dataSources: suspiciousDataSources,
-          explanation: 'Suspicious companies often have limited regulatory presence, negative news coverage, or fraud reports.'
-        }
-      },
-      sourceCredibilityGuide: {
-        'very_high': 'Government regulatory agencies (OJK, PPATK)',
-        'high': 'Established news media, fraud intelligence databases',
-        'medium': 'Business directories, specialized research sources',
-        'low': 'General web search results, unverified sources'
-      },
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('Sources demo error:', error);
-    
-    res.status(500).json({
-      success: false,
-      error: 'Sources demo failed',
-      message: error.message,
-      timestamp: new Date().toISOString()
     });
   }
 });

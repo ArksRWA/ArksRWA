@@ -201,7 +201,7 @@ export default function DashboardPage() {
                   <div className="flex-1">
                     {/* Name + Badge in the same row */}
                     <div className="flex items-center justify-between">
-                      <h2 className="font-medium text-white">{company.name}</h2>
+                      <h3 className="font-medium text-white">{company.name}</h3>
                       <StatusBadge status={getCompanyRiskStatus(company)} size="small" />
                     </div>
 

@@ -1766,6 +1766,17 @@ ${index + 1}. Title: ${result.title}
         console.log(`✅ Web research completed - Quality: ${webResearch?.summary?.dataQuality || 'unknown'}`);
       } catch (webError) {
         console.warn('⚠️ Web research failed, proceeding with basic analysis:', webError.message);
+        
+        // Check if this is a SerpAPI quota exhaustion error and immediately throw to stop all processing
+        if (webError.message && (
+          webError.message.includes('quota exhausted') || 
+          webError.message.includes('run out of searches') || 
+          webError.message.includes('Your account has run out of searches')
+        )) {
+          console.error('🚫 SerpAPI quota exhausted in Gemini web research - stopping all analysis immediately');
+          throw webError; // Re-throw to stop entire analysis
+        }
+        
         webResearch = null;
       }
 

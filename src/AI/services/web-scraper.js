@@ -624,9 +624,10 @@ class WebScrapingService {
       // Check if this is a SerpAPI quota or configuration error
       if (error.message.includes('quota exhausted') || 
           error.message.includes('SerpAPI key not configured') ||
-          error.message.includes('run out of searches')) {
-        console.error('🚫 SerpAPI service unavailable - propagating error');
-        throw new Error(`SerpAPI service unavailable: ${error.message}. Please check API quota or configuration.`);
+          error.message.includes('run out of searches') ||
+          error.message.includes('Your account has run out of searches')) {
+        console.error('🚫 SerpAPI quota exhausted - stopping all analysis immediately');
+        throw error; // Re-throw the original error to maintain quota error detection
       }
       
       // For other errors, return minimal fallback structure  

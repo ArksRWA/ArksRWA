@@ -237,11 +237,26 @@ class FraudAnalyzer {
       
       // STAGE 2: SerpAPI-Enhanced Context-Aware Web Scraping with extended timeout
       console.log(`🌐 Stage 2: SerpAPI-enhanced context-aware scraping (${triageResults.scrapingStrategy.level} strategy)...`);
-      const intelligentWebResearch = await this.contextAwareScraper.scrapeWithSerpAPI(
-        companyData, 
-        triageResults,
-        { useExtendedTimeout: true } // Enable 15-minute timeout for comprehensive analysis
-      );
+      let intelligentWebResearch;
+      try {
+        intelligentWebResearch = await this.contextAwareScraper.scrapeWithSerpAPI(
+          companyData, 
+          triageResults,
+          { useExtendedTimeout: true } // Enable 15-minute timeout for comprehensive analysis
+        );
+      } catch (scrapingError) {
+        console.error(`🌐 Stage 2 scraping failed: ${scrapingError.message}`);
+        
+        // Check if this is a SerpAPI quota error and immediately throw to stop all processing
+        const quotaCheck = QuotaErrorDetector.isQuotaError(scrapingError);
+        if (quotaCheck.isQuotaError) {
+          console.error(`🚫 ${quotaCheck.service} quota exhausted during scraping - stopping analysis immediately`);
+          throw QuotaErrorDetector.createQuotaError(quotaCheck.service, quotaCheck.originalError);
+        }
+        
+        // For non-quota scraping errors, re-throw to stop analysis
+        throw scrapingError;
+      }
 
       // Prepare enhanced company data with triage insights
       const enhancedData = this.enhanceCompanyDataWithTriage(companyData, triageResults);

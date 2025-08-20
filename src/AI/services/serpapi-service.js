@@ -226,9 +226,9 @@ export class SerpAPIService {
         const errorMessage = error?.message || error?.toString() || 'Unknown error';
         console.log(chalk.red(`❌ SerpAPI search failed (attempt ${attempt}): ${errorMessage}`));
         
-        // Check if this is a quota exhaustion error
-        if (errorMessage.includes('run out of searches') || errorMessage.includes('quota')) {
-          console.log(chalk.red('💳 SerpAPI quota exhausted - no fallback, throwing error'));
+        // Check if this is a quota exhaustion error - immediately throw without retries
+        if (errorMessage.includes('run out of searches') || errorMessage.includes('quota exhausted') || errorMessage.includes('Your account has run out of searches')) {
+          console.log(chalk.red('💳 SerpAPI quota exhausted - immediately throwing error, no retries'));
           throw new Error(`SerpAPI quota exhausted: ${errorMessage}`);
         }
         
@@ -483,6 +483,13 @@ export class SerpAPIService {
 
       } catch (error) {
         console.log(chalk.red(`❌ News search failed for ${searchType}: ${error.message}`));
+        
+        // If this is a quota exhaustion error, immediately throw and stop all searches
+        if (error.message.includes('quota exhausted') || error.message.includes('run out of searches')) {
+          console.log(chalk.red('💳 SerpAPI quota exhausted - stopping all searches immediately'));
+          throw error;
+        }
+        
         results.searches[searchType] = { error: error.message };
       }
     }

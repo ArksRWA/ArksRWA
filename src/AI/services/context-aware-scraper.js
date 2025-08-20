@@ -414,7 +414,17 @@ class ContextAwareWebScraper extends WebScrapingService {
     } catch (error) {
       console.error(`SerpAPI enhanced scraping failed: ${error.message}`);
       
-      // Generate fallback research result
+      // Check if this is a SerpAPI quota exhaustion error and immediately throw to stop all processing
+      if (error.message && (
+        error.message.includes('quota exhausted') || 
+        error.message.includes('run out of searches') || 
+        error.message.includes('Your account has run out of searches')
+      )) {
+        console.error(`🚫 SerpAPI quota exhausted in scraping - stopping all analysis immediately`);
+        throw error; // Re-throw to stop entire analysis
+      }
+      
+      // Generate fallback research result for non-quota errors
       console.log(`🔄 Generating fallback research for: ${companyData.name}`);
       
       // Create minimal fallback research structure
@@ -562,6 +572,17 @@ class ContextAwareWebScraper extends WebScrapingService {
         
       } catch (error) {
         console.warn(`SerpAPI ${searchType} search failed: ${error.message}`);
+        
+        // Check if this is a quota exhaustion error and immediately throw to stop all processing
+        if (error.message && (
+          error.message.includes('quota exhausted') || 
+          error.message.includes('run out of searches') || 
+          error.message.includes('Your account has run out of searches')
+        )) {
+          console.error(`🚫 SerpAPI quota exhausted during ${searchType} search - stopping all processing immediately`);
+          throw error; // Re-throw to stop entire analysis
+        }
+        
         results.searches[searchType] = { error: error.message };
       }
       

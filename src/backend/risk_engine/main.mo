@@ -3,13 +3,10 @@ import Array "mo:base/Array";
 import HashMap "mo:base/HashMap";
 import Hash "mo:base/Hash";
 import Text "mo:base/Text";
-import Option "mo:base/Option";
-import Result "mo:base/Result";
 import Nat "mo:base/Nat";
 import Int "mo:base/Int";
 import Float "mo:base/Float";
 import Principal "mo:base/Principal";
-import Cycles "mo:base/ExperimentalCycles";
 import Debug "mo:base/Debug";
 import Blob "mo:base/Blob";
 import Error "mo:base/Error";
@@ -1144,8 +1141,9 @@ persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url
     };
   };
 };
-module {
-  public func createVerificationEngine(admin : ?Principal, ai_service_url: ?Text, ai_auth_token: ?Text) : async VerificationEngine {
-    await VerificationEngine(admin, ai_service_url, ai_auth_token);
-  };
-}
+
+// module {
+//   public func createVerificationEngine(admin : ?Principal, ai_service_url: ?Text, ai_auth_token: ?Text) : async VerificationEngine {
+//     await VerificationEngine(admin, ai_service_url, ai_auth_token);
+//   };
+// }

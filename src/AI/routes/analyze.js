@@ -184,6 +184,26 @@ router.post('/analyze-company/serpapi', async (req, res) => {
       });
     }
     
+    // Handle Gemini API quota/configuration errors specifically
+    if (error.message.includes('Gemini API quota exhausted') ||
+        error.message.includes('429 Too Many Requests') ||
+        error.message.includes('exceeded your current quota') ||
+        error.message.includes('GoogleGenerativeAIError') ||
+        error.message.includes('generate_content_free_tier_requests')) {
+      return res.status(429).json({
+        success: false,
+        error: 'Gemini AI Service Quota Exhausted',
+        message: error.message,
+        details: {
+          issue: 'Gemini API daily quota exceeded',
+          solution: 'Please check your Gemini API quota limits and billing details',
+          retryAfter: 'Try again tomorrow when quota resets',
+          moreInfo: 'https://ai.google.dev/gemini-api/docs/rate-limits'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+    
     // Handle timeout specifically
     if (error.message.includes('timeout') || error.message.includes('exceeded')) {
       return res.status(408).json({

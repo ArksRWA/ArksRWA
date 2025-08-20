@@ -5,6 +5,109 @@ import { serpAPIService } from './serpapi-service.js';
 import WebsiteVerificationService from './website-verification-service.js';
 
 /**
+ * Comprehensive API quota error detection utility
+ */
+class QuotaErrorDetector {
+  /**
+   * Check if an error is related to API quota exhaustion
+   */
+  static isQuotaError(error) {
+    if (!error) return false;
+    
+    const errorMessage = error.message || error.toString() || '';
+    const errorString = errorMessage.toLowerCase();
+    
+    // SerpAPI quota patterns
+    const serpAPIQuotaPatterns = [
+      'run out of searches',
+      'quota exhausted',
+      'serpapi quota',
+      'serpapi daily quota exceeded',
+      'serpapi key not configured',
+      'serpapi service unavailable'
+    ];
+    
+    // Gemini API quota patterns
+    const geminiQuotaPatterns = [
+      '429 too many requests',
+      'exceeded your current quota',
+      'quotafailure',
+      'generativelanguage.googleapis.com',
+      'quota_exceeded',
+      'rate_limit_exceeded',
+      'googleGenerativeAIError',
+      'generate_content_free_tier_requests'
+    ];
+    
+    // Check for SerpAPI quota errors
+    if (serpAPIQuotaPatterns.some(pattern => errorString.includes(pattern))) {
+      return {
+        isQuotaError: true,
+        service: 'SerpAPI',
+        errorType: 'quota_exhausted',
+        originalError: errorMessage
+      };
+    }
+    
+    // Check for Gemini API quota errors
+    if (geminiQuotaPatterns.some(pattern => errorString.includes(pattern))) {
+      return {
+        isQuotaError: true,
+        service: 'Gemini API',
+        errorType: 'quota_exhausted',
+        originalError: errorMessage
+      };
+    }
+    
+    // Check if error object contains 'GoogleGenerativeAIError' specifically
+    if (error.constructor?.name === 'GoogleGenerativeAIError' || 
+        error.name === 'GoogleGenerativeAIError' ||
+        errorString.includes('googlegenerativeaierror')) {
+      return {
+        isQuotaError: true,
+        service: 'Gemini API',
+        errorType: 'quota_exhausted',
+        originalError: errorMessage
+      };
+    }
+    
+    return { isQuotaError: false };
+  }
+  
+  /**
+   * Create a standardized quota exhaustion error
+   */
+  static createQuotaError(service, originalError) {
+    const quotaError = new Error(`${service} quota exhausted: ${originalError}`);
+    quotaError.isQuotaError = true;
+    quotaError.service = service;
+    quotaError.quotaExhausted = true;
+    return quotaError;
+  }
+  
+  /**
+   * Check if a response object indicates quota failure
+   */
+  static isQuotaFailureResponse(response) {
+    if (!response || typeof response !== 'object') return false;
+    
+    // Check for Gemini service failure response
+    if (response.success === false && response.error) {
+      const quotaCheck = this.isQuotaError({ message: response.error });
+      if (quotaCheck.isQuotaError) {
+        return {
+          isQuotaFailure: true,
+          service: quotaCheck.service,
+          originalError: response.error
+        };
+      }
+    }
+    
+    return { isQuotaFailure: false };
+  }
+}
+
+/**
  * Indonesian Fraud Analysis Service
  * Stage 1 & 2 Enhanced: Combines intelligent triage with context-aware web scraping
  * Specialized for Indonesian business environment and regulations
@@ -38,6 +141,51 @@ class FraudAnalyzer {
   }
 
   /**
+   * Check service availability and quotas before starting analysis
+   */
+  async validateServiceAvailability() {
+    const serviceStatus = {
+      serpAPI: { available: true, quotaOk: true, error: null },
+      geminiAPI: { available: true, quotaOk: true, error: null }
+    };
+    
+    // Check SerpAPI quota
+    try {
+      const serpAPIStats = serpAPIService.getStats();
+      if (!serpAPIStats.isOperational) {
+        serviceStatus.serpAPI.available = false;
+        serviceStatus.serpAPI.error = 'SerpAPI key not configured';
+      } else if (serpAPIStats.quotaRemaining <= 0) {
+        serviceStatus.serpAPI.quotaOk = false;
+        serviceStatus.serpAPI.error = `SerpAPI quota exhausted: ${serpAPIStats.quotaUsed}/${serpAPIStats.quotaUsed + serpAPIStats.quotaRemaining} searches used`;
+      }
+    } catch (error) {
+      serviceStatus.serpAPI.available = false;
+      serviceStatus.serpAPI.error = error.message;
+    }
+    
+    // Check Gemini API availability (simple test)
+    try {
+      const testResult = await this.geminiService.testConnection();
+      if (!testResult.success) {
+        serviceStatus.geminiAPI.available = false;
+        serviceStatus.geminiAPI.error = testResult.error || 'Gemini API connection failed';
+      }
+    } catch (error) {
+      const quotaCheck = QuotaErrorDetector.isQuotaError(error);
+      if (quotaCheck.isQuotaError) {
+        serviceStatus.geminiAPI.quotaOk = false;
+        serviceStatus.geminiAPI.error = quotaCheck.originalError;
+      } else {
+        serviceStatus.geminiAPI.available = false;
+        serviceStatus.geminiAPI.error = error.message;
+      }
+    }
+    
+    return serviceStatus;
+  }
+
+  /**
    * NEW: Enhanced fraud analysis with SerpAPI integration using FULL pipeline
    * Uses SerpAPI for data collection, then processes through complete fraud analyzer pipeline
    */
@@ -46,6 +194,30 @@ class FraudAnalyzer {
     
     try {
       console.log(`🔍 Starting SerpAPI-enhanced fraud analysis for: ${companyData.name}`);
+      
+      // Validate service availability before starting analysis
+      console.log(`🔧 Checking service availability...`);
+      const serviceStatus = await this.validateServiceAvailability();
+      
+      // Check if core services are unavailable
+      if (!serviceStatus.serpAPI.available) {
+        throw new Error(`SerpAPI service unavailable: ${serviceStatus.serpAPI.error}`);
+      }
+      
+      if (!serviceStatus.geminiAPI.available) {
+        throw new Error(`Gemini API service unavailable: ${serviceStatus.geminiAPI.error}`);
+      }
+      
+      // Check if quotas are exhausted
+      if (!serviceStatus.serpAPI.quotaOk) {
+        throw QuotaErrorDetector.createQuotaError('SerpAPI', serviceStatus.serpAPI.error);
+      }
+      
+      if (!serviceStatus.geminiAPI.quotaOk) {
+        throw QuotaErrorDetector.createQuotaError('Gemini API', serviceStatus.geminiAPI.error);
+      }
+      
+      console.log(`✅ All services available - proceeding with analysis`);
       
       // Check cache first
       const cacheKey = this.generateCacheKey(companyData);
@@ -143,9 +315,16 @@ class FraudAnalyzer {
     } catch (error) {
       console.error(`SerpAPI-enhanced analysis failed for ${companyData.name}:`, error);
       
-      // Fallback to basic fraud analysis
-      console.log(`🔄 Falling back to basic analysis for: ${companyData.name}`);
-      return this.generateFallbackAnalysis(companyData, error);
+      // Check if this is a quota exhaustion error
+      const quotaCheck = QuotaErrorDetector.isQuotaError(error);
+      if (quotaCheck.isQuotaError) {
+        console.error(`🚫 ${quotaCheck.service} quota exhausted - no fallback analysis available`);
+        throw QuotaErrorDetector.createQuotaError(quotaCheck.service, quotaCheck.originalError);
+      }
+      
+      // For non-quota errors, re-throw the original error
+      console.error(`❌ Analysis failed due to non-quota error: ${error.message}`);
+      throw error;
     }
   }
 
@@ -721,6 +900,13 @@ class FraudAnalyzer {
         newsArticles
       );
       
+      // Check if the Gemini response indicates quota exhaustion
+      const quotaFailureCheck = QuotaErrorDetector.isQuotaFailureResponse(actorAnalysis);
+      if (quotaFailureCheck.isQuotaFailure) {
+        console.error(`🚫 ${quotaFailureCheck.service} quota exhausted during actor role analysis`);
+        throw QuotaErrorDetector.createQuotaError(quotaFailureCheck.service, quotaFailureCheck.originalError);
+      }
+      
       if (actorAnalysis.success) {
         console.log(`✅ Actor role determined: ${actorAnalysis.actorRole} (${actorAnalysis.confidence}% confidence)`);
         console.log(`🎯 Reasoning: ${actorAnalysis.reasoning.substring(0, 100)}...`);
@@ -732,6 +918,12 @@ class FraudAnalyzer {
       
     } catch (error) {
       console.error('❌ Actor role analysis error:', error.message);
+      
+      // Check if this is a quota error and re-throw
+      const quotaCheck = QuotaErrorDetector.isQuotaError(error);
+      if (quotaCheck.isQuotaError) {
+        throw error; // Re-throw quota errors to propagate up
+      }
       return {
         actorRole: 'UNCLEAR',
         confidence: 30,
@@ -1025,6 +1217,13 @@ class FraudAnalyzer {
       // Use the original Gemini analysis but with enhanced data
       const aiResult = await this.geminiService.analyzeCompanyFraud(enhancedData);
       
+      // Check if the Gemini response indicates quota exhaustion
+      const quotaFailureCheck = QuotaErrorDetector.isQuotaFailureResponse(aiResult);
+      if (quotaFailureCheck.isQuotaFailure) {
+        console.error(`🚫 ${quotaFailureCheck.service} quota exhausted during enhanced AI analysis`);
+        throw QuotaErrorDetector.createQuotaError(quotaFailureCheck.service, quotaFailureCheck.originalError);
+      }
+      
       // Enhance AI result with triage and web research context
       if (aiResult.success) {
         aiResult.data.enhancedContext = {
@@ -1043,6 +1242,13 @@ class FraudAnalyzer {
       
     } catch (error) {
       console.error('Enhanced AI analysis failed:', error);
+      
+      // Check if this is a quota error and re-throw
+      const quotaCheck = QuotaErrorDetector.isQuotaError(error);
+      if (quotaCheck.isQuotaError) {
+        throw error; // Re-throw quota errors to propagate up
+      }
+      
       return {
         success: false,
         error: error.message,
@@ -1567,49 +1773,6 @@ class FraudAnalyzer {
     return 'critical';
   }
 
-  /**
-   * Generates fallback analysis when main analysis fails
-   */
-  generateFallbackAnalysis(companyData, error) {
-    const enhancedData = this.enhanceCompanyData(companyData);
-    const fallbackScore = this.performBasicFraudCheck(enhancedData);
-    
-    return {
-      fraudScore: fallbackScore,
-      riskLevel: this.determineRiskLevel(fallbackScore),
-      confidence: 30,
-      analysis: {
-        fallback: true,
-        error: error.message
-      },
-      timestamp: new Date().toISOString(),
-      source: 'fallback_analysis'
-    };
-  }
-
-  /**
-   * Performs basic fraud check for fallback scenarios
-   */
-  performBasicFraudCheck(companyData) {
-    const { name, description } = companyData;
-    const text = `${name} ${description}`.toLowerCase();
-    
-    let riskScore = 40; // Start with medium risk
-    
-    // Check for obvious fraud indicators
-    const highRiskKeywords = ['ponzi', 'guaranteed profit', 'risk-free', 'get rich quick'];
-    for (const keyword of highRiskKeywords) {
-      if (text.includes(keyword)) riskScore += 30;
-    }
-    
-    // Check for legitimacy indicators
-    const legitimacyKeywords = ['registered', 'licensed', 'certified', 'compliance'];
-    for (const keyword of legitimacyKeywords) {
-      if (text.includes(keyword)) riskScore -= 15;
-    }
-    
-    return Math.max(0, Math.min(100, riskScore));
-  }
 
   /**
    * Cache management functions

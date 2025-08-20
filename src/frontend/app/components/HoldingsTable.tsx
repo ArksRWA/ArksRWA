@@ -94,8 +94,8 @@ export default function HoldingsTable({
                       </div>
                     )}
                     <div>
-                      <div className="font-medium text-white">{holding.company.name}</div>
-                      <div className="text-sm text-gray-400">{holding.company.symbol}</div>
+                      <div className="font-semibold text-white text-lg">{holding.company.name}</div>
+                      <div className="text-base text-gray-400">{holding.company.symbol}</div>
                     </div>
                   </div>
                   <div className="ml-4">
@@ -103,14 +103,14 @@ export default function HoldingsTable({
                   </div>
                 </div>
               </td>
-              <td className="py-4 px-4 text-right text-white">{Number(holding.amount)}</td>
-              <td className="py-4 px-4 text-right text-white">{Number(holding.company.token_price).toLocaleString()}</td>
-              <td className="py-4 px-4 text-right text-white">{Number(holding.currentValue).toLocaleString()}</td>
-              <td className="py-4 px-4 text-right text-gray-400">{Number(holding.investmentValue).toLocaleString()}</td>
-              <td className={`py-4 px-4 text-right ${Number(holding.profitLoss) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              <td className="py-4 px-4 text-right text-white text-lg font-medium">{Number(holding.amount)}</td>
+              <td className="py-4 px-4 text-right text-white text-lg font-medium">{Number(holding.company.token_price).toLocaleString()}</td>
+              <td className="py-4 px-4 text-right text-white text-lg font-semibold">{Number(holding.currentValue).toLocaleString()}</td>
+              <td className="py-4 px-4 text-right text-gray-400 text-lg">{Number(holding.investmentValue).toLocaleString()}</td>
+              <td className={`py-4 px-4 text-right text-lg font-semibold ${Number(holding.profitLoss) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                 {Number(holding.profitLoss) >= 0 ? '+' : ''}{Number(holding.profitLoss).toLocaleString()}
               </td>
-              <td className={`py-4 px-4 text-right ${Number(holding.profitLossPercent) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              <td className={`py-4 px-4 text-right text-lg font-semibold ${Number(holding.profitLossPercent) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                 {Number(holding.profitLossPercent) >= 0 ? '+' : ''}{(Number(holding.profitLossPercent) / 100).toFixed(2)}%
               </td>
             </tr>
@@ -128,26 +128,6 @@ export default function HoldingsTable({
     <div className={`bg-card-bg border border-gray-700 rounded-lg p-6 mb-12 ${className}`}>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-semibold text-white">Your Holdings</h2>
-        <div className="flex gap-2">
-          <button
-            onClick={handleTransfer}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-            </svg>
-            Transfer
-          </button>
-          <button
-            onClick={() => router.push('/transactions')}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-            </svg>
-            Transactions
-          </button>
-        </div>
       </div>
       
       {holdings.length === 0 ? emptyState : tableContent}

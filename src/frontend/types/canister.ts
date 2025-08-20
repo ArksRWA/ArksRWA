@@ -1,14 +1,17 @@
 // Re-export generated types from declarations
 export type {
-  ARKSRWA,
+  // ARKSRWA,
   Company as CandidCompany,
   TokenHolder as CandidTokenHolder,
-  Account,
-  TransferArgs,
-  TransferResult,
-  TransferError,
+  // Account,
+  // TransferArgs,
+  // TransferResult,
+  // TransferError,
   _SERVICE
-} from '../../declarations/arks-rwa-backend/arks-rwa-backend.did';
+} from '../declarations/arks-core/arks-core.did';
+
+// Risk level status type
+export type CompanyRiskStatus = 'low' | 'medium' | 'high';
 
 // Frontend-friendly types that convert bigint to number for easier use
 export interface Company {
@@ -16,15 +19,16 @@ export interface Company {
   name: string;
   symbol: string;
   owner: string;
-  valuation: number;
-  base_price: number;
-  token_price: number;
-  supply: number;
-  remaining: number;
-  minimum_purchase: number;
+  valuation: bigint;
+  base_price: bigint;
+  token_price: bigint;
+  supply: bigint;
+  remaining: bigint;
+  minimum_purchase: bigint;
   logo_url: string;
   description: string;
   created_at: number;
+  status: CompanyRiskStatus;
 }
 
 export interface TokenHolder {
@@ -44,25 +48,27 @@ export interface CreateCompanyParams {
 }
 
 // Utility functions to convert between Candid and frontend types
-export const candidCompanyToFrontend = (candidCompany: import('../../declarations/arks-rwa-backend/arks-rwa-backend.did').Company): Company => {
+export const candidCompanyToFrontend = (candidCompany: import('../declarations/arks-core/arks-core.did').Company): Company => {
   return {
     id: Number(candidCompany.id),
     name: candidCompany.name,
     symbol: candidCompany.symbol,
     owner: candidCompany.owner.toString(),
-    valuation: Number(candidCompany.valuation),
-    base_price: Number(candidCompany.base_price),
-    token_price: Number(candidCompany.token_price),
-    supply: Number(candidCompany.supply),
-    remaining: Number(candidCompany.remaining),
-    minimum_purchase: Number(candidCompany.minimum_purchase),
+    valuation: candidCompany.valuation,
+    base_price: candidCompany.base_price,
+    token_price: candidCompany.token_price,
+    supply: candidCompany.supply,
+    remaining: candidCompany.remaining,
+    minimum_purchase: candidCompany.minimum_purchase,
     logo_url: candidCompany.logo_url,
     description: candidCompany.description,
     created_at: Number(candidCompany.created_at),
+    // Default to 'medium' risk status until backend provides this field
+    status: (candidCompany as any).status || 'medium',
   };
 };
 
-export const candidTokenHolderToFrontend = (candidHolder: import('../../declarations/arks-rwa-backend/arks-rwa-backend.did').TokenHolder): TokenHolder => {
+export const candidTokenHolderToFrontend = (candidHolder: import('../declarations/arks-core/arks-core.did').TokenHolder): TokenHolder => {
   return {
     amount: Number(candidHolder.amount),
     investor: candidHolder.investor.toString(),

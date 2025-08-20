@@ -1,16 +1,32 @@
 {
   "canisters": {
+    "arks-core": {
+      "main": "src/backend/core/main.mo",
     "arks-risk-engine": {
       "main": "src/backend/risk_engine/main.mo",
       "type": "motoko",
       "init_arg": "(null, null, null)",
       "domains": ["*"]
     },
+    "arks-identity": {
+      "main": "src/backend/identity/main.mo",
+      "type": "motoko",
+      "dependencies": ["arks-core"],
+      "domains": ["*"]
+    },
+    "arks-token-factory": {
+      "main": "src/backend/token_factory/main.mo",
+      "type": "motoko",
+      "dependencies": ["arks-core"],
+      "init_arg": "(null, null)",
+      "domains": ["*"]
+    },
     "frontend": {
+      "dependencies": ["arks-core", "arks-identity", "arks-token-factory"],
       "dependencies": ["arks-risk-engine"],
       "source": ["src/frontend/.next/build"],
-       "type": "assets",
-       "domains": ["*"]
+      "type": "assets",
+      "domains": ["*"]
     },
     "internet_identity": {
       "type": "custom",
@@ -20,10 +36,9 @@
   },
   "networks": {
     "local": {
-      "bind": "127.0.0.1:4943",             
+      "bind": "127.0.0.1:4943",
       "type": "ephemeral",
       "domains": ["*"]
-      
     },
     "ic": {
       "providers": ["https://icp-api.io"],

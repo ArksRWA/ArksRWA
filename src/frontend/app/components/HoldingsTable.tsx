@@ -127,7 +127,7 @@ export default function HoldingsTable({
   return (
     <div className={`bg-card-bg border border-gray-700 rounded-lg p-6 mb-12 ${className}`}>
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-xl font-semibold text-white">Your Holdings</h2>
+        <h2 className="text-xs font-semibold text-white">Your Holdings</h2>
       </div>
       
       {holdings.length === 0 ? emptyState : tableContent}

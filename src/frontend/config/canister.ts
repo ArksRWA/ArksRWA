@@ -3,19 +3,19 @@ import { arks_core } from "@declarations/arks-core";
 // Canister configuration for different environments
 export const CANISTER_IDS = {
   local: {
-    arks_core: process.env.CANISTER_ID_ARKS_CORE || "uxrrr-q7777-77774-qaaaq-cai",
-    frontend: process.env.CANISTER_ID_FRONTEND || "vizcg-th777-77774-qaaea-cai"
+    arks_core: process.env.NEXT_PUBLIC_CANISTER_ID_ARKS_CORE || "",
+    frontend: process.env.NEXT_PUBLIC_CANISTER_ID_FRONTEND || ""
   },
   ic: {
-    arks_core: process.env.CANISTER_ID_ARKS_CORE || "",
-    frontend: process.env.CANISTER_ID_FRONTEND || ""
+    arks_core: process.env.NEXT_PUBLIC_CANISTER_ID_ARKS_CORE || "",
+    frontend: process.env.NEXT_PUBLIC_CANISTER_ID_FRONTEND || ""
   }
 };
 
 export const NETWORK = process.env.NEXT_PUBLIC_DFX_NETWORK || "local";
 
 export const HOST = NETWORK === "local"
-  ? "http://localhost:4943"
+  ? "http://127.0.0.1:4943"
   : "https://icp-api.io";
 
 export const getCurrentCanisterIds = () => {

@@ -94,7 +94,12 @@ private async createActor(requireAuth = true) {
       // If we're in the browser, let it default to window.location.origin by not setting host
       ...(isBrowser ? {} : { host: (isLocal() ? 'http://127.0.0.1:4943' : 'https://icp-api.io') }),
     });
-
+    // TESTING PURPOSE - BYPASS ISBROWSER
+    // const agent = this.agentCache ?? new HttpAgent({
+    //   host: (isLocal() ? 'http://127.0.0.1:4943' : 'https://icp-api.io'),
+    // });
+    // ENDING TESTING PURPOSE - BYPASS ISBROWSER
+    
     // For local dev only
     if (isLocal()) {
       try { await agent.fetchRootKey(); } catch {}
@@ -179,7 +184,7 @@ private async createActor(requireAuth = true) {
     try {
       // Real backend call - no authentication required for public data
       const actor = await this.createActor(false);
-      const company = await actor.getCompanyById(id);
+      const company = await actor.getCompany(id);
       const companyResult = company as any[];
       return companyResult[0] ? candidCompanyToFrontend(companyResult[0]) : null;
     } catch (error) {
@@ -199,7 +204,7 @@ private async createActor(requireAuth = true) {
       const { Principal } = await import('@dfinity/principal');
       const actor = await this.createActor();
       const callerPrincipal = Principal.fromText(user.principal);
-      const holdings = await actor.getMyHolding(companyId, callerPrincipal);
+      const holdings = await actor.get_my_holding(companyId, callerPrincipal);
       return holdings;
     } catch (error) {
       console.error('Error getting user holdings:', error);

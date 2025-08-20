@@ -28,6 +28,7 @@ services:
         [ ! -f .env ] || export $(grep -v '^#' .env | xargs) && \
         dfx deploy --network local arks-core && \
         dfx deploy --network local arks-identity && \
+        dfx deploy --network local arks-risk-engine && \
         dfx deploy --network local arks-token-factory --argument "(null, principal \"$CANISTER_ID_ARKS_CORE\")"  && \
         dfx deploy --network local frontend && \
         echo "✅ Canisters ready!" && \

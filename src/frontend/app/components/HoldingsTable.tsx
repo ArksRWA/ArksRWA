@@ -47,7 +47,7 @@ export default function HoldingsTable({
 
   const emptyState = (
     <div className="text-center py-8">
-      <div className="text-gray-400 mb-4">You don't have any holdings yet</div>
+      <div className="text-gray-400 mb-4 text-lg">You don't have any holdings yet</div>
       <button
         onClick={() => router.push('/companies')}
         className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
@@ -94,8 +94,8 @@ export default function HoldingsTable({
                       </div>
                     )}
                     <div>
-                      <div className="font-semibold text-white text-lg">{holding.company.name}</div>
-                      <div className="text-base text-gray-400">{holding.company.symbol}</div>
+                      <div className="font-semibold text-white text-xl">{holding.company.name}</div>
+                      <div className="text-lg text-gray-400">{holding.company.symbol}</div>
                     </div>
                   </div>
                   <div className="ml-4">
@@ -103,14 +103,14 @@ export default function HoldingsTable({
                   </div>
                 </div>
               </td>
-              <td className="py-4 px-4 text-right text-white text-lg font-medium">{Number(holding.amount)}</td>
-              <td className="py-4 px-4 text-right text-white text-lg font-medium">{Number(holding.company.token_price).toLocaleString()}</td>
-              <td className="py-4 px-4 text-right text-white text-lg font-semibold">{Number(holding.currentValue).toLocaleString()}</td>
-              <td className="py-4 px-4 text-right text-gray-400 text-lg">{Number(holding.investmentValue).toLocaleString()}</td>
-              <td className={`py-4 px-4 text-right text-lg font-semibold ${Number(holding.profitLoss) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              <td className="py-4 px-4 text-right text-white text-xl font-medium">{Number(holding.amount)}</td>
+              <td className="py-4 px-4 text-right text-white text-xl font-medium">{Number(holding.company.token_price).toLocaleString()}</td>
+              <td className="py-4 px-4 text-right text-white text-xl font-semibold">{Number(holding.currentValue).toLocaleString()}</td>
+              <td className="py-4 px-4 text-right text-gray-400 text-xl">{Number(holding.investmentValue).toLocaleString()}</td>
+              <td className={`py-4 px-4 text-right text-xl font-semibold ${Number(holding.profitLoss) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                 {Number(holding.profitLoss) >= 0 ? '+' : ''}{Number(holding.profitLoss).toLocaleString()}
               </td>
-              <td className={`py-4 px-4 text-right text-lg font-semibold ${Number(holding.profitLossPercent) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              <td className={`py-4 px-4 text-right text-xl font-semibold ${Number(holding.profitLossPercent) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                 {Number(holding.profitLossPercent) >= 0 ? '+' : ''}{(Number(holding.profitLossPercent) / 100).toFixed(2)}%
               </td>
             </tr>
@@ -126,7 +126,7 @@ export default function HoldingsTable({
 
   return (
     <div className={`bg-card-bg border border-gray-700 rounded-lg p-6 mb-12 ${className}`}>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-2">
         <h2 className="text-xl font-semibold text-white">Your Holdings</h2>
       </div>
       

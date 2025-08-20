@@ -20,7 +20,7 @@ declare global {
 
 class AuthServiceImpl implements AuthService {
   private currentUser: AuthUser | null = null;
-  private readonly canisterId = getCanisterId('arks_rwa_backend');
+  private readonly canisterId = getCanisterId('arks_core');
   private readonly host = HOST;
   private userRole: 'user' | 'company' | undefined = undefined;
 

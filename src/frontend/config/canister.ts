@@ -1,12 +1,14 @@
+import { arks_core } from "@declarations/arks-core";
+
 // Canister configuration for different environments
 export const CANISTER_IDS = {
   local: {
-    arks_rwa_backend: process.env.CANISTER_ID_ARKS_RWA_BACKEND || "uxrrr-q7777-77774-qaaaq-cai",
+    arks_core: process.env.CANISTER_ID_ARKS_CORE || "uxrrr-q7777-77774-qaaaq-cai",
     frontend: process.env.CANISTER_ID_FRONTEND || "vizcg-th777-77774-qaaea-cai"
   },
   ic: {
-    arks_rwa_backend: process.env.NEXT_PUBLIC_CANISTER_ID_ARKS_RWA_BACKEND || "",
-    frontend: process.env.NEXT_PUBLIC_CANISTER_ID_FRONTEND || ""
+    arks_core: process.env.CANISTER_ID_ARKS_CORE || "",
+    frontend: process.env.CANISTER_ID_FRONTEND || ""
   }
 };
 

@@ -1,7 +1,7 @@
 // services/canister.ts
 
 import { Actor, HttpAgent } from "@dfinity/agent";
-import { idlFactory } from "../../declarations/arks-rwa-backend";
+import { idlFactory } from "../declarations/arks-core";
 import { getCanisterId, HOST, isLocal } from "../config/canister";
 
 // Create agent for the appropriate environment
@@ -16,7 +16,7 @@ if (isLocal()) {
 
 const backendActor = Actor.createActor(idlFactory, {
   agent,
-  canisterId: getCanisterId('arks_rwa_backend'),
+  canisterId: getCanisterId('arks_core'),
 });
 
 export default backendActor;

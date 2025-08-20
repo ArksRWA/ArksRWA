@@ -7,8 +7,8 @@ import { authService, AuthUser } from '../../services/auth';
 
 interface UserHolding {
   company: Company;
-  amount: number;
-  currentValue: number;
+  amount: bigint;
+  currentValue: bigint;
 }
 
 interface TransferFormData {
@@ -83,18 +83,18 @@ function TransferPageContent() {
         
         if (amount > 0) {
           // Convert BigInt to number if needed
-          const numericAmount = typeof amount === 'bigint' ? Number(amount) : amount;
-          const currentValue = numericAmount * company.token_price;
+          // const numericAmount = typeof amount === 'bigint' ? Number(amount) : amount;
+          const currentValue = amount * company.token_price;
           
           console.log('DEBUG - Calculation result:', {
-            numericAmount,
+            amount,
             currentValue,
             currentValueType: typeof currentValue
           });
           
           return {
             company,
-            amount: numericAmount,
+            amount: amount,
             currentValue
           };
         }
@@ -354,7 +354,7 @@ function TransferPageContent() {
                     className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                     placeholder="Enter amount to transfer"
                     min="1"
-                    max={selectedHolding?.amount || 0}
+                    max={(selectedHolding?.amount || 0).toString()}
                     required
                   />
                   {selectedHolding && (
@@ -397,7 +397,8 @@ function TransferPageContent() {
                         <span className="text-gray-400">Current Value:</span>
                         <span className="text-white">
                           {(() => {
-                            const amount = parseInt(formData.amount || '0');
+                            // const amount = parseInt(formData.amount || '0');
+                            const amount = BigInt(formData.amount || '0');
                             const price = selectedCompany.token_price;
                             
                             // DEBUG: Log calculation types
@@ -532,7 +533,8 @@ function TransferPageContent() {
                 <span className="text-gray-400">Value:</span>
                 <span className="text-white">
                   {(() => {
-                    const amount = parseInt(formData.amount);
+                    // const amount = parseInt(formData.amount);
+                    const amount = BigInt(formData.amount);
                     const price = selectedCompany.token_price;
                     
                     // DEBUG: Log confirmation modal calculation types

@@ -213,7 +213,7 @@ export default function HomePage() {
               <button
                 onClick={handleShowLoginModal}
                 disabled={isConnecting}
-                className="group relative px-10 py-4 bg-gradient-button text-white rounded-2xl hover:scale-105 transition-all duration-300 disabled:opacity-50 font-semibold shadow-glow overflow-hidden"
+                className="group relative px-10 py-4 bg-primary text-white rounded-2xl hover:scale-105 transition-all duration-300 disabled:opacity-50 font-semibold shadow-glow overflow-hidden"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
                 <span className="relative z-10">Get Started</span>

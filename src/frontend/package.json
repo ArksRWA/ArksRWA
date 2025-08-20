@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
-    "start": "npx serve build",
+    "dev": "sed 's/^\\([^#][^=]*\\)=/NEXT_PUBLIC_\\1=/' ../../.env > .env && NEXT_PUBLIC_ENV_FILE=.env next dev --turbopack",
+    "build": "sed 's/^\\([^#][^=]*\\)=/NEXT_PUBLIC_\\1=/' ../../.env > .env && NEXT_PUBLIC_ENV_FILE=.env next build",
+    "start": "sed 's/^\\([^#][^=]*\\)=/NEXT_PUBLIC_\\1=/' ../../.env > .env && NEXT_PUBLIC_ENV_FILE=.env npx serve build",
     "lint": "next lint"
   },
   "dependencies": {

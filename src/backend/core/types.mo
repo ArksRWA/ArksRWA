@@ -2,6 +2,7 @@ import Nat       "mo:base/Nat";
 import Nat64     "mo:base/Nat64";
 import Principal "mo:base/Principal";
 import Text      "mo:base/Text";
+import Float "mo:base/Float";
 
 module {
 // ---------- Core enums ----------
@@ -25,7 +26,7 @@ public type RiskLabel = {
 
 public type VerificationProfile = {
   state : VerificationState;
-  score : Nat;                          // 0..100
+  score : Float;                          // 0..100
   risk_label : RiskLabel;               // renamed from label → risk_label
   last_scored_at : ?Nat64;
   next_due_at : ?Nat64;                 // when to re-score
@@ -103,7 +104,7 @@ public type CompanySummary = {
   owner : Principal;
   listing_state : ListingState;
   risk_label : RiskLabel;
-  score : Nat;
+  score : Float;
   token_canister_id : ?Principal;
 };
 

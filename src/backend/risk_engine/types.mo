@@ -351,4 +351,73 @@ module {
     timestamp : Int;
   };
 
+  // HTTP Request/Response types for AI service integration
+  public type HttpRequest = {
+    url : Text;
+    max_response_bytes : ?Nat64;
+    headers : [HttpHeader];
+    body : ?[Nat8];
+    method : HttpMethod;
+    transform : ?TransformFunction;
+  };
+  
+  public type HttpHeader = {
+    name : Text;
+    value : Text;
+  };
+  
+  public type HttpMethod = {
+    #get;
+    #post;
+    #head;
+  };
+  
+  public type HttpResponse = {
+    status : Nat;
+    headers : [HttpHeader];
+    body : [Nat8];
+  };
+  
+  public type TransformArgs = {
+    response : HttpResponse;
+    context : Blob;
+  };
+  
+  public type TransformFunction = {
+    function : shared query (TransformArgs) -> async HttpResponse;
+  };
+  
+  // AI Analysis Request/Response types
+  public type AIAnalysisRequest = {
+    name : Text;
+    description : Text;
+    industry : ?Text;
+    region : ?Text;
+    valuation : ?Nat;
+    symbol : ?Text;
+  };
+  
+  public type AIAnalysisResponse = {
+    success : Bool;
+    fraudScore : ?Nat;
+    riskLevel : ?Text;
+    confidence : ?Nat;
+    processingTimeMs : ?Nat;
+    error : ?Text;
+  };
+
+  // public type VerificationProfile = Types.VerificationProfile;
+  // public type VerificationJob = Types.VerificationJob;
+  // public type VerificationStatus = Types.VerificationStatus;
+  // public type JobStatus = Types.JobStatus;
+  // public type JobPriority = Types.JobPriority;
+  // public type HttpOutcallConfig = Types.HttpOutcallConfig;
+  // public type HttpRequest = Core.HttpRequest;
+  // public type HttpResponse = Core.HttpResponse;
+  // public type TransformArgs = Core.TransformArgs;
+  // public type TransformResult = Core.TransformResult;
+  // public type AIAnalysisRequest = Types.AIAnalysisRequest;
+  // public type AIAnalysisResponse = Types.AIAnalysisResponse;
+  // public type HttpMethod = Core.HttpMethod;
+  // public type HttpHeader = Core.HttpHeader;
 }

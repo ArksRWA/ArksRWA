@@ -1,14 +1,14 @@
 // Re-export generated types from declarations
 export type {
-  ARKSRWA,
+  // ARKSRWA,
   Company as CandidCompany,
   TokenHolder as CandidTokenHolder,
-  Account,
-  TransferArgs,
-  TransferResult,
-  TransferError,
+  // Account,
+  // TransferArgs,
+  // TransferResult,
+  // TransferError,
   _SERVICE
-} from '../../declarations/arks-rwa-backend/arks-rwa-backend.did';
+} from '../declarations/arks-core/arks-core.did';
 
 // Risk level status type
 export type CompanyRiskStatus = 'low' | 'medium' | 'high';
@@ -48,7 +48,7 @@ export interface CreateCompanyParams {
 }
 
 // Utility functions to convert between Candid and frontend types
-export const candidCompanyToFrontend = (candidCompany: import('../../declarations/arks-rwa-backend/arks-rwa-backend.did').Company): Company => {
+export const candidCompanyToFrontend = (candidCompany: import('../declarations/arks-core/arks-core.did').Company): Company => {
   return {
     id: Number(candidCompany.id),
     name: candidCompany.name,
@@ -68,7 +68,7 @@ export const candidCompanyToFrontend = (candidCompany: import('../../declaration
   };
 };
 
-export const candidTokenHolderToFrontend = (candidHolder: import('../../declarations/arks-rwa-backend/arks-rwa-backend.did').TokenHolder): TokenHolder => {
+export const candidTokenHolderToFrontend = (candidHolder: import('../declarations/arks-core/arks-core.did').TokenHolder): TokenHolder => {
   return {
     amount: Number(candidHolder.amount),
     investor: candidHolder.investor.toString(),

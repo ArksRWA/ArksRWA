@@ -8,13 +8,13 @@ import {
   CanisterCallError
 } from '../types/canister';
 // REMOVE BELOW CODE IF TRIGGER ERROR
-import * as declarations from '../declarations/arks-rwa-backend/index.js';
+import * as declarations from '../declarations/arks-core/index.js';
 
 // Re-export types for convenience
 export type { Company, CreateCompanyParams } from '../types/canister';
 
 class BackendService {
-  private readonly canisterId = getCanisterId('arks_rwa_backend');
+  private readonly canisterId = getCanisterId('arks_core');
   private readonly host = HOST;
   
   // Cache for actor and agent to avoid recreating them repeatedly

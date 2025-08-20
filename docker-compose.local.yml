@@ -18,7 +18,7 @@ services:
       - |
         echo "🧠 Starting replica..." && \
         dfx stop || true && \
-        dfx start --background --clean --host 0.0.0.0:4943 --domain localhost && \
+        dfx start --background --clean --host 0.0.0.0:4943 && \
         echo "⏳ Waiting for replica..." && \
         until curl -sf http://localhost:4943/api/v2/status; do sleep 1; done && \
         echo "✅ Replica ready!" && \
@@ -26,6 +26,9 @@ services:
         dfx identity use default && \
         echo "🚀 Deploying canisters..." && \
         [ ! -f .env ] || export $(grep -v '^#' .env | xargs) && \
+        dfx deploy --network local arks-core && \
+        dfx deploy --network local arks-identity && \
+        dfx deploy --network local arks-token-factory --argument "(null, principal \"$CANISTER_ID_ARKS_CORE\")"  && \
         dfx deploy --network local frontend && \
         echo "✅ Canisters ready!" && \
         tail -f /dev/null

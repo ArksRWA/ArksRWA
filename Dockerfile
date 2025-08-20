@@ -25,13 +25,22 @@ RUN mkdir -p /app/.dfx && chown -R node:node /app
 USER node
 
 # Generate backend declarations
-RUN dfx generate arks-rwa-backend && \
-    mkdir -p /app/src/frontend/declarations/arks-rwa-backend && \
-    cp -r /app/src/declarations/arks-rwa-backend/* /app/src/frontend/declarations/arks-rwa-backend/
+RUN dfx generate arks-core && \
+    mkdir -p /app/src/frontend/declarations/arks-core && \
+    cp -r /app/src/declarations/arks-core/* /app/src/frontend/declarations/arks-core/ && \
+    dfx generate arks-identity && \
+    mkdir -p /app/src/frontend/declarations/arks-identity && \
+    cp -r /app/src/declarations/arks-identity/* /app/src/frontend/declarations/arks-identity/ && \
+    dfx generate arks-token-factory && \
+    mkdir -p /app/src/frontend/declarations/arks-token-factory && \
+    cp -r /app/src/declarations/arks-token-factory/* /app/src/frontend/declarations/arks-token-factory/
 
 RUN dfx start --background --clean && \
-    dfx deploy arks-rwa-backend && \
+    dfx deploy arks-core && \
     . /app/.env && \
+    [ ! -f .env ] || export $(grep -v '^#' .env | xargs) && \
+    dfx deploy arks-identity && \
+    dfx deploy arks-token-factory --argument "(null, principal \"$CANISTER_ID_ARKS_CORE\")" && \
     cd /app/src/frontend && \
     npm install && \
     npm run build

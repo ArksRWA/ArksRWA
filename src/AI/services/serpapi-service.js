@@ -177,12 +177,11 @@ export class SerpAPIService {
    */
   async executeSearch(engine, query, options = {}) {
     if (!this.apiKey || this.apiKey === 'your-serpapi-key-here') {
-      console.log(chalk.yellow('⚠️ No SerpAPI key configured, returning mock data'));
-      return this.generateMockResults(engine, query);
+      throw new Error('SerpAPI key not configured. Please provide a valid API key.');
     }
 
     if (!this.isWithinQuota()) {
-      throw new Error(`SerpAPI daily quota exceeded: ${this.quotaUsed}/${this.dailyQuota}`);
+      throw new Error(`SerpAPI daily quota exceeded: ${this.quotaUsed}/${this.dailyQuota} searches used.`);
     }
 
     const cacheKey = this.getCacheKey(engine, query, options);
@@ -224,7 +223,16 @@ export class SerpAPIService {
 
       } catch (error) {
         lastError = error;
-        console.log(chalk.red(`❌ SerpAPI search failed (attempt ${attempt}): ${error.message}`));
+        const errorMessage = error?.message || error?.toString() || 'Unknown error';
+        console.log(chalk.red(`❌ SerpAPI search failed (attempt ${attempt}): ${errorMessage}`));
+        
+        // Check if this is a quota exhaustion error
+        if (errorMessage.includes('run out of searches') || errorMessage.includes('quota')) {
+          console.log(chalk.red('💳 SerpAPI quota exhausted - no fallback, throwing error'));
+          throw new Error(`SerpAPI quota exhausted: ${errorMessage}`);
+        }
+        
+        console.log(chalk.red(`   Error details:`, error));
         
         if (attempt < this.maxRetries) {
           const delay = Math.pow(2, attempt) * 1000; // Exponential backoff
@@ -233,57 +241,10 @@ export class SerpAPIService {
       }
     }
 
-    throw new Error(`SerpAPI search failed after ${this.maxRetries} attempts: ${lastError.message}`);
+    const finalErrorMessage = lastError?.message || lastError?.toString() || 'Unknown error occurred';
+    throw new Error(`SerpAPI search failed after ${this.maxRetries} attempts: ${finalErrorMessage}`);
   }
 
-  /**
-   * Generate mock results for development/testing
-   */
-  generateMockResults(engine, query) {
-    const isFraudQuery = query.toLowerCase().includes('penipuan') || 
-                        query.toLowerCase().includes('scam') || 
-                        query.toLowerCase().includes('fraud');
-    
-    const isOfficialQuery = query.toLowerCase().includes('site:ojk.go.id') ||
-                           query.toLowerCase().includes('OJK');
-
-    if (engine === 'google') {
-      return {
-        organic_results: [
-          {
-            title: isFraudQuery ? 
-              `Warning about ${query.split('"')[1]} - Fraud Report` :
-              `${query.split('"')[1]} - Official Company Website`,
-            link: isFraudQuery ? 
-              'https://example.com/fraud-warning' : 
-              'https://company-official.com',
-            snippet: isFraudQuery ?
-              'Multiple reports of fraudulent activities and investor complaints' :
-              'Officially registered company with proper business license'
-          }
-        ]
-      };
-    }
-
-    if (engine === 'google_news') {
-      return {
-        news_results: [
-          {
-            title: isFraudQuery ?
-              `Investors file complaints against ${query.split('"')[1]}` :
-              `${query.split('"')[1]} expands operations in Indonesia`,
-            link: 'https://news-example.com',
-            snippet: isFraudQuery ?
-              'Authorities investigating multiple fraud allegations' :
-              'Company shows strong growth and regulatory compliance',
-            date: '2 days ago'
-          }
-        ]
-      };
-    }
-
-    return { mock: true, query, engine };
-  }
 
   /**
    * Specialized News-Focused Search Functions

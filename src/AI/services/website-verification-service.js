@@ -249,13 +249,23 @@ export class WebsiteVerificationService {
       });
     }
     
-    // If no domains found yet, try to infer from company name
+    // Also try a direct company name search via SerpAPI if available
+    if (domains.size === 0 && serpAPIResults?.serpAPIResults) {
+      console.log(`   🔍 No domains found from results, performing enhanced SerpAPI analysis...`);
+      const enhancedDomains = this.performEnhancedSerpAPIWebsiteDetection(companyData.name, serpAPIResults);
+      enhancedDomains.forEach(domain => {
+        domains.add(domain);
+        console.log(`   🎯 Enhanced SerpAPI detected domain: ${domain}`);
+      });
+    }
+    
+    // If still no domains found, try to infer from company name (last resort)
     if (domains.size === 0) {
-      console.log(`   🤔 No explicit domains found, attempting to infer from company name...`);
+      console.log(`   🤔 No dynamic domains found, attempting to infer from company name as fallback...`);
       const inferredDomains = this.inferDomainsFromCompanyName(companyData.name);
       inferredDomains.forEach(domain => {
         domains.add(domain);
-        console.log(`   💡 Inferred domain: ${domain}`);
+        console.log(`   💡 Fallback inferred domain: ${domain}`);
       });
     }
     
@@ -266,12 +276,16 @@ export class WebsiteVerificationService {
       const getScore = (domain) => {
         let score = 0;
         
-        // 1. Prioritize .com domains (most common for businesses)
-        if (domain.endsWith('.com')) score += 100;
+        // 1. Prioritize professional business domains
+        if (domain.endsWith('.com')) score += 50;
+        if (domain.endsWith('.org')) score += 45;
+        if (domain.endsWith('.net')) score += 40;
         
-        // 2. Indonesian domains (.co.id, .id)
-        const aIsIndonesian = this.indonesianTLDs.some(tld => domain.endsWith(tld));
-        if (aIsIndonesian) score += 80;
+        // 2. Country-specific business domains (context-aware)
+        const isBusinessTLD = this.indonesianTLDs.some(tld => domain.endsWith(tld)) ||
+                              domain.endsWith('.co.uk') || domain.endsWith('.co.jp') ||
+                              domain.endsWith('.com.au') || domain.endsWith('.ca');
+        if (isBusinessTLD) score += 60;
         
         // 3. Shorter domains (more likely to be real)
         score += (50 - domain.length); // Shorter = higher score
@@ -281,6 +295,12 @@ export class WebsiteVerificationService {
         
         // 5. Domains that match "shortened" company names (common pattern)
         if (domain.includes('devatacreative')) score += 30; // Specific boost for this pattern
+        
+        // 6. Boost short abbreviation domains (2-4 characters before TLD)
+        const baseDomain = domain.split('.')[0];
+        if (baseDomain.length >= 2 && baseDomain.length <= 4 && !/[-_]/.test(baseDomain)) {
+          score += 40; // Strong boost for abbreviations like 'fgi', 'bca', etc.
+        }
         
         return score;
       };
@@ -1009,6 +1029,7 @@ export class WebsiteVerificationService {
     // 5. Common abbreviations
     if (words.length >= 2) {
       const abbreviation = words.map(word => word[0]).join('');
+      console.log(`   💭 Abbreviation: ${abbreviation} (from ${words.join(', ')})`);
       if (abbreviation.length >= 2) {
         domains.push(`${abbreviation}.co.id`);
         domains.push(`${abbreviation}.com`);
@@ -1018,8 +1039,193 @@ export class WebsiteVerificationService {
     // Remove duplicates and limit results
     const uniqueDomains = [...new Set(domains)];
     console.log(`   💭 Generated ${uniqueDomains.length} domain variations: ${uniqueDomains.slice(0, 8).join(', ')}`);
+    console.log(`   🔍 Full domain list before deduplication: ${domains.join(', ')}`);
     
     return uniqueDomains.slice(0, 8); // Increased limit for better coverage
+  }
+
+  /**
+   * Enhanced SerpAPI website detection with intelligent filtering
+   */
+  performEnhancedSerpAPIWebsiteDetection(companyName, serpAPIResults) {
+    const websites = new Map(); // domain -> {score, evidence}
+    
+    console.log(`   🔍 Enhanced website detection for: ${companyName}`);
+    
+    // Process all SerpAPI search results
+    if (serpAPIResults.serpAPIResults?.searches) {
+      Object.entries(serpAPIResults.serpAPIResults.searches).forEach(([searchType, searchData]) => {
+        if (searchData.organic_results) {
+          console.log(`   📊 Analyzing ${searchType}: ${searchData.organic_results.length} results`);
+          
+          searchData.organic_results.forEach((result, index) => {
+            if (result.link) {
+              try {
+                const url = new URL(result.link);
+                const domain = url.hostname;
+                
+                // Skip obvious non-company sites
+                if (this.isDefinitelyNotCompanyWebsite(domain, result)) {
+                  return;
+                }
+                
+                // Calculate website confidence score
+                const confidence = this.calculateWebsiteConfidence(domain, companyName, result, searchType, index);
+                
+                if (confidence.score >= 30) { // Minimum threshold for consideration
+                  if (!websites.has(domain) || websites.get(domain).score < confidence.score) {
+                    websites.set(domain, confidence);
+                    console.log(`   🎯 Potential company website: ${domain} (score: ${confidence.score})`);
+                  }
+                }
+              } catch (e) {
+                // Invalid URL, skip
+              }
+            }
+          });
+        }
+      });
+    }
+    
+    // Return top-scoring domains
+    return Array.from(websites.entries())
+      .sort((a, b) => b[1].score - a[1].score) // Sort by score descending
+      .slice(0, 5) // Top 5 candidates
+      .map(([domain]) => domain);
+  }
+
+  /**
+   * Check if domain is definitely not a company website
+   */
+  isDefinitelyNotCompanyWebsite(domain, result) {
+    const excludedPatterns = [
+      // News and media sites
+      'news', 'berita', 'media', 'press', 'reporter', 'journalist',
+      // Social media
+      'facebook.com', 'twitter.com', 'instagram.com', 'linkedin.com', 'youtube.com',
+      'tiktok.com', 'whatsapp.com', 'telegram.org',
+      // Business directories and marketplaces
+      'yellowpages', 'yelp', 'google.com', 'maps.google', 'places.google',
+      'tokopedia.com', 'shopee.co.id', 'bukalapak.com', 'lazada.co.id',
+      'alibaba.com', 'amazon.com', 'ebay.com',
+      // Government and regulatory
+      'gov', 'go.id', 'kemenkeu.go.id', 'ojk.go.id', 'bi.go.id',
+      // Wikipedia and wikis
+      'wikipedia', 'wiki', 'wikimedia',
+      // Forums and discussion
+      'forum', 'reddit', 'quora', 'stackexchange', 'stackoverflow',
+      // Job sites
+      'jobstreet', 'jobs', 'karir', 'career', 'glassdoor',
+      // Generic domains
+      'blogspot', 'wordpress', 'tumblr', 'medium.com'
+    ];
+    
+    const domainLower = domain.toLowerCase();
+    const titleLower = (result.title || '').toLowerCase();
+    const snippetLower = (result.snippet || '').toLowerCase();
+    
+    // Check if domain or content matches excluded patterns
+    return excludedPatterns.some(pattern => 
+      domainLower.includes(pattern) || 
+      titleLower.includes(pattern + ' ') ||
+      snippetLower.includes(pattern + ' ')
+    );
+  }
+
+  /**
+   * Calculate confidence score for potential company website
+   */
+  calculateWebsiteConfidence(domain, companyName, result, searchType, position) {
+    let score = 0;
+    const evidence = [];
+    
+    const companyNameClean = companyName.toLowerCase()
+      .replace(/^(pt|cv|tbk|llc|inc|corp|ltd)\s+/g, '')
+      .replace(/[^a-z0-9\s]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    const domainLower = domain.toLowerCase();
+    const titleLower = (result.title || '').toLowerCase();
+    const snippetLower = (result.snippet || '').toLowerCase();
+    
+    // 1. Domain name relevance (0-40 points)
+    const companyWords = companyNameClean.split(' ').filter(word => word.length > 2);
+    const domainMatchingWords = companyWords.filter(word => domainLower.includes(word));
+    
+    if (domainMatchingWords.length > 0) {
+      const matchRatio = domainMatchingWords.length / companyWords.length;
+      score += Math.round(30 * matchRatio);
+      evidence.push(`Domain contains ${domainMatchingWords.length}/${companyWords.length} company words`);
+    }
+    
+    // 2. Search result position (0-20 points)
+    const positionScore = Math.max(0, 20 - (position * 2)); // Higher positions = better
+    score += positionScore;
+    if (positionScore > 10) {
+      evidence.push(`High search position (#${position + 1})`);
+    }
+    
+    // 3. Title relevance (0-25 points)
+    const titleMatchingWords = companyWords.filter(word => titleLower.includes(word));
+    if (titleMatchingWords.length > 0) {
+      const titleMatchRatio = titleMatchingWords.length / companyWords.length;
+      score += Math.round(20 * titleMatchRatio);
+      evidence.push(`Title contains ${titleMatchingWords.length}/${companyWords.length} company words`);
+    }
+    
+    // 4. Official website indicators (0-30 points)
+    const officialIndicators = [
+      'official', 'resmi', 'situs resmi', 'official website',
+      'home', 'beranda', 'homepage', 'company website'
+    ];
+    
+    const hasOfficialIndicator = officialIndicators.some(indicator =>
+      titleLower.includes(indicator) || snippetLower.includes(indicator)
+    );
+    
+    if (hasOfficialIndicator) {
+      score += 25;
+      evidence.push('Contains official website indicators');
+    }
+    
+    // 5. Search type relevance (0-15 points)
+    const searchTypeBonus = {
+      'general': 15,
+      'legitimacy': 12,
+      'regulatory': 10,
+      'news': 5,
+      'fraud': 2
+    };
+    
+    score += searchTypeBonus[searchType] || 0;
+    evidence.push(`Found in ${searchType} search`);
+    
+    // 6. Business-related content (0-20 points)
+    const businessIndicators = [
+      'about us', 'tentang kami', 'contact', 'kontak', 'services', 'layanan',
+      'products', 'produk', 'company profile', 'profil perusahaan'
+    ];
+    
+    const hasBusinessContent = businessIndicators.some(indicator =>
+      titleLower.includes(indicator) || snippetLower.includes(indicator)
+    );
+    
+    if (hasBusinessContent) {
+      score += 15;
+      evidence.push('Contains business website content');
+    }
+    
+    // 7. Domain quality indicators (0-10 points)
+    if (domain.length <= 20 && !domain.includes('-') && !domain.includes('_')) {
+      score += 8;
+      evidence.push('Clean, professional domain name');
+    }
+    
+    return {
+      score: Math.min(score, 100), // Cap at 100
+      evidence: evidence
+    };
   }
   
   /**

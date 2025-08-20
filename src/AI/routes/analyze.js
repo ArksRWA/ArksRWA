@@ -167,6 +167,23 @@ router.post('/analyze-company/serpapi', async (req, res) => {
   } catch (error) {
     console.error(`SerpAPI analysis error for ${req.body?.name || 'unknown'}:`, error);
     
+    // Handle SerpAPI quota/configuration errors specifically
+    if (error.message.includes('quota exhausted') || 
+        error.message.includes('SerpAPI key not configured') ||
+        error.message.includes('SerpAPI service unavailable')) {
+      return res.status(503).json({
+        success: false,
+        error: 'SerpAPI Service Unavailable',
+        message: error.message,
+        details: {
+          issue: 'SerpAPI quota exhausted or misconfigured',
+          solution: 'Please check SerpAPI quota limits and API key configuration',
+          retryAfter: 'Try again tomorrow when quota resets'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+    
     // Handle timeout specifically
     if (error.message.includes('timeout') || error.message.includes('exceeded')) {
       return res.status(408).json({
@@ -177,10 +194,8 @@ router.post('/analyze-company/serpapi', async (req, res) => {
           timeoutMs: requestTimeout,
           timeoutMinutes: requestTimeout/60000,
           suggestion: 'Try with a simpler company analysis or check if the company exists',
-          fallbackAvailable: true
+          fallbackAvailable: false
         },
-        fallback: 'Traditional analysis method available',
-        recommendation: 'Use /analyze-company endpoint for faster analysis',
         timestamp: new Date().toISOString()
       });
     }
@@ -188,10 +203,12 @@ router.post('/analyze-company/serpapi', async (req, res) => {
     // Handle other errors
     res.status(500).json({
       success: false,
-      error: 'SerpAPI analysis failed',
+      error: 'Analysis failed',
       message: error.message,
-      fallback: 'Traditional analysis method available',
-      recommendation: 'Use /analyze-company endpoint for fallback analysis',
+      details: {
+        issue: 'Unexpected error during analysis',
+        suggestion: 'Please try again or contact support if the issue persists'
+      },
       timestamp: new Date().toISOString()
     });
   }

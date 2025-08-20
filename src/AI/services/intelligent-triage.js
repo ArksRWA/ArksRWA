@@ -152,7 +152,7 @@ class IntelligentRiskTriageService {
       
     } catch (error) {
       console.error('Triage error:', error);
-      return this.generateFallbackTriage(companyData, error);
+      throw new Error(`Intelligent triage failed: ${error.message}. No fallback triage available.`);
     }
   }
 
@@ -233,8 +233,12 @@ class IntelligentRiskTriageService {
       
       const processingTime = Date.now() - startTime;
       
-      if (!aiResponse || this.gemini.testMode) {
-        return this.generateMockAITriage(companyData, patternAnalysis, processingTime);
+      if (!aiResponse) {
+        throw new Error('AI triage service unavailable - no mock data fallback available');
+      }
+      
+      if (this.gemini.testMode) {
+        throw new Error('AI triage service in test mode - no mock data fallback available');
       }
       
       const response = await aiResponse.response;
@@ -252,8 +256,8 @@ class IntelligentRiskTriageService {
       return aiTriage;
       
     } catch (error) {
-      console.warn('AI triage failed, using fallback:', error.message);
-      return this.generateMockAITriage(companyData, patternAnalysis, Date.now() - startTime);
+      console.error('AI triage failed:', error.message);
+      throw new Error(`AI triage service failed: ${error.message}. No mock data fallback available.`);
     }
   }
 
@@ -311,64 +315,6 @@ Perform rapid initial risk assessment to determine appropriate investigation dep
 Begin analysis now:`;
   }
 
-  /**
-   * Generates mock AI triage for testing and fallback scenarios
-   */
-  generateMockAITriage(companyData, patternAnalysis, processingTime) {
-    const { name, description } = companyData;
-    const text = `${name} ${description}`.toLowerCase();
-    
-    let riskLevel = 'medium';
-    let initialScore = 40;
-    const riskFactors = [];
-    const priorityPatterns = [];
-    const investigationFocus = [];
-    
-    // Base assessment on pattern analysis
-    if (patternAnalysis.immediateRedFlags.length > 0) {
-      riskLevel = 'critical';
-      initialScore = 80 + Math.random() * 20;
-      riskFactors.push(...patternAnalysis.immediateRedFlags);
-      priorityPatterns.push('investment_scam_verification', 'fraud_reports_search');
-      investigationFocus.push('OJK_warnings', 'victim_reports', 'regulatory_actions');
-    } else if (patternAnalysis.potentialConcerns.length > 0) {
-      riskLevel = 'high';
-      initialScore = 55 + Math.random() * 20;
-      riskFactors.push(...patternAnalysis.potentialConcerns);
-      priorityPatterns.push('business_model_verification', 'licensing_check');
-      investigationFocus.push('business_registration', 'compliance_status');
-    } else if (patternAnalysis.legitimacySignals.length > 0) {
-      riskLevel = 'low';
-      initialScore = 10 + Math.random() * 15;
-      priorityPatterns.push('legitimacy_confirmation');
-      investigationFocus.push('official_recognition', 'positive_news');
-    } else {
-      // Industry-based assessment
-      const industryMultiplier = patternAnalysis.industryRiskMultiplier;
-      initialScore = Math.round(40 * industryMultiplier + Math.random() * 10);
-      
-      if (initialScore > 60) {
-        riskLevel = 'high';
-        priorityPatterns.push('comprehensive_verification');
-        investigationFocus.push('business_model', 'regulatory_compliance', 'market_reputation');
-      } else if (initialScore < 30) {
-        riskLevel = 'low';
-        priorityPatterns.push('standard_verification');
-        investigationFocus.push('basic_legitimacy_check');
-      }
-    }
-    
-    return {
-      riskLevel,
-      initialScore: Math.round(initialScore),
-      confidence: 85,
-      riskFactors,
-      priorityPatterns,
-      investigationFocus,
-      reasoning: `Risk assessment based on pattern analysis: ${patternAnalysis.immediateRedFlags.length} red flags, ${patternAnalysis.legitimacySignals.length} legitimacy signals, business context: ${patternAnalysis.businessContext}`,
-      processingTimeMs: processingTime
-    };
-  }
 
   /**
    * Generates intelligent scraping strategy based on triage results
@@ -478,43 +424,6 @@ Begin analysis now:`;
     this.triageCache.set(key, result);
   }
 
-  /**
-   * Generates fallback triage when analysis fails
-   */
-  generateFallbackTriage(companyData, error) {
-    console.warn('Using fallback triage due to error:', error.message);
-    
-    return {
-      riskLevel: 'medium',
-      initialScore: 50,
-      confidence: 30,
-      riskFactors: ['analysis_failed'],
-      legitimacySignals: [],
-      scrapingStrategy: {
-        level: 'medium',
-        priority: ['basic_verification'],
-        sources: ['ojk.go.id', 'google_news'],
-        searchTerms: ['company_verification'],
-        maxResults: 8,
-        timeoutMs: 25000,
-        earlyTermination: true,
-        terminationThreshold: 5
-      },
-      resourceEstimate: {
-        estimatedTimeMs: 25000,
-        maxSources: 2,
-        maxResults: 8,
-        networkRequests: 4,
-        memoryMb: 4,
-        cpuIntensive: false,
-        parallelizable: true
-      },
-      timestamp: new Date().toISOString(),
-      processingTimeMs: 0,
-      fallback: true,
-      error: error.message
-    };
-  }
 
   /**
    * Test the triage service with sample companies

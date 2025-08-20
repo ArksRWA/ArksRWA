@@ -1123,6 +1123,15 @@ class FraudAnalyzer {
       finalScore = Math.round(ruleResult.overallScore * 0.7 + (triageResults.initialScore || 50) * 0.3);
     }
     
+    // Step 2.1: Website Verification Score Adjustment (NEW)
+    if (websiteVerification) {
+      const websiteAdjustment = this.calculateWebsiteVerificationAdjustment(websiteVerification, companyData.name);
+      finalScore = Math.max(0, Math.min(100, finalScore + websiteAdjustment.adjustment));
+      
+      console.log(`🔍 Website verification adjustment: ${websiteAdjustment.adjustment} (${websiteAdjustment.reason})`);
+      console.log(`📊 Score after website verification: ${finalScore}`);
+    }
+    
     // Step 2.5: Actor Role-Based Fair Scoring Adjustment
     const { adjustedScore, fairnessReason } = this.applyActorRoleFairScoring(
       finalScore, 
@@ -2047,6 +2056,125 @@ class FraudAnalyzer {
     }
     
     this.analysisCache.clear();
+  }
+
+  /**
+   * Calculate website verification adjustment for fraud scoring
+   * @param {Object} websiteVerification - Website verification results with badges
+   * @param {string} companyName - Company name for context
+   * @returns {Object} {adjustment: number, reason: string}
+   */
+  calculateWebsiteVerificationAdjustment(websiteVerification, companyName) {
+    let adjustment = 0;
+    const reasons = [];
+    
+    if (!websiteVerification || !websiteVerification.badges) {
+      return { adjustment: 0, reason: 'No website verification data' };
+    }
+    
+    // Base website accessibility bonus
+    if (websiteVerification.websiteVerified && websiteVerification.verificationDetails.domainAccessible) {
+      adjustment -= 5; // Reduce fraud score by 5 points for having an accessible website
+      reasons.push('accessible website (-5)');
+    }
+    
+    // Badge-based adjustments
+    websiteVerification.badges.forEach(badge => {
+      switch (badge.type) {
+        case 'rdap_record':
+          // RDAP registration data found - indicates legitimate domain registration
+          adjustment -= 8; // Significant reduction for domain registration
+          reasons.push('RDAP registration (-8)');
+          
+          // Additional bonus for older domains (if registration year available)
+          if (badge.note && badge.note.includes('registered=')) {
+            const yearMatch = badge.note.match(/registered=(\d{4})/);
+            if (yearMatch) {
+              const registrationYear = parseInt(yearMatch[1]);
+              const currentYear = new Date().getFullYear();
+              const domainAge = currentYear - registrationYear;
+              
+              if (domainAge >= 5) {
+                adjustment -= 3; // Older domains are more trustworthy
+                reasons.push(`domain age ${domainAge}y (-3)`);
+              } else if (domainAge >= 2) {
+                adjustment -= 1; // Some bonus for established domains
+                reasons.push(`domain age ${domainAge}y (-1)`);
+              }
+            }
+          }
+          break;
+          
+        case 'ct_seen':
+          // Certificate Transparency - indicates SSL certificate management
+          adjustment -= 4; // Reduction for SSL certificate presence
+          reasons.push('SSL certificates (-4)');
+          
+          // Additional bonus for many certificates (indicates active management)
+          if (badge.note && badge.note.includes('certs=')) {
+            const certMatch = badge.note.match(/certs=(\d+)/);
+            if (certMatch) {
+              const certCount = parseInt(certMatch[1]);
+              if (certCount >= 100) {
+                adjustment -= 2; // Many certificates indicate professional management
+                reasons.push(`${certCount} certs (-2)`);
+              }
+            }
+          }
+          break;
+          
+        case 'site_disclosure_regulator':
+          // Regulatory compliance mentions on website
+          adjustment -= 6; // Significant reduction for regulatory compliance
+          reasons.push('regulatory compliance (-6)');
+          
+          // Additional bonus for multiple regulatory mentions
+          if (badge.note && badge.note.includes('regulatory_mentions=')) {
+            const mentionMatch = badge.note.match(/regulatory_mentions=(\d+)/);
+            if (mentionMatch && parseInt(mentionMatch[1]) > 2) {
+              adjustment -= 2; // Extra bonus for extensive regulatory mentions
+              reasons.push('extensive regulatory mentions (-2)');
+            }
+          }
+          break;
+      }
+    });
+    
+    // Multiple badge types bonus
+    const badgeTypes = new Set(websiteVerification.badges.map(b => b.type));
+    if (badgeTypes.size >= 3) {
+      adjustment -= 3; // Bonus for comprehensive verification
+      reasons.push('comprehensive verification (-3)');
+    }
+    
+    // Primary domain bonus (prefer real company domains over inferred ones)
+    if (websiteVerification.primaryDomain) {
+      const domain = websiteVerification.primaryDomain.toLowerCase();
+      
+      // Check if domain appears to be a real company domain vs inferred
+      const companyWords = companyName.toLowerCase()
+        .replace(/^pt\s+/, '')
+        .replace(/^cv\s+/, '')
+        .split(/\s+/)
+        .filter(word => word.length > 2);
+      
+      const domainMatchesCompany = companyWords.some(word => domain.includes(word));
+      
+      if (domainMatchesCompany && !domain.includes('-') && domain.length < 25) {
+        adjustment -= 2; // Bonus for clean, company-matching domain
+        reasons.push('professional domain (-2)');
+      }
+    }
+    
+    // Cap the maximum benefit to prevent over-adjustment
+    adjustment = Math.max(-25, adjustment); // Max 25-point reduction
+    
+    const reasonText = reasons.length > 0 ? reasons.join(', ') : 'no website verification benefits';
+    
+    return {
+      adjustment,
+      reason: reasonText
+    };
   }
 }
 

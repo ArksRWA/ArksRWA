@@ -621,7 +621,15 @@ class WebScrapingService {
     } catch (error) {
       console.error('Research company failed:', error);
       
-      // Return minimal fallback structure
+      // Check if this is a SerpAPI quota or configuration error
+      if (error.message.includes('quota exhausted') || 
+          error.message.includes('SerpAPI key not configured') ||
+          error.message.includes('run out of searches')) {
+        console.error('🚫 SerpAPI service unavailable - propagating error');
+        throw new Error(`SerpAPI service unavailable: ${error.message}. Please check API quota or configuration.`);
+      }
+      
+      // For other errors, return minimal fallback structure  
       return {
         companyName,
         canonicalName: companyName,

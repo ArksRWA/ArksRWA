@@ -973,7 +973,28 @@ BEGIN ANALYSIS - RESPOND WITH JSON ONLY:`;
    * Creates prompt for actor role analysis
    */
   createActorRolePrompt(companyName, newsArticles = []) {
-    const articlesText = newsArticles.map((article, index) => 
+    // Filter out mock data that should not be treated as real evidence
+    const realArticles = newsArticles.filter(article => {
+      const url = article.link || article.url || '';
+      const title = article.title || '';
+      const snippet = article.snippet || article.content || '';
+      
+      // Detect mock/test data patterns
+      const isMockData = 
+        url.includes('example.com') ||
+        url.includes('mock') ||
+        url.includes('test') ||
+        title.includes('Mock') ||
+        title.includes('Test') ||
+        snippet.includes('mock data') ||
+        snippet.includes('test data') ||
+        (url === 'https://example.com/fraud-warning' && 
+         snippet.includes('Multiple reports of fraudulent activities and investor complaints'));
+      
+      return !isMockData;
+    });
+    
+    const articlesText = realArticles.map((article, index) => 
       `**Article ${index + 1}:**
 Title: ${article.title || 'No title'}
 Source: ${article.source || 'Unknown source'}
@@ -982,6 +1003,11 @@ URL: ${article.link || 'No URL'}
 Date: ${article.date || 'No date'}
 ---`
     ).join('\n\n');
+    
+    // If no real articles after filtering, note this
+    if (realArticles.length === 0 && newsArticles.length > 0) {
+      console.log('🚫 All articles filtered out as mock data for actor role analysis');
+    }
 
     return `
 ACTOR ROLE ANALYSIS FOR FRAUD CASES
@@ -989,10 +1015,12 @@ ACTOR ROLE ANALYSIS FOR FRAUD CASES
 **COMPANY TO ANALYZE:** ${companyName}
 
 **NEWS ARTICLES AND REPORTS:**
-${articlesText}
+${realArticles.length > 0 ? articlesText : 'No credible news articles found (mock/test data filtered out)'}
 
 **ANALYSIS TASK:**
 Determine the role of "${companyName}" in fraud-related incidents based on the news articles provided. This is critical for fair fraud scoring.
+
+${realArticles.length === 0 ? '**IMPORTANT**: No real news articles available for analysis. All articles were identified as mock/test data and excluded.' : ''}
 
 **POSSIBLE ROLES:**
 1. **PERPETRATOR** - Company committed fraud, scammed customers, ran illegal schemes

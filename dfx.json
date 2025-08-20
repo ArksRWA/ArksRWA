@@ -1,13 +1,13 @@
 {
   "canisters": {
-    "arks-rwa-backend": {
-      "main": "src/arks-rwa-backend/main.mo",
+    "arks-risk-engine": {
+      "main": "src/backend/risk_engine/main.mo",
       "type": "motoko",
       "init_arg": "(null, null, null)",
       "domains": ["*"]
     },
     "frontend": {
-      "dependencies": ["arks-rwa-backend"],
+      "dependencies": ["arks-risk-engine"],
       "source": ["src/frontend/.next/build"],
        "type": "assets",
        "domains": ["*"]

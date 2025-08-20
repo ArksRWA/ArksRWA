@@ -26,6 +26,8 @@ module {
   public type SearchQueryType = Types.SearchQueryType;
   public type GoogleSearchResult = Types.GoogleSearchResult;
   public type HttpOutcallConfig = Types.HttpOutcallConfig;
+  
+  
 
   // HTTP request types for HTTPS outcalls
   public type HttpMethod = {

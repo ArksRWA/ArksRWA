@@ -91,7 +91,7 @@ export default function CompanyCard({
           {showManageButton && currentUser && currentUser.principal === company.owner && (
             <button
               onClick={handleManageClick}
-              className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              className="text-xs px-2 py-1 bg-primary text-white rounded hover:bg-primary/90 transition-colors"
             >
               Manage
             </button>

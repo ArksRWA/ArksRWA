@@ -14,8 +14,8 @@
 // import Debug "mo:base/Debug";
 
 // // Import verification system
-// import VerificationTypes "./verification/types";
-// import VerificationEngine "./verification/main";
+// import VerificationTypes "./risk_engine/types";
+// import VerificationEngine "./risk_engine/main";
 
 // persistent actor class ARKSRWA(init_admin: ?Principal, ai_service_url: ?Text, ai_auth_token: ?Text) = this {
 
@@ -167,7 +167,7 @@
 //   transient var accountTypeOverrides : HashMap.HashMap<Principal, AccountType> = HashMap.HashMap(0, Principal.equal, Principal.hash);
 
 //   // Initialize verification engine
-//   private transient let verificationEngine = VerificationEngine.createVerificationEngine();
+// //   private transient let verificationEngine = VerificationEngine.createVerificationEngine();
 
 //   // Enhanced pricing configuration
 //   transient let bondingCurveExponent : Float = 1.5;

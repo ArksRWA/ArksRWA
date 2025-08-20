@@ -772,7 +772,7 @@ persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url
     
 
   // Call AI service for fraud analysis
-  private func callAIService(companyData : AIAnalysisRequest, ai_auth_token : ?Text) : async AIAnalysisResponse {
+  public func callAIService(companyData : AIAnalysisRequest, ai_auth_token : ?Text) : async AIAnalysisResponse {
     switch (ai_auth_token) {
       case (null) {
         Debug.print("No AI auth token configured, skipping AI analysis");
@@ -1143,4 +1143,9 @@ persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url
       case null { false };
     };
   };
+};
+module {
+  public func createVerificationEngine(admin : ?Principal, ai_service_url: ?Text, ai_auth_token: ?Text) : async VerificationEngine {
+    await VerificationEngine(admin, ai_service_url, ai_auth_token);
   };
+}

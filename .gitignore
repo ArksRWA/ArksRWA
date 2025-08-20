@@ -25,4 +25,7 @@ target/
 # environment variables
 .env
 
+# md files
+*.md
+
 **/.next

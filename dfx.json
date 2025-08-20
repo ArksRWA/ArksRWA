@@ -6,21 +6,29 @@
       "init_arg": "(null)",
       "domains": ["*"]
     },
+    "arks-risk-engine": {
+      "dependencies": ["arks-core"],
+      "main": "src/backend/risk_engine/main.mo",
+      "type": "motoko",
+      "init_arg": "(null, null, null)",
+      "domains": ["*"]
+    },
     "arks-identity": {
+      "dependencies": ["arks-core"],
       "main": "src/backend/identity/main.mo",
       "type": "motoko",
-      "dependencies": ["arks-core"],
+      "init_arg": "(null)",
       "domains": ["*"]
     },
     "arks-token-factory": {
+      "dependencies": ["arks-core"],
       "main": "src/backend/token_factory/main.mo",
       "type": "motoko",
-      "dependencies": ["arks-core"],
       "init_arg": "(null, null)",
       "domains": ["*"]
     },
     "frontend": {
-      "dependencies": ["arks-core", "arks-identity", "arks-token-factory"],
+      "dependencies": ["arks-core", "arks-identity", "arks-token-factory", "arks-risk-engine"],
       "source": ["src/frontend/.next/build"],
       "type": "assets",
       "domains": ["*"]

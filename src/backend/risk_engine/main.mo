@@ -19,7 +19,7 @@ import Constants "./constants";
 import OldTypes "./old_types";
 
 // Verification Engine Class
-persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url: ?Text, ai_auth_token: ?Text, core_canister_id: ?Text) = self {
+persistent actor class VerificationEngine(init_admin: Principal, ai_service_url: ?Text, ai_auth_token: ?Text, core_canister_id: ?Text) = self {
   type VerificationProfile = Types.VerificationProfile;
   type VerificationJob = Types.VerificationJob;
   type VerificationStatus = Types.VerificationStatus;
@@ -34,11 +34,8 @@ persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url
   type AIAnalysisResponse = Types.AIAnalysisResponse;
   type HttpMethod = Core.HttpMethod;
   type HttpHeader = Core.HttpHeader;
-    // Admin principal - configurable via constructor parameter
-    private transient let admin : Principal = switch(init_admin) {
-      case (?p) p;
-      case null Principal.fromText("o6dtt-od7eq-p5tmn-yilm3-4v453-v64p5-ep4q6-hxoeq-jhygx-u5dz7-aqe"); // fallback for local dev
-    };
+    // Admin principal is required - no fallback or null handling needed
+    private transient let admin : Principal = init_admin;
     private transient let AI_AUTH_TOKEN : ?Text = ai_auth_token;
     // AI Service Configuration
     private transient let AI_SERVICE_URL : Text = switch(ai_service_url) {

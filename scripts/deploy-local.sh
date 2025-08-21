@@ -34,24 +34,24 @@ echo ""
 echo "🏗️  Deploying canisters in dependency order..."
 echo "=================================================="
 
-# Phase 1: Deploy Core Canister (foundation)
+# Phase 1: Deploy Core Canister (foundation) - admin principal is required
 echo ""
 echo "📦 Phase 1: Deploying Core Canister..."
-dfx deploy arks-core --argument "(opt principal \"$ADMIN_PRINCIPAL\", null)"
+dfx deploy arks-core --argument "(principal \"$ADMIN_PRINCIPAL\", null)"
 CORE_CANISTER_ID=$(dfx canister id arks-core)
 echo "✅ Core canister deployed: $CORE_CANISTER_ID"
 
-# Phase 2: Deploy Risk Engine with Core reference
+# Phase 2: Deploy Risk Engine with Core reference - admin principal is required
 echo ""
 echo "🧠 Phase 2: Deploying Risk Engine Canister..."
-dfx deploy arks-risk-engine --argument "(opt principal \"$ADMIN_PRINCIPAL\", null, null, opt \"$CORE_CANISTER_ID\")"
+dfx deploy arks-risk-engine --argument "(principal \"$ADMIN_PRINCIPAL\", null, null, opt \"$CORE_CANISTER_ID\")"
 RISK_ENGINE_ID=$(dfx canister id arks-risk-engine)
 echo "✅ Risk engine deployed: $RISK_ENGINE_ID"
 
-# Phase 3: Update Core canister with Risk Engine reference
+# Phase 3: Update Core canister with Risk Engine reference - admin principal is required
 echo ""
 echo "🔄 Phase 3: Updating Core canister with Risk Engine reference..."
-dfx deploy arks-core --argument "(opt principal \"$ADMIN_PRINCIPAL\", opt \"$RISK_ENGINE_ID\")" --mode upgrade
+dfx deploy arks-core --argument "(principal \"$ADMIN_PRINCIPAL\", opt \"$RISK_ENGINE_ID\")" --mode upgrade
 echo "✅ Core canister updated with risk engine reference"
 
 # Phase 4: Deploy Token Factory with Core reference

@@ -12,10 +12,11 @@ import Hash      "mo:base/Hash";
 import Array     "mo:base/Array";
 import Buffer "mo:base/Buffer";
 import Option "mo:base/Option";
+import Debug "mo:base/Debug";
 
 import Types     "./types";
 
-persistent actor class ARKSRWA_Core(init_admin : ?Principal, risk_engine_canister_id : ?Text) = this {
+persistent actor class ARKSRWA_Core(init_admin : Principal, risk_engine_canister_id : ?Text) = this {
 
   // ---------- Utils ----------
   transient func natHash(n : Nat) : Hash.Hash { Text.hash(Nat.toText(n)) };
@@ -34,10 +35,8 @@ persistent actor class ARKSRWA_Core(init_admin : ?Principal, risk_engine_caniste
   } = actor(Principal.toText(riskEngineCanisterId));
 
   // ---------- Admins ----------
-  transient let defaultAdmin : Principal = switch (init_admin) {
-    case (?p) p;
-    case null Principal.fromText("rg7t5-bghe6-tattl-q7us7-zc57a-2xjvm-r24zv-imqwn-npa36-eso5m-mqe"); // dev fallback using current identity
-  };
+  // Admin principal is required - no fallback or null handling needed
+  transient let defaultAdmin : Principal = init_admin;
 
   var _admins : [Principal] = [];
   // one-time bootstrap

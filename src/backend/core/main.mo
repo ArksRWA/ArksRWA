@@ -15,17 +15,28 @@ import Option "mo:base/Option";
 
 import Types     "./types";
 
-persistent actor class ARKSRWA_Core(init_admin : ?Principal) = this {
+persistent actor class ARKSRWA_Core(init_admin : ?Principal, risk_engine_canister_id : ?Text) = this {
 
   // ---------- Utils ----------
   transient func natHash(n : Nat) : Hash.Hash { Text.hash(Nat.toText(n)) };
   transient func now64() : Nat64 { Nat64.fromIntWrap(Time.now()) };
   transient func safeSub(a : Nat, b : Nat) : Nat { if (a >= b) a - b else 0 };
 
+  // ---------- Risk Engine Integration ----------
+  transient let riskEngineCanisterId : Principal = switch (risk_engine_canister_id) {
+    case (?cid) Principal.fromText(cid);
+    case null Principal.fromText("2vxsx-fae"); // anonymous principal as fallback
+  };
+
+  // Risk engine canister interface
+  transient let riskEngine : actor {
+    startVerificationWithApiKey : (Nat, Text, { #high; #normal; #low }, ?Text) -> async ?Nat;
+  } = actor(Principal.toText(riskEngineCanisterId));
+
   // ---------- Admins ----------
   transient let defaultAdmin : Principal = switch (init_admin) {
     case (?p) p;
-    case null Principal.fromText("o6dtt-od7eq-p5tmn-yilm3-4v453-v64p5-ep4q6-hxoeq-jhygx-u5dz7-aqe"); // dev fallback
+    case null Principal.fromText("rg7t5-bghe6-tattl-q7us7-zc57a-2xjvm-r24zv-imqwn-npa36-eso5m-mqe"); // dev fallback using current identity
   };
 
   var _admins : [Principal] = [];
@@ -224,8 +235,43 @@ persistent actor class ARKSRWA_Core(init_admin : ?Principal) = this {
     };
 
     companies.put(companyCount, c);
+    let currentCompanyId = c.id;
     companyCount += 1;
-    c.id
+
+    // Queue verification job asynchronously - don't wait for completion
+    ignore async {
+      try {
+        let jobId = await riskEngine.startVerificationWithApiKey(
+          currentCompanyId,
+          name,
+          #normal, // Default priority
+          null     // API key configured in risk engine
+        );
+        
+        // Update company verification status to pending
+        switch (companies.get(currentCompanyId)) {
+          case (?existingCompany) {
+            let updatedVerification = { 
+              existingCompany.verification with 
+              state = #VerificationPending 
+            };
+            companies.put(currentCompanyId, { 
+              existingCompany with 
+              verification = updatedVerification 
+            });
+          };
+          case null {
+            // Company might have been deleted, ignore
+          };
+        };
+        
+      } catch (error) {
+        // Log error but don't fail company creation
+        // In production, you might want to add this to an error log or retry queue
+      };
+    };
+
+    currentCompanyId
   };
 
   public func setTokenCanister(id : CompanyId, tokenCid : Principal, caller : Principal) : async () {
@@ -299,6 +345,25 @@ persistent actor class ARKSRWA_Core(init_admin : ?Principal) = this {
     switch (companies.get(id)) { case (?c) c.verification; case null { throw Error.reject("Invalid company") } }
   };
 
+  // Webhook for risk engine to update verification results
+  public func updateVerificationResult(
+    companyId : CompanyId, 
+    profile : Types.VerificationProfile,
+    caller : Principal
+  ) : async () {
+    // Verify caller is the risk engine canister
+    if (caller != riskEngineCanisterId) { 
+      throw Error.reject("Unauthorized verification update"); 
+    };
+    
+    let c = switch (companies.get(companyId)) {
+      case (?x) x;
+      case null { throw Error.reject("Invalid company") };
+    };
+    
+    companies.put(companyId, { c with verification = profile });
+  };
+
   public func setRiskProfile(id : CompanyId, profile : Types.VerificationProfile, caller : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     let c = switch (companies.get(id)) { case (?x) x; case null { throw Error.reject("Invalid company") } };
@@ -309,6 +374,46 @@ persistent actor class ARKSRWA_Core(init_admin : ?Principal) = this {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     let c = switch (companies.get(id)) { case (?x) x; case null { throw Error.reject("Invalid company") } };
     companies.put(id, { c with verification = { c.verification with state = #VerificationPending } });
+  };
+
+  // Admin function to trigger manual verification for a company
+  public func retriggerVerification(id : CompanyId, priority : { #high; #normal; #low }, caller : Principal) : async ?Nat {
+    if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
+    
+    let c = switch (companies.get(id)) {
+      case (?x) x;
+      case null { throw Error.reject("Invalid company") };
+    };
+    
+    try {
+      // Mark as pending
+      companies.put(id, { c with verification = { c.verification with state = #VerificationPending }});
+      
+      // Queue new verification job
+      let jobId = await riskEngine.startVerificationWithApiKey(id, c.name, priority, null);
+      jobId;
+    } catch (error) {
+      // Reset verification state if job queueing fails
+      companies.put(id, { c with verification = { c.verification with state = #Failed }});
+      throw error;
+    };
+  };
+
+  // Admin function to batch trigger verification for multiple companies
+  public func batchRetriggerVerification(companyIds : [CompanyId], caller : Principal) : async [(?Nat)] {
+    if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
+    
+    var results : [(?Nat)] = [];
+    for (id in companyIds.vals()) {
+      try {
+        let jobId = await retriggerVerification(id, #normal, caller);
+        results := Array.append(results, [jobId]);
+      } catch (error) {
+        // Continue with other companies even if one fails
+        results := Array.append(results, [null]);
+      };
+    };
+    results;
   };
 
   public query func listDueForRescore(nowTs : Nat64, limit : Nat) : async [CompanyId] {

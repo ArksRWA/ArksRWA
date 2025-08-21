@@ -24,6 +24,9 @@ target/
 
 # environment variables
 .env
+.env.local
+.env.production
+.env.*.local
 
 # md files
 *.md

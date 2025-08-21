@@ -45,6 +45,18 @@ class AuthServiceImpl implements AuthService {
       };
 
       this.currentUser = authUser;
+      
+      // Persist user session in localStorage
+      try {
+        localStorage.setItem('arks-rwa-auth', JSON.stringify({
+          principal: authUser.principal,
+          isConnected: authUser.isConnected,
+          walletType: authUser.walletType
+        }));
+      } catch (e) {
+        console.warn('Failed to store auth in local storage:', e);
+      }
+      
       console.log("Plug wallet connected successfully with ic-auth!");
       return authUser;
     } else {
@@ -72,6 +84,11 @@ class AuthServiceImpl implements AuthService {
   }
 
   getCurrentUser(): AuthUser | null {
+    // Try to restore session if user is null but localStorage has data
+    if (!this.currentUser) {
+      this.restoreSession();
+    }
+    
     if (this.currentUser && !this.currentUser.role) {
       // Add role to current user if not present
       const role = this.getUserRole();
@@ -80,6 +97,27 @@ class AuthServiceImpl implements AuthService {
       }
     }
     return this.currentUser;
+  }
+
+  private restoreSession(): void {
+    try {
+      const storedAuth = localStorage.getItem('arks-rwa-auth');
+      if (storedAuth) {
+        const authData = JSON.parse(storedAuth);
+        
+        // Recreate user object (note: agent will be null, needs reconnection for blockchain calls)
+        this.currentUser = {
+          principal: authData.principal,
+          agent: null, // Will need to reconnect for agent
+          isConnected: authData.isConnected || false,
+          walletType: authData.walletType || 'plug'
+        };
+      }
+    } catch (e) {
+      console.warn('Failed to restore session from local storage:', e);
+      // Clear corrupted data
+      localStorage.removeItem('arks-rwa-auth');
+    }
   }
 
   isAuthenticated(): boolean {

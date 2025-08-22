@@ -290,7 +290,7 @@ export default function CompanyDashboardPage() {
               <div className="text-sm text-gray-400">Score</div>
               <div className="text-white font-medium">
                 {company.verification_score ? (
-                  <span className={`${company.verification_score >= 70 ? 'text-green-400' : company.verification_score >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  <span className={`${company.verification_score >= 70 ? 'text-red-400' : company.verification_score >= 40 ? 'text-yellow-400' : 'text-green-400'}`}>
                     {company.verification_score.toFixed(1)}/100
                   </span>
                 ) : 'Not Available'}

@@ -19,7 +19,7 @@ import Constants "./constants";
 import OldTypes "./old_types";
 
 // Verification Engine Class
-persistent actor class VerificationEngine(init_admin: Principal, ai_service_url: ?Text, ai_auth_token: ?Text, core_canister_id: ?Text) = self {
+persistent actor class VerificationEngine(init_admin: Principal, ai_service_url: ?Text, _ai_auth_token: ?Text) = self {
   type VerificationProfile = Types.VerificationProfile;
   type VerificationJob = Types.VerificationJob;
   type VerificationStatus = Types.VerificationStatus;
@@ -42,10 +42,26 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
       case null "http://localhost:3001"; // fallback for local dev
     };
     
-    // Core canister integration
-    private transient let coreCanisterId : ?Principal = switch(core_canister_id) {
-      case (?cid) ?Principal.fromText(cid);
-      case null null; // Will be set later or use direct calls
+    // Core canister registry - managed dynamically
+    private var registeredCoreCanisterIds : [Principal] = [];
+    
+    // Core canister interface types
+    public type CoreCompany = {
+      id : Nat;
+      name : Text;
+      symbol : Text;
+      owner : Principal;
+      verification : Types.VerificationProfile;
+      // Add other fields as needed
+    };
+    
+    // Core canister interface for callbacks
+    private func getCoreCanisterActor(canisterId : Principal) : actor {
+      updateVerificationResult : (Nat, Types.VerificationProfile, Principal) -> async ();
+      getCompany : (Nat) -> async ?CoreCompany;
+      listCompanies : () -> async [CoreCompany];
+    } {
+      actor(Principal.toText(canisterId))
     };
     
     // Define core canister verification profile type
@@ -65,12 +81,33 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
       updateVerificationResult : (Nat, CoreVerificationProfile, Principal) -> async ();
     };
 
-    // Core canister interface for verification updates
-    private func getCoreCanister() : ?CoreCanisterInterface {
-      switch(coreCanisterId) {
-        case (?id) ?actor(Principal.toText(id));
-        case null null;
-      }
+    // Core canister management functions
+    public func registerCoreCanister(canisterId : Principal, caller : Principal) : async () {
+      if (caller != admin) {
+        throw Error.reject("Authorization failed: Only admin can register core canisters");
+      };
+      
+      // Check if already registered
+      for (id in registeredCoreCanisterIds.vals()) {
+        if (id == canisterId) { return }; // Already registered
+      };
+      
+      registeredCoreCanisterIds := Array.append(registeredCoreCanisterIds, [canisterId]);
+    };
+    
+    public func unregisterCoreCanister(canisterId : Principal, caller : Principal) : async () {
+      if (caller != admin) {
+        throw Error.reject("Authorization failed: Only admin can unregister core canisters");
+      };
+      
+      registeredCoreCanisterIds := Array.filter(registeredCoreCanisterIds, func(id : Principal) : Bool { id != canisterId });
+    };
+    
+    public query func listRegisteredCoreCanisterIds(caller : Principal) : async [Principal] {
+      if (caller != admin) {
+        return [];
+      };
+      registeredCoreCanisterIds;
     };
   
     // Custom hash function for Nat
@@ -154,19 +191,14 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
             // Store the verification profile
             verificationProfiles.put(job.companyId, profile);
 
-            // Update core canister with verification result
-            switch (getCoreCanister()) {
-              case (?coreRef) {
-                try {
-                  let coreProfile = mapToCoreverificationProfile(profile);
-                  await coreRef.updateVerificationResult(job.companyId, coreProfile, Principal.fromActor(self));
-                } catch (error) {
-                  Debug.print("Failed to update core canister for company " # job.companyName # ": " # Error.message(error));
-                  // Continue anyway - verification is complete even if core update fails
-                };
-              };
-              case null {
-                Debug.print("No core canister configured - verification result not propagated");
+            // Update core canisters with verification result
+            for (coreCanisterId in registeredCoreCanisterIds.vals()) {
+              let coreRef = getCoreCanisterActor(coreCanisterId);
+              try {
+                await coreRef.updateVerificationResult(job.companyId, profile, Principal.fromActor(self));
+              } catch (error) {
+                Debug.print("Failed to update core canister for company " # job.companyName # ": " # Error.message(error));
+                // Continue anyway - verification is complete even if core update fails
               };
             };
 
@@ -504,12 +536,12 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     };
     
     // NEW: Force cache refresh for a company (admin function)
-    private func refreshCompanyVerification(companyId : Nat, companyName : Text) : async VerificationProfile {
+    private func refreshCompanyVerification(companyId : Nat, _companyName : Text) : async VerificationProfile {
       // Remove from cache to force refresh
       verificationCache.delete(companyId);
       
       // Perform fresh verification
-      await performCompanyVerification(companyId, companyName);
+      await performCompanyVerification(companyId, _companyName);
     };
     
     // NEW: Direct Scorer API verification with external API key
@@ -557,7 +589,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     };
 
     // Map risk engine VerificationProfile to core canister types
-    private func mapToCoreverificationProfile(riskProfile : VerificationProfile) : CoreVerificationProfile {
+    private func _mapToCoreverificationProfile(riskProfile : VerificationProfile) : CoreVerificationProfile {
       let state = switch (riskProfile.verificationStatus) {
         case (#verified) #Verified;
         case (#suspicious) #NeedsUpdate; 
@@ -1126,7 +1158,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     };
     
     // NEW: Test Scorer API verification with external API key (for testing the new architecture)
-    public func testScorerApiVerification(companyId : Nat, apiKey : Text, caller : Principal) : async ?VerificationProfile {
+    public func testScorerApiVerification(companyId : Nat, _apiKey : Text, caller : Principal) : async ?VerificationProfile {
       // Only admin can test Scorer API
       if (caller != admin) {
         return null;
@@ -1139,7 +1171,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
               companyId, 
               company.name, 
               company.description,
-              apiKey
+              _apiKey
             );
             ?profile;
           } catch (_error) {
@@ -1195,6 +1227,83 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
         case null { false };
       };
     };
+
+    // ==========================================
+    // COMPANY MONITORING AND AUTO-VERIFICATION
+    // ==========================================
+    
+    // Monitor registered core canisters for new companies needing verification
+    public func scanCoreCanistersForPendingVerification(caller : Principal) : async Nat {
+      if (caller != admin) {
+        throw Error.reject("Authorization failed: Only admin can scan for pending verification.");
+      };
+      
+      var companiesProcessed = 0;
+      
+      for (coreCanisterId in registeredCoreCanisterIds.vals()) {
+        let coreRef = getCoreCanisterActor(coreCanisterId);
+        try {
+          let companies = await coreRef.listCompanies();
+          
+          for (company in companies.vals()) {
+            // Check if company needs verification (status is pending or registered)
+            switch (company.verification.verificationStatus) {
+              case (#pending or #registered) {
+                // Check if we don't already have a verification job for this company
+                var hasExistingJob = false;
+                for ((jobId, job) in verificationJobs.entries()) {
+                  if (job.companyId == company.id and (job.status == #processing or job.status == #queued)) {
+                    hasExistingJob := true;
+                  };
+                };
+                
+                if (not hasExistingJob) {
+                  // Start verification for this company
+                  ignore await startVerificationWithApiKey(company.id, company.name, #normal, null);
+                  companiesProcessed += 1;
+                };
+              };
+              case (_) {}; // Company doesn't need verification
+            };
+          };
+        } catch (error) {
+          Debug.print("Failed to scan core canister " # Principal.toText(coreCanisterId) # ": " # Error.message(error));
+        };
+      };
+      
+      companiesProcessed;
+    };
+    
+    // Automatic periodic scan function (can be called by a heartbeat or external scheduler)
+    public func periodicVerificationScan() : async Nat {
+      // This function doesn't require admin access as it's meant to be called automatically
+      // by the system or scheduled jobs
+      await scanCoreCanistersForPendingVerification(admin);
+    };
+    
+    // Get summary of companies across all registered core canisters
+    public query func getMultiCoreCompanySummary(caller : Principal) : async ?{
+      totalCompanies : Nat;
+      pendingVerification : Nat;
+      verified : Nat;
+      failed : Nat;
+      registeredCoreCanisterIds : [Principal];
+    } {
+      if (caller != admin) {
+        return null;
+      };
+      
+      // Note: This is a query function, so we can't make async calls to core canisters
+      // This provides a summary of the monitoring setup only
+      ?{
+        totalCompanies = 0; // Would need to be populated from cached data
+        pendingVerification = 0; // Would need to be populated from job queue
+        verified = verificationProfiles.size();
+        failed = 0; // Count from jobs with failed status
+        registeredCoreCanisterIds = registeredCoreCanisterIds;
+      };
+    };
+
 };
 
 // module {

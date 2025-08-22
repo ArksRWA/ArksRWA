@@ -36,7 +36,6 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
   type HttpHeader = Core.HttpHeader;
     // Admin principal is required - no fallback or null handling needed
     private transient let admin : Principal = init_admin;
-    private transient let AI_AUTH_TOKEN : ?Text = ai_auth_token;
     // AI Service Configuration
     private transient let AI_SERVICE_URL : Text = switch(ai_service_url) {
       case (?url) url;
@@ -83,10 +82,6 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     private transient var verificationProfiles : HashMap.HashMap<Nat, VerificationProfile> = HashMap.HashMap(0, Nat.equal, natHash);
     private transient var verificationJobs : HashMap.HashMap<Nat, VerificationJob> = HashMap.HashMap(0, Nat.equal, natHash);
     private transient var jobCounter : Nat = 0;
-    
-    // Enhanced verification system storage (optional for future use)
-    private transient var performanceMetrics : ?Types.PerformanceMetrics = null;
-    private transient var weightSystemVersion : Text = "2.0.0-indonesian-enhanced";
 
     // Cache for recent search results (to avoid repeated API calls)
     private transient var searchCache : HashMap.HashMap<Text, (Int, Text)> = HashMap.HashMap(0, Text.equal, Text.hash);

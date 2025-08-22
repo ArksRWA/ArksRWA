@@ -28,7 +28,6 @@
       "domains": ["*"]
     },
     "frontend": {
-      "dependencies": ["arks-core", "arks-identity", "arks-token-factory", "arks-risk-engine"],
       "source": ["src/frontend/.next/build"],
       "type": "assets",
       "domains": ["*"]

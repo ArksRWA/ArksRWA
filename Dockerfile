@@ -1,13 +1,12 @@
 FROM --platform=linux/amd64 node:latest
 
-# Install OS-level deps including PocketIC dependencies for DFX 0.27.0
+# Install OS-level deps
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    curl ca-certificates git libssl-dev pkg-config build-essential gnupg \
-    libunwind8 libunwind-dev libc6-dev && \
+    curl ca-certificates git libssl-dev pkg-config build-essential gnupg && \
     rm -rf /var/lib/apt/lists/*
 
 # Install DFX
-ENV DFX_VERSION=0.27.0
+ENV DFX_VERSION=0.28.0
 RUN curl -L https://github.com/dfinity/sdk/releases/download/${DFX_VERSION}/dfx-${DFX_VERSION}-x86_64-linux.tar.gz -o dfx.tar.gz && \
     tar -xzf dfx.tar.gz && mv dfx /usr/local/bin/dfx && chmod +x /usr/local/bin/dfx && rm -rf dfx.tar.gz LICENSE version.txt
 

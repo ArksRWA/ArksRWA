@@ -7,8 +7,8 @@ import {
   candidTokenHolderToFrontend,
   CanisterCallError
 } from '../types/canister';
-// REMOVE BELOW CODE IF TRIGGER ERROR
-import * as declarations from '../declarations/arks-core/index.js';
+// Import declarations using the alias
+import * as declarations from '@declarations/arks-core/index.js';
 
 // Re-export types for convenience
 export type { Company, CreateCompanyParams } from '../types/canister';

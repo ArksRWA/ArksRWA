@@ -1,20 +1,15 @@
 // Re-export generated types from declarations
 export type {
-  // ARKSRWA,
+  ARKSRWA,
   Company as CandidCompany,
   TokenHolder as CandidTokenHolder,
-  VerificationProfile,
-  ListingState,
-  RiskLabel,
-  VerificationState,
-  Escrow,
-  EscrowStatus,
-  // Account,
-  // TransferArgs,
-  // TransferResult,
-  // TransferError,
+  Account,
+  AccountType,
+  TransferArgs,
+  TransferResult,
+  TransferError,
   _SERVICE
-} from '../declarations/arks-core/arks-core.did';
+} from '../../declarations/arks-rwa-backend/arks-rwa-backend.did';
 
 // Risk level status type
 export type CompanyRiskStatus = 'low' | 'medium' | 'high';
@@ -43,10 +38,6 @@ export interface Company {
   trading_paused?: boolean;
   token_canister_id?: string | null;
   treasury_account?: string;
-  listing_state?: ListingState;
-  dex_pool_url?: string | null;
-  escrow?: Escrow;
-  verification?: VerificationProfile;
   status?: CompanyRiskStatus; // Keep for backward compatibility
 }
 
@@ -96,16 +87,12 @@ export const candidCompanyToFrontend = (candidCompany: any): Company => {
     trading_paused: candidCompany.trading_paused,
     token_canister_id: candidCompany.token_canister_id?.length > 0 ? candidCompany.token_canister_id[0].toString() : null,
     treasury_account: candidCompany.treasury_account?.toString(),
-    listing_state: candidCompany.listing_state,
-    dex_pool_url: candidCompany.dex_pool_url?.length > 0 ? candidCompany.dex_pool_url[0] : null,
-    escrow: candidCompany.escrow,
-    verification: candidCompany.verification,
     // Default to 'medium' risk status until backend provides this field
     status: (candidCompany as any).status || 'medium',
   };
 };
 
-export const candidTokenHolderToFrontend = (candidHolder: import('../declarations/arks-core/arks-core.did').TokenHolder): TokenHolder => {
+export const candidTokenHolderToFrontend = (candidHolder: import('../../declarations/arks-rwa-backend/arks-rwa-backend.did').TokenHolder): TokenHolder => {
   return {
     amount: Number(candidHolder.amount),
     investor: candidHolder.investor.toString(),

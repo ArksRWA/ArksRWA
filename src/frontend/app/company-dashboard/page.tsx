@@ -31,13 +31,13 @@ export default function CompanyDashboardPage() {
 
       setCurrentUser(user);
       setUserRole(role);
-      await loadCompanyData(user);
+      await loadCompanyData();
     };
 
     checkAuthAndCompany();
   }, [router]);
 
-  const loadCompanyData = async (user: AuthUser) => {
+  const loadCompanyData = async () => {
     try {
       setLoading(true);
       setError('');

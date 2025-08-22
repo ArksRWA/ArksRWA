@@ -154,7 +154,7 @@ export default function Navigation({ className = '' }: NavigationProps) {
       <div className="absolute right-0 mt-3 w-56 bg-card-bg backdrop-blur-xl border border-card-border rounded-2xl shadow-dark-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 overflow-hidden">
         <div className="p-3">
           <button
-            onClick={() => router.push('/dashboard')}
+            onClick={() => router.push(userRole === 'company' ? '/company-dashboard' : '/dashboard')}
             className="flex items-center gap-3 w-full px-4 py-3 text-left text-foreground-secondary hover:text-foreground hover:bg-card-bg-hover rounded-xl transition-all duration-200 group/item"
           >
             <svg className="w-5 h-5 group-hover/item:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -221,7 +221,7 @@ export default function Navigation({ className = '' }: NavigationProps) {
             {isAuthenticated ? (
               <>
                 <NavLink
-                  href="/dashboard"
+                  href={userRole === 'company' ? '/company-dashboard' : '/dashboard'}
                   icon={
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2 2z" />

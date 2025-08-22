@@ -40,8 +40,8 @@ export default function CreateCompanyPage() {
         setHasCompany(userHasCompany);
         
         if (userHasCompany) {
-          // Redirect to dashboard if they already have a company
-          router.push('/dashboard');
+          // Redirect to company dashboard if they already have a company
+          router.push('/company-dashboard');
         }
       } catch (error) {
         console.error('Error checking owned company:', error);
@@ -132,7 +132,7 @@ export default function CreateCompanyPage() {
       });
 
       console.log('Company created successfully with ID:', companyId);
-      router.push('/companies');
+      router.push('/company-dashboard');
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -158,10 +158,10 @@ export default function CreateCompanyPage() {
           <h2 className="text-2xl font-bold mb-4">Company Already Created</h2>
           <p className="text-gray-400 mb-6">You can only create one company per account.</p>
           <button
-            onClick={() => router.push('/dashboard')}
+            onClick={() => router.push('/company-dashboard')}
             className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
           >
-            Go to Dashboard
+            Go to Company Dashboard
           </button>
         </div>
       </div>

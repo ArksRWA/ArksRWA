@@ -33,6 +33,7 @@ export default function CompanyDetailsPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userHoldings, setUserHoldings] = useState<bigint>(0n);
   const [isOwner, setIsOwner] = useState(false);
+  const [userRole, setUserRole] = useState<'user' | 'company' | undefined>(undefined);
 
   // Trading states
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
@@ -45,6 +46,8 @@ export default function CompanyDetailsPage() {
     const checkAuth = async () => {
       const authenticated = await Promise.resolve(authService.isAuthenticated());
       setIsAuthenticated(!!authenticated);
+      const role = authService.getUserRole();
+      setUserRole(role);
       if (!authenticated) {
         router.push('/');
         return;
@@ -219,8 +222,9 @@ export default function CompanyDetailsPage() {
             </div>
           </div>
 
-          {/* Trading */}
-          <div className="space-y-6">
+          {/* Trading - Only show for regular users, not company users */}
+          {userRole !== 'company' && (
+            <div className="space-y-6">
             <div className="bg-card-bg border border-gray-700 rounded-lg p-6 text-center">
               <h3 className="text-lg font-semibold text-white mb-4">Your Holdings</h3>
               <div className="text-3xl font-bold text-primary">{userHoldings.toLocaleString()}</div>
@@ -293,7 +297,8 @@ export default function CompanyDetailsPage() {
                 {tradeLoading ? 'Processing...' : `${tradeType === 'buy' ? 'Buy' : 'Sell'} Tokens`}
               </button>
             </div>
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

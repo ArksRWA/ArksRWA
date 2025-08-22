@@ -180,6 +180,24 @@ private async createActor(requireAuth = true) {
     }
   }
 
+  async hasOwnedCompany(): Promise<boolean> {
+    const user = authService.getCurrentUser();
+    if (!user || !user.isConnected) {
+      return false;
+    }
+
+    try {
+      const { Principal } = await import('@dfinity/principal');
+      const callerPrincipal = Principal.fromText(user.principal);
+      const actor = await this.createActor(true);
+      const ownedCompanies = await actor.getOwnedCompanies(callerPrincipal);
+      return ownedCompanies.length > 0;
+    } catch (error) {
+      console.error('Error checking owned company:', error);
+      return false;
+    }
+  }
+
   async getCompanyById(id: number): Promise<Company | null> {
     try {
       // Real backend call - no authentication required for public data

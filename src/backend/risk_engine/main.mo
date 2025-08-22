@@ -106,10 +106,6 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     // Configuration
     private transient let config : HttpOutcallConfig = Core.DEFAULT_CONFIG;
     private transient var companies : HashMap.HashMap<Nat, OldTypes.Company> = HashMap.HashMap(0, Nat.equal, natHash);
-    // Try AI-powered verification first, fallback to legacy
-    private transient var verificationStatus : VerificationStatus = #pending;
-    private transient var verificationScore : ?Float = null;
-    private transient var verificationJobId : ?Nat = null;
     private transient var companyCount : Nat = 0;
     // Public interface functions
 
@@ -241,17 +237,6 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
         };
         case (null) { null }; // No cache entry
       };
-    };
-    
-    // NEW: Build features from company data (Step 2 of flowchart)
-    private func buildVerificationFeaturesFromCompanyData(companyId : Nat, companyName : Text) : async Types.CompanyFeatures {
-      // In production, this would extract more data from company records
-      // For now, use company name and basic description
-      let description = "Indonesian company: " # companyName; // Would be actual company description
-      let industryType = ?#services; // Would be determined from company data
-      let registrationYear = null; // Would be extracted from company records
-      
-      Core.buildVerificationFeatures(companyId, companyName, description, industryType, registrationYear);
     };
     
     // NEW: Single efficient API call to Scorer API (Step 3 of flowchart)
@@ -440,22 +425,6 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
       verificationProfiles.get(companyId);
     };
 
-    // Get verification status for a company
-    private func getVerificationStatus(companyId : Nat) : ?VerificationStatus {
-      switch (verificationProfiles.get(companyId)) {
-        case (?profile) { ?profile.verificationStatus };
-        case null { null };
-      };
-    };
-
-    // Get verification score for a company
-    private func getVerificationScore(companyId : Nat) : ?Float {
-      switch (verificationProfiles.get(companyId)) {
-        case (?profile) { ?profile.overallScore };
-        case null { null };
-      };
-    };
-
     // Check if company needs re-verification
     private func needsReverification(companyId : Nat) : Bool {
       switch (verificationProfiles.get(companyId)) {
@@ -472,11 +441,6 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     // Get verification job status
     private func getJobStatus(jobId : Nat) : ?VerificationJob {
       verificationJobs.get(jobId);
-    };
-
-    // List all verification profiles
-    private func listVerificationProfiles() : [VerificationProfile] {
-      Iter.toArray(verificationProfiles.vals());
     };
 
     // List pending verification jobs
@@ -569,57 +533,6 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
       // Perform fresh verification
       await performCompanyVerification(companyId, companyName);
     };
-
-    // Get cache statistics
-    private func getCacheStats() : { entries : Nat; oldEntries : Nat } {
-      let currentTime = Time.now();
-      var totalEntries = 0;
-      var oldEntries = 0;
-      
-      for ((key, value) in searchCache.entries()) {
-        totalEntries += 1;
-        let (timestamp, _) = value;
-        if (currentTime - timestamp > CACHE_TTL_NS) {
-          oldEntries += 1;
-        };
-      };
-      
-      { entries = totalEntries; oldEntries = oldEntries };
-    };
-
-    // === ENHANCED VERIFICATION SYSTEM INTEGRATION ===
-    
-    // Get current weight system version
-    private func getWeightSystemVersion() : Text {
-      weightSystemVersion;
-    };
-    
-    // Get performance metrics (if available)
-    private func getPerformanceMetrics() : ?Types.PerformanceMetrics {
-      performanceMetrics;
-    };
-    
-    // Update performance metrics based on verification results
-    private func updatePerformanceMetrics(
-      verificationResults: [(VerificationProfile, Bool)], // (profile, isActuallyFraudulent)
-      processingTimes: [Int]
-    ) : Types.PerformanceMetrics {
-      let metrics = Core.calculatePerformanceMetrics(verificationResults, processingTimes);
-      performanceMetrics := ?metrics;
-      metrics;
-    };
-    
-    // Enhanced verification with context awareness (future integration point)
-    private func performEnhancedVerification(
-      companyId : Nat, 
-      companyName : Text, 
-      _companyDescription : Text,
-      priority : JobPriority
-    ) : async Nat {
-      // For now, delegate to standard verification
-      // Future enhancement: build verification context and use enhanced weight system
-      await startVerification(companyId, companyName, priority);
-    };
     
     // NEW: Direct Scorer API verification with external API key
     public func performScorerApiVerification(
@@ -662,39 +575,6 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
       } catch (error) {
         Debug.print("Scorer API verification failed: " # Error.message(error));
         throw error;
-      };
-    };
-    
-    // Validate current weight configuration
-    private func validateWeights() : { isValid: Bool; warnings: [Text]; recommendations: [Text] } {
-      let weights = HashMap.HashMap<Text, Float>(6, Text.equal, Text.hash);
-      weights.put("fraud_keywords", Constants.FRAUD_KEYWORDS_WEIGHT);
-      weights.put("news_sentiment", Constants.NEWS_SENTIMENT_WEIGHT);
-      weights.put("business_registry", Constants.BUSINESS_REGISTRY_WEIGHT);
-      weights.put("authority_mentions", Constants.AUTHORITY_MENTIONS_WEIGHT);
-      weights.put("digital_footprint", Constants.DIGITAL_FOOTPRINT_WEIGHT);
-      weights.put("domain_age", Constants.DOMAIN_AGE_WEIGHT);
-      
-      Core.validateWeightConfiguration(weights);
-    };
-    
-    // Get weight optimization recommendations (if performance metrics available)
-    private func getWeightOptimizationRecommendations() : ?[(Text, Float)] {
-      switch (performanceMetrics) {
-        case (?currentMetrics) {
-          let targetMetrics : Types.PerformanceMetrics = {
-            falsePositiveRate = Constants.TARGET_FALSE_POSITIVE_RATE;
-            falseNegativeRate = Constants.TARGET_FALSE_NEGATIVE_RATE;
-            f1Score = Constants.TARGET_F1_SCORE;
-            accuracyScore = 0.85; // Target 85% accuracy
-            processingTime = Constants.MAX_PROCESSING_TIME_MS * 1_000_000; // Convert to nanoseconds
-            totalVerifications = 0; // Not used for recommendations
-            lastCalculated = Time.now();
-          };
-          
-          ?Core.recommendWeightAdjustments(currentMetrics, targetMetrics);
-        };
-        case (null) { null };
       };
     };
 

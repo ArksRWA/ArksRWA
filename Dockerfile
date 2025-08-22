@@ -19,37 +19,39 @@ COPY --chown=node:node . .
 
 # Switch to root to create directory with proper permissions
 USER root
-RUN mkdir -p /app/.dfx && chown -R node:node /app && \
-    chmod +x /app/scripts/deploy-local.sh
+RUN mkdir -p /app/.dfx && chown -R node:node /app
 
 # Switch back to node user
 USER node
 
-# Set up environment for local development
-RUN cp .env.local.example .env.local
+# Generate backend declarations
+RUN dfx generate arks-core && \
+    mkdir -p /app/src/frontend/declarations/arks-core && \
+    cp -r /app/src/declarations/arks-core/* /app/src/frontend/declarations/arks-core/ && \
+    dfx generate arks-identity && \
+    mkdir -p /app/src/frontend/declarations/arks-identity && \
+    cp -r /app/src/declarations/arks-identity/* /app/src/frontend/declarations/arks-identity/ && \
+    dfx generate arks-risk-engine && \
+    mkdir -p /app/src/frontend/declarations/arks-risk-engine && \
+    cp -r /app/src/declarations/arks-risk-engine/* /app/src/frontend/declarations/arks-risk-engine/ && \
+    dfx generate arks-token-factory && \
+    mkdir -p /app/src/frontend/declarations/arks-token-factory && \
+    cp -r /app/src/declarations/arks-token-factory/* /app/src/frontend/declarations/arks-token-factory/
 
-# Install AI service dependencies
-RUN cd /app/src/AI && npm install
-
-# Set up Docker-specific environment
-ENV DOCKER_MODE=true
-ENV DFX_NETWORK=local
-ENV AI_SERVICE_URL=http://localhost:3001
-
-# Build frontend first to avoid asset canister issues
-RUN cd /app/src/frontend && \
+RUN dfx start --background --clean && \
+    dfx deploy arks-core && \
+    . /app/.env && \
+    [ ! -f .env ] || export $(grep -v '^#' .env | xargs) && \
+    dfx deploy arks-identity && \
+    dfx deploy arks-risk-engine && \
+    dfx deploy arks-token-factory --argument "(null, principal \"$CANISTER_ID_ARKS_CORE\")" && \
+    cd /app/src/frontend && \
     npm install && \
     npm run build
-
-# Deploy all canisters with frontend ready
-RUN dfx start --background --clean && \
-    ./scripts/deploy-local.sh
 
 # Go back to app root
 WORKDIR /app
 
-# Expose ports for DFX, frontend, and AI service
-EXPOSE 4943 3000 3001
+EXPOSE 4943 3000
 
-# Start both DFX and AI service
-CMD ["sh", "-c", "dfx start --host 0.0.0.0:4943 --background && cd src/AI && npm start & wait"]
+CMD ["true"]

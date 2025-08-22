@@ -96,7 +96,26 @@ export default function HomePage() {
               Create, trade, and manage tokenized companies with full transparency and security.
               Built on the Internet Computer for true decentralization.
             </p>
-
+            <div className="hidden flex flex-wrap justify-center gap-6 mb-12 text-sm text-foreground-muted">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                <span>Fully Decentralized</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                <span>Real-time Trading</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                <span>Zero Gas Fees</span>
+              </div>
+            </div>
             {/* Connection Buttons */}
             <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-12">
               <button
@@ -220,7 +239,7 @@ export default function HomePage() {
               </button>
               <button
                 onClick={() => router.push('/companies')}
-                className="px-10 py-4 bg-card-bg backdrop-blur-sm border border-card-border text-foreground rounded-2xl hover:bg-card-bg-hover hover:border-card-border-hover hover:scale-105 transition-all duration-300 font-semibold"
+                className="hidden px-10 py-4 bg-card-bg backdrop-blur-sm border border-card-border text-foreground rounded-2xl hover:bg-card-bg-hover hover:border-card-border-hover hover:scale-105 transition-all duration-300 font-semibold"
               >
                 Explore Demo
               </button>

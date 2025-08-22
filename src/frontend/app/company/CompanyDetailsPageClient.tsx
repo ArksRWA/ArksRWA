@@ -163,8 +163,8 @@ export default function CompanyDetailsPage() {
         {isOwner && (
           <div className="flex justify-end mt-4 mb-6">
             <button
-              onClick={() => router.push(`/manage-company/${companyId}`)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              onClick={() => router.push(`/manage-company?id=${companyId}`)}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
             >
               Manage Company
             </button>

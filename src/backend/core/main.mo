@@ -12,7 +12,6 @@ import Hash      "mo:base/Hash";
 import Array     "mo:base/Array";
 import Buffer "mo:base/Buffer";
 import Option "mo:base/Option";
-import Debug "mo:base/Debug";
 
 import Types     "./types";
 
@@ -124,33 +123,6 @@ persistent actor class ARKSRWA_Core(init_admin : Principal, risk_engine_canister
     else if (exp == 1.5) base * Float.sqrt(base)
     else if (exp == 2.0) base * base
     else base * base
-  };
-
-  transient func baseBondingPrice(basePrice : Nat, sold : Nat, supply : Nat) : Nat {
-    if (supply == 0) basePrice
-    else {
-      let soldRatio = Float.fromInt(sold) / Float.fromInt(supply);
-      let mult = powF(1.0 + soldRatio, bondingCurveExponent);
-      let raw = Float.fromInt(basePrice) * mult;
-      let lo  = Float.fromInt(basePrice) * 0.5;
-      let hi  = Float.fromInt(basePrice) * 10.0;
-      if (raw < lo) Int.abs(Float.toInt(lo))
-      else if (raw > hi) Int.abs(Float.toInt(hi))
-      else Int.abs(Float.toInt(raw))
-    }
-  };
-
-  transient func combinedMult(remaining : Nat, supply : Nat, amount : Nat) : Float {
-    if (supply == 0) return 1.0;
-    let scarcityRatio = Float.fromInt(remaining) / Float.fromInt(supply);
-    let scarcity      = Float.max(1.0, 2.0 - scarcityRatio);
-    let volume        = Float.min(1.5, 1.0 + Float.fromInt(amount) / 100.0);
-    scarcity * volume
-  };
-
-  transient func indicativePrice(basePrice : Nat, sold : Nat, supply : Nat, buyAmt : Nat) : Nat {
-    let base = baseBondingPrice(basePrice, sold, supply);
-    Int.abs(Float.toInt(Float.fromInt(base) * combinedMult(supply - sold, supply, buyAmt)))
   };
 
   // ---------- Company Registration ----------

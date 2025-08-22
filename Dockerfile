@@ -1,8 +1,9 @@
 FROM --platform=linux/amd64 node:latest
 
-# Install OS-level deps
+# Install OS-level deps including PocketIC dependencies for DFX 0.27.0
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    curl ca-certificates git libssl-dev pkg-config build-essential gnupg && \
+    curl ca-certificates git libssl-dev pkg-config build-essential gnupg \
+    libunwind8 libunwind-dev libc6-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # Install DFX

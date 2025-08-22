@@ -470,23 +470,6 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
         case null { false };
       };
     };
-
-    // Clear old cache entries (legacy search cache)
-    private func cleanupCache() : Nat {
-      let currentTime = Time.now();
-      var removedCount = 0;
-      
-      let entries = Iter.toArray(searchCache.entries());
-      for ((key, value) in entries.vals()) {
-        let (timestamp, _) = value;
-        if (currentTime - timestamp > CACHE_TTL_NS) {
-          searchCache.delete(key);
-          removedCount += 1;
-        };
-      };
-      
-      removedCount;
-    };
     
     // NEW: Clean up expired verification cache entries for memory management
     private func cleanupVerificationCache() : Nat {

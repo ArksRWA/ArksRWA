@@ -36,14 +36,14 @@ ENV DOCKER_MODE=true
 ENV DFX_NETWORK=local
 ENV AI_SERVICE_URL=http://localhost:3001
 
-# Use the production-ready deploy-local.sh script
-RUN dfx start --background --clean && \
-    ./scripts/deploy-local.sh
-
-# Install frontend dependencies and build
+# Build frontend first to avoid asset canister issues
 RUN cd /app/src/frontend && \
     npm install && \
     npm run build
+
+# Deploy all canisters with frontend ready
+RUN dfx start --background --clean && \
+    ./scripts/deploy-local.sh
 
 # Go back to app root
 WORKDIR /app

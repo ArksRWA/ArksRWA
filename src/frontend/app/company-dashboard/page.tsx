@@ -72,7 +72,7 @@ export default function CompanyDashboardPage() {
 
   const handleUpdateDescription = () => {
     if (company) {
-      router.push(`/manage-company/${company.id}`);
+      router.push(`/manage-company?id=${company.id}`);
     }
   };
 

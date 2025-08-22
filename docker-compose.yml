@@ -24,10 +24,10 @@ services:
         dfx identity use default && \
         echo "🚀 Deploying canisters..." && \
         [ ! -f .env ] || export $(grep -v '^#' .env | xargs) && \
-        dfx deploy --network local arks-core && \
-        dfx deploy --network local arks-identity && \
-        dfx deploy --network local arks-risk-engine && \
-        dfx deploy --network local arks-token-factory --argument "(null, principal \"$(dfx canister id arks-core)\")" && \
+        dfx deploy --network local arks-core --argument "(principal \"$(dfx identity get-principal)\", null)" && \
+        dfx deploy --network local arks-identity --argument "(principal \"$(dfx identity get-principal)\")" && \
+        dfx deploy --network local arks-risk-engine --argument "(principal \"$(dfx identity get-principal)\", null, null, principal \"$(dfx canister id arks-core)\")" && \
+        dfx deploy --network local arks-token-factory --argument "(principal \"$(dfx identity get-principal)\", principal \"$(dfx canister id arks-core)\")"  && \
         dfx deploy --network local frontend && \
         echo "✅ Canisters ready!" && \
         tail -f /dev/null

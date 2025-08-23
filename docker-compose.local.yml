@@ -9,7 +9,6 @@ services:
     ports:
       - "4943:4943"
       - "3000:3000"
-      - "3001:3001"
     volumes:
       - dfx_state:/home/node/.local/share/dfx
     working_dir: /app
@@ -37,6 +36,26 @@ services:
         npm run build && cd ../../ && \
         dfx deploy --network local frontend && \
         echo "✅ Canisters ready!" && \
+        tail -f /dev/null
+
+  ai-engine:
+    depends_on:
+      - dfx
+    build:
+      context: ./src/AI
+      dockerfile: Dockerfile
+    container_name: ai-engine
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./src/AI:/app
+    working_dir: /app
+    command:
+      - /bin/bash
+      - -c
+      - |
+        echo "🧠 Starting AI Engine..." && \
+        npm run dev && \
         tail -f /dev/null
 
 volumes:

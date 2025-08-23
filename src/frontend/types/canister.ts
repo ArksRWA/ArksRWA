@@ -86,7 +86,7 @@ export const candidCompanyToFrontend = (candidCompany: any): Company => {
   };
 };
 
-export const candidTokenHolderToFrontend = (candidHolder: import('../../declarations/arks-rwa-backend/arks-rwa-backend.did').TokenHolder): TokenHolder => {
+export const candidTokenHolderToFrontend = (candidHolder: import('../declarations/arks-core/arks-core.did').TokenHolder): TokenHolder => {
   return {
     amount: Number(candidHolder.amount),
     investor: candidHolder.investor.toString(),

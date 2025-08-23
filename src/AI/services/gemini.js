@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import WebScrapingService from './web-scraper.js';
 import { serpAPIService } from './serpapi-service.js';
 
@@ -650,8 +650,9 @@ class GeminiService {
     this.testMode = !this.apiKey || this.apiKey === 'test-api-key-for-development';
     
     if (!this.testMode) {
-      this.genAI = new GoogleGenerativeAI(this.apiKey);
-      this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      this.genAI = new GoogleGenAI(this.apiKey);
+      // New API uses models directly without getGenerativeModel
+      this.model = this.genAI.models;
     } else {
       console.log('Running in test mode - using mock responses for Gemini API');
     }
@@ -912,13 +913,15 @@ BEGIN ANALYSIS - RESPOND WITH JSON ONLY:`;
     try {
       const prompt = this.createActorRolePrompt(companyName, newsArticles);
       
+      // New @google/genai API format
       const result = await this.model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        model: 'gemini-1.5-flash',
+        prompt: prompt,
         generationConfig: this.config,
       });
 
-      const response = await result.response;
-      const text = response.text();
+      // New API returns text directly without .response step
+      const text = result.text || result.candidates?.[0]?.content?.parts?.[0]?.text || '';
       
       console.log('🎭 Actor role analysis response length:', text.length);
       console.log('🎭 Actor role analysis preview:', text.substring(0, 200));
@@ -1209,8 +1212,8 @@ Perform triage analysis now:`;
         },
       });
 
-      const response = await result.response;
-      const text = response.text();
+      // New API returns text directly
+      const text = result.text || result.candidates?.[0]?.content?.parts?.[0]?.text || '';
       
       // Extract JSON from response
       const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -1391,8 +1394,8 @@ Perform triage analysis now:`;
         },
       });
 
-      const response = await result.response;
-      const text = response.text();
+      // New API returns text directly
+      const text = result.text || result.candidates?.[0]?.content?.parts?.[0]?.text || '';
       
       // Extract JSON from response
       const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -1788,13 +1791,15 @@ ${index + 1}. Title: ${result.title}
         return this.generateMockResponse(validatedCompanyData, webResearch);
       }
       
+      // New @google/genai API format
       const result = await this.model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        model: 'gemini-1.5-flash',
+        prompt: prompt,
         generationConfig: this.config,
       });
 
-      const response = await result.response;
-      const text = response.text();
+      // New API returns text directly without .response step
+      const text = result.text || result.candidates?.[0]?.content?.parts?.[0]?.text || '';
       
       // Debug logging
       console.log('🤖 Gemini raw response length:', text.length);
@@ -2257,9 +2262,12 @@ ${index + 1}. Title: ${result.title}
       }
       
       const testPrompt = 'Respond with "OK" if you can process this message.';
-      const result = await this.model.generateContent(testPrompt);
-      const response = result.response;
-      const text = response.text().trim();
+      const result = await this.model.generateContent({
+        model: 'gemini-1.5-flash',
+        prompt: testPrompt
+      });
+      // New API returns text directly
+      const text = (result.text || result.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
       
       return {
         success: true,
@@ -2364,8 +2372,8 @@ ${index + 1}. Title: ${result.title}
         },
       });
 
-      const response = await result.response;
-      const text = response.text();
+      // New API returns text directly
+      const text = result.text || result.candidates?.[0]?.content?.parts?.[0]?.text || '';
       
       // Extract JSON from response
       const jsonMatch = text.match(/\{[\s\S]*\}/);

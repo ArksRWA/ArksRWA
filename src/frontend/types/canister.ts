@@ -1,15 +1,9 @@
 // Re-export generated types from declarations
 export type {
-  ARKSRWA,
   Company as CandidCompany,
   TokenHolder as CandidTokenHolder,
-  Account,
-  AccountType,
-  TransferArgs,
-  TransferResult,
-  TransferError,
   _SERVICE
-} from '../../declarations/arks-rwa-backend/arks-rwa-backend.did';
+} from '../declarations/arks-core/arks-core.did';
 
 // Risk level status type
 export type CompanyRiskStatus = 'low' | 'medium' | 'high';

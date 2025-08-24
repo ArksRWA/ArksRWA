@@ -84,14 +84,6 @@ function ManageCompanyContent() {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
   const handleUpdateDescription = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!company || !companyId) return;
@@ -112,6 +104,15 @@ function ManageCompanyContent() {
       setUpdateLoading(false);
     }
   };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
 
   const handleUpdateLogo = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,10 +155,10 @@ function ManageCompanyContent() {
         <div className="text-center">
           <div className="text-red-400 mb-4">{error}</div>
           <button
-            onClick={() => router.push('/companies')}
+            onClick={() => router.push('/company-dashboard')}
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
           >
-            Back to Companies
+            Back to Dashboard
           </button>
         </div>
       </div>
@@ -170,10 +171,10 @@ function ManageCompanyContent() {
         <div className="text-center">
           <div className="text-white mb-4">Company not found</div>
           <button
-            onClick={() => router.push('/companies')}
+            onClick={() => router.push('/company-dashboard')}
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
           >
-            Back to Companies
+            Back to Dashboard
           </button>
         </div>
       </div>
@@ -204,13 +205,13 @@ function ManageCompanyContent() {
         <div className="mb-8">
           <div className="flex items-center gap-4 py-4">
             <button
-              onClick={() => router.push(`/company?id=${companyId}`)}
+              onClick={() => router.push('/company-dashboard')}
               className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-              Back to Company
+              Back to Dashboard
             </button>
           </div>
           <h1 className="text-4xl font-bold text-white mb-2">Manage Company</h1>
@@ -259,7 +260,7 @@ function ManageCompanyContent() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="space-y-8">
           {/* Update Description */}
           <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
             <h3 className="text-xl font-semibold text-white mb-4">Update Description</h3>
@@ -333,34 +334,12 @@ function ManageCompanyContent() {
             
             <div className="mt-4 p-3 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
               <p className="text-yellow-400 text-sm">
-                <span className="font-medium">Note:</span> Logo update feature is coming soon. For now, you can only update the description.
+                <span className="font-medium">Note:</span> Logo update feature is coming soon.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Company Statistics */}
-        <div className="bg-card-bg border border-gray-700 rounded-lg p-6 mt-8">
-          <h3 className="text-xl font-semibold text-white mb-4">Company Statistics</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">{company.valuation.toLocaleString()}</div>
-              <div className="text-sm text-gray-400">Valuation</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">{company.token_price.toLocaleString()}</div>
-              <div className="text-sm text-gray-400">Current Price</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">{company.supply}</div>
-              <div className="text-sm text-gray-400">Total Supply</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">{company.remaining}</div>
-              <div className="text-sm text-gray-400">Available</div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

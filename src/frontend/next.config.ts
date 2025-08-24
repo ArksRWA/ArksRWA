@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   webpack: (config, { isServer }) => {
     config.resolve.alias = {
       ...config.resolve.alias,
-      '@declarations': path.resolve(__dirname, '../declarations'),
+      '@declarations': path.resolve(__dirname, './declarations'),
     };
     return config;
   },

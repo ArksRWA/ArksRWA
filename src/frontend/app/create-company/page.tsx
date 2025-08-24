@@ -21,17 +21,37 @@ export default function CreateCompanyPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [hasCompany, setHasCompany] = useState(false);
+  const [checkingCompany, setCheckingCompany] = useState(true);
 
   useEffect(() => {
-    const checkAuth = () => {
+    const checkAuthAndCompany = async () => {
       const authenticated = authService.isAuthenticated();
       setIsAuthenticated(authenticated);
+      
       if (!authenticated) {
         router.push('/');
+        return;
+      }
+
+      try {
+        // Check if user already has a company
+        const userHasCompany = await backendService.hasOwnedCompany();
+        setHasCompany(userHasCompany);
+        
+        if (userHasCompany) {
+          // Redirect to company dashboard if they already have a company
+          router.push('/company-dashboard');
+        }
+      } catch (error) {
+        console.error('Error checking owned company:', error);
+        // Continue to allow company creation if check fails
+      } finally {
+        setCheckingCompany(false);
       }
     };
     
-    checkAuth();
+    checkAuthAndCompany();
   }, [router]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -112,7 +132,7 @@ export default function CreateCompanyPage() {
       });
 
       console.log('Company created successfully with ID:', companyId);
-      router.push('/companies');
+      router.push('/company-dashboard');
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -121,10 +141,29 @@ export default function CreateCompanyPage() {
     }
   };
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || checkingCompany) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
-        <div className="text-white">Checking authentication...</div>
+        <div className="text-white">
+          {!isAuthenticated ? 'Checking authentication...' : 'Checking company status...'}
+        </div>
+      </div>
+    );
+  }
+
+  if (hasCompany) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+        <div className="text-center text-white">
+          <h2 className="text-2xl font-bold mb-4">Company Already Created</h2>
+          <p className="text-gray-400 mb-6">You can only create one company per account.</p>
+          <button
+            onClick={() => router.push('/company-dashboard')}
+            className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            Go to Company Dashboard
+          </button>
+        </div>
       </div>
     );
   }

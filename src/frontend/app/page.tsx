@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { authService, AuthUser } from '../services/auth';
+import { verificationScheduler } from '../services/verificationScheduler';
 import CompanyList from './components/CompanyList';
 import LoginModal from './components/LoginModal';
 
@@ -13,6 +14,19 @@ export default function HomePage() {
   const [error, setError] = useState('');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginType, setLoginType] = useState<'user' | 'company' | null>(null);
+  const [verificationStatus, setVerificationStatus] = useState<{
+    isRunning: boolean;
+    activeVerifications: number[];
+    nextRunInHours: number | null;
+    currentIndonesianTime: Date | null;
+    lastScheduledRun: Date | null;
+  }>({ 
+    isRunning: false, 
+    activeVerifications: [], 
+    nextRunInHours: null, 
+    currentIndonesianTime: null,
+    lastScheduledRun: null 
+  });
 
   useEffect(() => {
     const user = authService.getCurrentUser();
@@ -21,6 +35,39 @@ export default function HomePage() {
       // Redirect to dashboard immediately if user is already logged in
       router.push('/dashboard');
     }
+
+    // Start daily verification scheduler when app loads
+    console.log('🚀 Starting daily verification scheduler...');
+    verificationScheduler.start();
+
+    // Update verification status periodically
+    const statusInterval = setInterval(() => {
+      const status = verificationScheduler.getStatus();
+      setVerificationStatus({
+        isRunning: status.isRunning,
+        activeVerifications: status.activeVerifications,
+        nextRunInHours: status.nextRunInHours,
+        currentIndonesianTime: status.currentIndonesianTime,
+        lastScheduledRun: status.lastScheduledRun,
+      });
+    }, 60000); // Update every minute
+
+    // Initial status check
+    const initialStatus = verificationScheduler.getStatus();
+    setVerificationStatus({
+      isRunning: initialStatus.isRunning,
+      activeVerifications: initialStatus.activeVerifications,
+      nextRunInHours: initialStatus.nextRunInHours,
+      currentIndonesianTime: initialStatus.currentIndonesianTime,
+      lastScheduledRun: initialStatus.lastScheduledRun,
+    });
+
+    // Cleanup on unmount
+    return () => {
+      clearInterval(statusInterval);
+      // Note: We don't stop the scheduler here as it should run globally
+      // verificationScheduler.stop();
+    };
   }, [router]);
 
   const handleShowLoginModal = () => {
@@ -71,10 +118,89 @@ export default function HomePage() {
     }
   };
 
+  // Manual verification trigger (for development/admin)
+  const handleManualVerificationCheck = async () => {
+    try {
+      console.log('Triggering manual verification check...');
+      await verificationScheduler.triggerManualCheck();
+      
+      // Update status immediately after manual trigger
+      const status = verificationScheduler.getStatus();
+      setVerificationStatus({
+        isRunning: status.isRunning,
+        activeVerifications: status.activeVerifications,
+        nextRunInHours: status.nextRunInHours,
+        currentIndonesianTime: status.currentIndonesianTime,
+        lastScheduledRun: status.lastScheduledRun,
+      });
+    } catch (error) {
+      console.error('Manual verification check failed:', error);
+    }
+  };
+
   // If user is already logged in, they will be redirected in the useEffect
 
   return (
     <div className="min-h-screen bg-gradient-primary relative">
+      {/* Daily Verification Scheduler Status */}
+      {verificationStatus.isRunning && process.env.NODE_ENV === 'development' && (
+        <div className="fixed top-4 right-4 z-50 bg-card-bg backdrop-blur-sm border border-card-border rounded-xl p-4 text-sm text-foreground shadow-lg min-w-[280px]">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="font-medium">Daily Verification Scheduler</span>
+          </div>
+          
+          <div className="space-y-1 text-xs text-foreground-muted">
+            <div className="flex justify-between">
+              <span>Schedule:</span>
+              <span className="text-foreground">Midnight WIB (UTC+7)</span>
+            </div>
+            
+            {verificationStatus.nextRunInHours !== null && (
+              <div className="flex justify-between">
+                <span>Next run:</span>
+                <span className="text-foreground">
+                  {verificationStatus.nextRunInHours < 1 
+                    ? 'Soon' 
+                    : `${verificationStatus.nextRunInHours}h`
+                  }
+                </span>
+              </div>
+            )}
+            
+            {verificationStatus.activeVerifications.length > 0 && (
+              <div className="flex justify-between">
+                <span>Active:</span>
+                <span className="text-yellow-400 font-medium">
+                  {verificationStatus.activeVerifications.length} verifications
+                </span>
+              </div>
+            )}
+            
+            {verificationStatus.lastScheduledRun && (
+              <div className="flex justify-between">
+                <span>Last run:</span>
+                <span className="text-foreground">
+                  {new Date(verificationStatus.lastScheduledRun).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric'
+                  })}
+                </span>
+              </div>
+            )}
+          </div>
+          
+          {process.env.NODE_ENV === 'development' && (
+            <button 
+              onClick={handleManualVerificationCheck}
+              className="text-xs text-primary hover:text-primary-hover mt-2 underline cursor-pointer w-full text-center"
+            >
+              🔧 Trigger Manual Check
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Hero Section */}
       <div className="relative overflow-hidden">
         {/* Animated background elements */}

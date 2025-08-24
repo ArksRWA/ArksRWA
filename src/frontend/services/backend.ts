@@ -7,8 +7,8 @@ import {
   candidTokenHolderToFrontend,
   CanisterCallError
 } from '../types/canister';
-// REMOVE BELOW CODE IF TRIGGER ERROR
-import * as declarations from '../declarations/arks-core/index.js';
+// Import declarations using the alias
+import * as declarations from '@declarations/arks-core/index.js';
 
 // Re-export types for convenience
 export type { Company, CreateCompanyParams } from '../types/canister';
@@ -180,13 +180,51 @@ private async createActor(requireAuth = true) {
     }
   }
 
+  async hasOwnedCompany(): Promise<boolean> {
+    const user = authService.getCurrentUser();
+    if (!user || !user.isConnected) {
+      return false;
+    }
+
+    try {
+      const { Principal } = await import('@dfinity/principal');
+      const callerPrincipal = Principal.fromText(user.principal);
+      const actor = await this.createActor(true);
+      const ownedCompanies = await actor.getOwnedCompanies(callerPrincipal);
+      return ownedCompanies.length > 0;
+    } catch (error) {
+      console.error('Error checking owned company:', error);
+      return false;
+    }
+  }
+
+  async getOwnedCompanies(): Promise<Company[]> {
+    const user = authService.getCurrentUser();
+    if (!user || !user.isConnected) {
+      return [];
+    }
+
+    try {
+      const { Principal } = await import('@dfinity/principal');
+      const callerPrincipal = Principal.fromText(user.principal);
+      const actor = await this.createActor(true);
+      const ownedCompanies = await actor.getOwnedCompanies(callerPrincipal);
+      return (ownedCompanies as any[]).map(candidCompanyToFrontend);
+    } catch (error) {
+      console.error('Error getting owned companies:', error);
+      return [];
+    }
+  }
+
   async getCompanyById(id: number): Promise<Company | null> {
     try {
       // Real backend call - no authentication required for public data
       const actor = await this.createActor(false);
+      // Use getCompany function as per generated declarations
       const company = await actor.getCompany(id);
+      // getCompany returns ?Company (optional), handle as array format [Company] or []
       const companyResult = company as any[];
-      return companyResult[0] ? candidCompanyToFrontend(companyResult[0]) : null;
+      return companyResult.length > 0 ? candidCompanyToFrontend(companyResult[0]) : null;
     } catch (error) {
       console.error('Error getting company by ID:', error);
       throw error;

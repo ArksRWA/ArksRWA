@@ -4,10 +4,12 @@ import { arks_core } from "@declarations/arks-core";
 export const CANISTER_IDS = {
   local: {
     arks_core: process.env.NEXT_PUBLIC_CANISTER_ID_ARKS_CORE || "",
+    arks_risk_engine: process.env.NEXT_PUBLIC_CANISTER_ID_ARKS_RISK_ENGINE || "",
     frontend: process.env.NEXT_PUBLIC_CANISTER_ID_FRONTEND || ""
   },
   ic: {
     arks_core: process.env.NEXT_PUBLIC_CANISTER_ID_ARKS_CORE || "",
+    arks_risk_engine: process.env.NEXT_PUBLIC_CANISTER_ID_ARKS_RISK_ENGINE || "",
     frontend: process.env.NEXT_PUBLIC_CANISTER_ID_FRONTEND || ""
   }
 };

@@ -115,20 +115,41 @@ export default function StatusBadge({
   );
 }
 
-// TODO: MOCK Helper function to get risk status from company data
+// Helper function to get risk status from real company verification data
 export const getCompanyRiskStatus = (company: any): CompanyRiskStatus => {
-  // For now, return the status field if it exists, otherwise determine based on some logic
-  if (company.status) {
+  // First, check if the status field exists and is valid (for backward compatibility)
+  if (company.status && ['low', 'medium', 'high'].includes(company.status)) {
     return company.status;
   }
   
-  // Temporary logic to determine risk based on remaining tokens ratio
-  // This can be replaced with actual backend risk calculation
-  const remaining = Number(company.remaining || 0);
-  const supply = Number(company.supply || 1);
-  const remainingRatio = remaining / supply;
+  // Use real verification_score from backend to determine risk level
+  // Higher score = Higher risk (reversed logic)
+  if (company.verification_score !== null && company.verification_score !== undefined) {
+    const score = Number(company.verification_score);
+    
+    if (score >= 70) return 'high';     // 70-100: High risk (red) - Very risky
+    if (score >= 40) return 'medium';   // 40-69: Medium risk (yellow) - Some risk
+    return 'low';                       // 0-39: Low risk (green) - Safe investment
+  }
   
-  if (remainingRatio > 0.7) return 'low';    // More than 70% tokens available = low risk
-  if (remainingRatio > 0.3) return 'medium'; // 30-70% tokens available = medium risk
-  return 'high';                             // Less than 30% tokens available = high risk
+  // If no verification score available, check verification status
+  if (company.verification_status) {
+    // Handle different status formats from backend
+    const status = company.verification_status;
+    
+    // New backend structure
+    if (typeof status === 'object') {
+      if ('verified' in status) return 'low';
+      if ('pending' in status) return 'medium';
+      if ('suspicious' in status || 'failed' in status || 'error' in status) return 'high';
+      
+      // Legacy VerificationState structure
+      if ('Verified' in status) return 'low';
+      if ('VerificationPending' in status || 'Registered' in status) return 'medium';
+      if ('NeedsUpdate' in status || 'Failed' in status || 'Rejected' in status) return 'high';
+    }
+  }
+  
+  // Default to medium risk if no verification data available
+  return 'medium';
 };

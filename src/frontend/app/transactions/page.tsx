@@ -192,49 +192,50 @@ export default function TransactionsPage() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
           <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-400">Total Transactions</h3>
-              <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xs font-semibold text-gray-600 tracking-wider">Transactions</h2>
+              <svg className="w-7 h-7 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
             </div>
-            <div className="text-2xl font-bold text-white">{transactions.length}</div>
+            <div className="text-3xl font-black text-white">{transactions.length}</div>
           </div>
 
           <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-400">Buy Orders</h3>
-              <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xs font-semibold text-gray-600 tracking-wider">Orders</h2>
+              <svg className="w-7 h-7 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
               </svg>
             </div>
-            <div className="text-2xl font-bold text-white">
-              {transactions.filter(tx => tx.type === 'buy').length}
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-green-400 font-bold">↗</span>
+                <span className="text-2xl font-black text-white">
+                  {transactions.filter(tx => tx.type === 'buy').length}
+                </span>
+                <span className="text-sm text-gray-400">Buy</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-red-400 font-bold">↙</span>
+                <span className="text-2xl font-black text-white">
+                  {transactions.filter(tx => tx.type === 'sell').length}
+                </span>
+                <span className="text-sm text-gray-400">Sell</span>
+              </div>
             </div>
           </div>
 
           <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-400">Sell Orders</h3>
-              <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-              </svg>
-            </div>
-            <div className="text-2xl font-bold text-white">
-              {transactions.filter(tx => tx.type === 'sell').length}
-            </div>
-          </div>
-
-          <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-400">Total Volume</h3>
-              <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xs font-semibold text-gray-600 tracking-wider">Volume</h2>
+              <svg className="w-12 h-12 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
               </svg>
             </div>
-            <div className="text-2xl font-bold text-white">
+            <div className="text-3xl font-black text-white">
               {transactions.reduce((sum, tx) => sum + tx.totalValue, 0).toLocaleString()}
             </div>
           </div>

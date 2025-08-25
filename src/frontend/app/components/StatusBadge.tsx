@@ -115,39 +115,39 @@ export default function StatusBadge({
   );
 }
 
-// Helper function to get risk status from real company verification data
+// Helper function to get risk status from backend verification data
 export const getCompanyRiskStatus = (company: any): CompanyRiskStatus => {
-  // First, check if the status field exists and is valid (for backward compatibility)
-  if (company.status && ['low', 'medium', 'high'].includes(company.status)) {
-    return company.status;
+  // Use verification object if available (from backend)
+  if (company.verification) {
+    const verification = company.verification;
+    
+    // Map backend risk_label to frontend status
+    if (verification.risk_label) {
+      if (verification.risk_label.Trusted !== undefined) return 'low';
+      if (verification.risk_label.Caution !== undefined) return 'medium'; 
+      if (verification.risk_label.HighRisk !== undefined) return 'high';
+    }
+    
+    // Fallback to score if risk_label not available
+    const score = verification.score;
+    if (score !== null && score !== undefined) {
+      if (score >= 70) return 'high';     // 70-100: High risk
+      if (score >= 40) return 'medium';   // 40-69: Medium risk  
+      return 'low';                       // 0-39: Low risk
+    }
   }
   
-  // Use real verification_score from backend to determine risk level
-  // Higher score = Higher risk (reversed logic)
+  // Legacy support: Use verification_score if available
   if (company.verification_score !== null && company.verification_score !== undefined) {
     const score = Number(company.verification_score);
-    
-    if (score >= 70) return 'high';     // 70-100: High risk (red) - Very risky
-    if (score >= 40) return 'medium';   // 40-69: Medium risk (yellow) - Some risk
-    return 'low';                       // 0-39: Low risk (green) - Safe investment
+    if (score >= 70) return 'high';
+    if (score >= 40) return 'medium';
+    return 'low';
   }
   
-  // If no verification score available, check verification status
-  if (company.verification_status) {
-    // Handle different status formats from backend
-    const status = company.verification_status;
-    
-    // New backend structure
-    if (typeof status === 'object') {
-      if ('verified' in status) return 'low';
-      if ('pending' in status) return 'medium';
-      if ('suspicious' in status || 'failed' in status || 'error' in status) return 'high';
-      
-      // Legacy VerificationState structure
-      if ('Verified' in status) return 'low';
-      if ('VerificationPending' in status || 'Registered' in status) return 'medium';
-      if ('NeedsUpdate' in status || 'Failed' in status || 'Rejected' in status) return 'high';
-    }
+  // Legacy support: Check status field
+  if (company.status && ['low', 'medium', 'high'].includes(company.status)) {
+    return company.status;
   }
   
   // Default to medium risk if no verification data available

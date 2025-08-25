@@ -295,9 +295,11 @@ private async createActor(requireAuth = true) {
     }
 
     try {
-      // Real backend call
+      // Real backend call - use correct method name from canister interface
+      const { Principal } = await import('@dfinity/principal');
       const actor = await this.createActor();
-      await actor.updateCompanyDescription(companyId, newDescription);
+      const callerPrincipal = Principal.fromText(user.principal);
+      await actor.updateDescription(companyId, newDescription, callerPrincipal);
       return 'Company description updated successfully';
     } catch (error) {
       console.error('Error updating company description:', error);
@@ -378,6 +380,38 @@ private async createActor(requireAuth = true) {
       }
     } catch (error) {
       console.error('Error getting token balance:', error);
+      throw error;
+    }
+  }
+
+  async getRiskProfile(companyId: number): Promise<{
+    score: number;
+    risk_label: 'Trusted' | 'Caution' | 'HighRisk';
+    explanation_hash?: string;
+    last_scored_at?: bigint;
+  }> {
+    try {
+      // Real backend call - no authentication required for public data
+      const actor = await this.createActor(false);
+      const verification = await actor.getVerification(companyId);
+      console.log("jhk get verification", verification)
+      
+      // Map risk labels to match expected format
+      const mapRiskLabel = (label: any): 'Trusted' | 'Caution' | 'HighRisk' => {
+        if (label.Trusted !== undefined) return 'Trusted';
+        if (label.Caution !== undefined) return 'Caution';
+        if (label.HighRisk !== undefined) return 'HighRisk';
+        return 'Caution'; // Default fallback
+      };
+
+      return {
+        score: verification.score,
+        risk_label: mapRiskLabel(verification.risk_label),
+        explanation_hash: verification.explanation_hash[0] || undefined,
+        last_scored_at: verification.last_scored_at[0] || undefined,
+      };
+    } catch (error) {
+      console.error('Error getting risk profile:', error);
       throw error;
     }
   }

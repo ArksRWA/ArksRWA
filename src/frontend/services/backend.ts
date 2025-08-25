@@ -295,9 +295,11 @@ private async createActor(requireAuth = true) {
     }
 
     try {
-      // Real backend call
+      // Real backend call - use correct method name from canister interface
+      const { Principal } = await import('@dfinity/principal');
       const actor = await this.createActor();
-      await actor.updateCompanyDescription(companyId, newDescription);
+      const callerPrincipal = Principal.fromText(user.principal);
+      await actor.updateDescription(companyId, newDescription, callerPrincipal);
       return 'Company description updated successfully';
     } catch (error) {
       console.error('Error updating company description:', error);

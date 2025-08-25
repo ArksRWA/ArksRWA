@@ -1,49 +1,83 @@
 'use client';
 
-import { Company } from '../../services/backend';
+import { useState, useEffect } from 'react';
+import { Company, backendService } from '../../services/backend';
 
 interface RiskScoreDetailProps {
   company: Company;
   className?: string;
 }
 
-// Mock backend response - replace with actual backend API call later
-const getMockRiskData = (company: Company): {
+interface RiskData {
   riskScore: number;
   riskLevel: 'Low' | 'Medium' | 'High' | 'Very High';
   note: string;
-} => {
-  // Mock data that simulates what backend will provide
-  const mockResponses = [
-    {
-      riskScore: 25,
-      riskLevel: 'Low' as const,
-      note: 'Strong financial fundamentals with consistent revenue growth and experienced management team. Low market volatility observed.'
-    },
-    {
-      riskScore: 45,
-      riskLevel: 'Medium' as const,
-      note: 'Moderate market exposure with some competitive pressure. Company shows stable performance but faces industry challenges.'
-    },
-    {
-      riskScore: 65,
-      riskLevel: 'High' as const,
-      note: 'Elevated risk due to market volatility and regulatory uncertainties. Recent performance has been inconsistent.'
-    },
-    {
-      riskScore: 85,
-      riskLevel: 'Very High' as const,
-      note: 'Significant risk factors including high debt levels, declining market share, and operational challenges. Investment requires careful consideration.'
-    }
-  ];
+}
+
+// Convert backend risk profile to frontend format
+const mapBackendRiskData = (riskProfile: {
+  score: number;
+  risk_label: 'Trusted' | 'Caution' | 'HighRisk';
+  explanation_hash?: string;
+}): RiskData => {
+  // Backend score is 0-100, convert to risk level and note
+  const score = riskProfile.score;
   
-  // Select mock response based on company ID for consistency
-  const index = company.id % mockResponses.length;
-  return mockResponses[index];
+  let riskLevel: 'Low' | 'Medium' | 'High' | 'Very High';
+  let note: string;
+  
+  // Map backend risk_label and score to frontend format
+  if (riskProfile.risk_label === 'Trusted' || score < 25) {
+    riskLevel = 'Low';
+    note = 'Company has been verified and shows strong fundamentals with low risk indicators. Suitable for most investors.';
+  } else if (riskProfile.risk_label === 'Caution' || score < 60) {
+    riskLevel = score < 40 ? 'Medium' : 'High';
+    note = score < 40 
+      ? 'Moderate risk profile with some areas requiring attention. Company shows stable performance but faces industry challenges.'
+      : 'Elevated risk due to verification concerns or market factors. Recent performance or compliance issues detected.';
+  } else {
+    riskLevel = 'Very High';
+    note = 'High-risk investment with significant concerns identified during verification. Investment requires careful consideration.';
+  }
+  
+  return {
+    riskScore: score,
+    riskLevel,
+    note
+  };
 };
 
+// Fallback data for when backend is unavailable
+const getFallbackRiskData = (): RiskData => ({
+  riskScore: 50,
+  riskLevel: 'Medium',
+  note: 'Risk assessment temporarily unavailable. Please try again later.'
+});
+
 export default function RiskScoreDetail({ company, className = "" }: RiskScoreDetailProps) {
-  const riskData = getMockRiskData(company);
+  const [riskData, setRiskData] = useState<RiskData>(getFallbackRiskData());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchRiskData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const riskProfile = await backendService.getRiskProfile(company.id);
+        console.log("jhk fetchRiskData", riskProfile)
+        setRiskData(mapBackendRiskData(riskProfile));
+      } catch (err) {
+        console.error('Failed to fetch risk data:', err);
+        setError('Failed to load risk assessment');
+        setRiskData(getFallbackRiskData());
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRiskData();
+  }, [company.id]);
   
   const getRiskColor = (level: string) => {
     switch (level) {
@@ -76,13 +110,13 @@ export default function RiskScoreDetail({ company, className = "" }: RiskScoreDe
         <div className="flex items-center gap-4">
           <div className="text-center">
             <div className={`text-3xl font-bold ${getScoreColor(riskData.riskScore)}`}>
-              {riskData.riskScore}
+              {loading ? '...' : riskData.riskScore}
             </div>
             <div className="text-sm text-gray-400">Risk Score</div>
           </div>
           <div className="text-center">
             <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getRiskColor(riskData.riskLevel)}`}>
-              {riskData.riskLevel} Risk
+              {loading ? 'Loading...' : `${riskData.riskLevel} Risk`}
             </span>
           </div>
         </div>
@@ -111,7 +145,7 @@ export default function RiskScoreDetail({ company, className = "" }: RiskScoreDe
       <div className="mb-4">
         <h3 className="text-sm font-medium text-gray-300 mb-3">Assessment Note</h3>
         <p className="text-sm text-gray-400 leading-relaxed">
-          {riskData.note}
+          {loading ? 'Loading risk assessment...' : error ? error : riskData.note}
         </p>
       </div>
       

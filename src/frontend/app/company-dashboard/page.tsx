@@ -18,7 +18,7 @@ export default function CompanyDashboardPage() {
     const checkAuthAndCompany = async () => {
       const user = authService.getCurrentUser();
       const role = authService.getUserRole();
-      
+
       if (!user || !user.isConnected) {
         router.push('/');
         return;
@@ -45,7 +45,7 @@ export default function CompanyDashboardPage() {
 
       // Get companies owned by this user using the backend service
       const ownedCompanies = await backendService.getOwnedCompanies();
-      
+
       if (ownedCompanies.length === 0) {
         // No company found, redirect to create company
         router.push('/create-company');
@@ -54,7 +54,7 @@ export default function CompanyDashboardPage() {
 
       // Use the first company (users can only have one)
       const ownedCompany = ownedCompanies[0];
-      
+
       // Fetch fresh company data using getCompanyById to get latest verification status
       const freshCompanyData = await backendService.getCompanyById(ownedCompany.id);
       if (freshCompanyData) {
@@ -286,7 +286,7 @@ export default function CompanyDashboardPage() {
                 <div className="text-white font-medium">{getVerificationStatusLabel(company.verification_status)}</div>
               </div>
             </div>
-            
+
             <div>
               <div className="text-sm text-gray-400">Score</div>
               <div className="text-white font-medium">
@@ -297,14 +297,14 @@ export default function CompanyDashboardPage() {
                 ) : 'Not Available'}
               </div>
             </div>
-            
+
             <div>
               <div className="text-sm text-gray-400">Last Verified</div>
               <div className="text-white font-medium">
                 {company.last_verified ? new Date(company.last_verified / 1000000).toLocaleDateString() : 'Never'}
               </div>
             </div>
-            
+
             {company.verification_job_id && (
               <div className="md:col-span-3">
                 <div className="text-sm text-gray-400">Job ID</div>
@@ -355,7 +355,7 @@ export default function CompanyDashboardPage() {
             </button>
 
             <button
-              onClick={() => router.push(`/company/${company.id}`)}
+              onClick={() => router.push(`/company?id=${company.id}`)}
               className="p-4 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-lg transition-colors text-left"
             >
               <div className="flex items-center gap-3">

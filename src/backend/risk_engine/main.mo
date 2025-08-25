@@ -67,7 +67,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     // Define core canister verification profile type
     type CoreVerificationProfile = {
       state : { #Registered; #VerificationPending; #Verified; #NeedsUpdate; #Rejected; #Failed };
-      score : Float;
+      score : ?Float;
       risk_label : { #Trusted; #Caution; #HighRisk };
       last_scored_at : ?Nat64;
       next_due_at : ?Nat64;
@@ -362,7 +362,11 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
       // Create verification profile from all search results
       let profile = Core.createVerificationProfile(companyId, searchResults);
       
-      Debug.print("Legacy verification completed for " # companyName # " with score: " # Float.toText(profile.overallScore));
+      let scoreText = switch (profile.overallScore) {
+        case (?score) Float.toText(score);
+        case null "null";
+      };
+      Debug.print("Legacy verification completed for " # companyName # " with score: " # scoreText);
       
       profile;
     };
@@ -579,7 +583,11 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
         // Cache the result
         cacheVerificationResult(companyId, profile);
         
-        Debug.print("Scorer API verification completed with score: " # Float.toText(profile.overallScore));
+        let scoreText = switch (profile.overallScore) {
+          case (?score) Float.toText(score);
+          case null "null";
+        };
+        Debug.print("Scorer API verification completed with score: " # scoreText);
         profile;
         
       } catch (error) {
@@ -598,9 +606,14 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
         case (#error) #Failed;
       };
       
-      let risk_label = if (riskProfile.overallScore < 30.0) #Trusted
-                      else if (riskProfile.overallScore < 70.0) #Caution
-                      else #HighRisk;
+      let risk_label = switch (riskProfile.overallScore) {
+        case (?score) {
+          if (score < 30.0) #Trusted
+          else if (score < 70.0) #Caution
+          else #HighRisk;
+        };
+        case null #Caution; // Default to caution when score is not available
+      };
       
       {
         state = state;
@@ -719,7 +732,11 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
         // Step 6: Cache result
         cacheVerificationResult(companyId, profile);
         
-        Debug.print("Off-chain AI verification completed for " # companyName # " with score: " # Float.toText(profile.overallScore));
+        let scoreText = switch (profile.overallScore) {
+          case (?score) Float.toText(score);
+          case null "null";
+        };
+        Debug.print("Off-chain AI verification completed for " # companyName # " with score: " # scoreText);
         return profile;
         
       } catch (error) {
@@ -799,7 +816,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
           // Create verification profile with correct type structure
           {
             companyId = companyId;
-            overallScore = overallScore;
+            overallScore = ?overallScore;
             verificationStatus = verificationStatus;
             lastVerified = currentTime;
             nextDueAt = ?(currentTime + (24 * 60 * 60 * 1_000_000_000)); // 24 hours from now
@@ -832,7 +849,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
           
           {
             companyId = companyId;
-            overallScore = 30.0; // Low score due to failed verification
+            overallScore = null; // No score available due to failed verification
             verificationStatus = #failed;
             lastVerified = currentTime;
             nextDueAt = ?(currentTime + (60 * 60 * 1_000_000_000)); // Retry in 1 hour
@@ -1062,7 +1079,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
               let updatedCompany = {
                 company with
                 verification_status = profile.verificationStatus;
-                verification_score = ?profile.overallScore;
+                verification_score = profile.overallScore;
                 last_verified = ?profile.lastVerified;
               };
               companies.put(companyId, updatedCompany);

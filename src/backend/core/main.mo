@@ -191,7 +191,7 @@ persistent actor class ARKSRWA_Core(init_admin : Principal) = this {
       created_at       = created_at;
 
       verification     = {
-        state = #Registered; score = 0; risk_label = #Caution;
+        state = #Registered; score = null; risk_label = #Caution;
         last_scored_at = null; next_due_at = null;
         explanation_hash = null; last_vc_registration = null; last_vc_valuation = null;
       };

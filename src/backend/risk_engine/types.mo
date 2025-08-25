@@ -191,7 +191,7 @@ module {
   // Enhanced verification profile for a company
   public type VerificationProfile = {
     companyId : Nat;
-    overallScore : Float;               // 0-100 overall risk score
+    overallScore : ?Float;              // 0-100 overall risk score, null if verification incomplete
     verificationStatus : VerificationStatus;
     lastVerified : Int;                 // Timestamp of last verification
     nextDueAt : ?Int;                  // When re-verification is due

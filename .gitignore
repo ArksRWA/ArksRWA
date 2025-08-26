@@ -29,3 +29,4 @@ target/
 *.md
 
 **/.next
+src/AI/package-lock.json

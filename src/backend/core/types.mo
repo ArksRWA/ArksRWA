@@ -26,7 +26,7 @@ public type RiskLabel = {
 
 public type VerificationProfile = {
   state : VerificationState;
-  score : Float;                          // 0..100
+  score : ?Float;                         // 0..100, null if verification incomplete
   risk_label : RiskLabel;               // renamed from label → risk_label
   last_scored_at : ?Nat64;
   next_due_at : ?Nat64;                 // when to re-score
@@ -104,7 +104,7 @@ public type CompanySummary = {
   owner : Principal;
   listing_state : ListingState;
   risk_label : RiskLabel;
-  score : Float;
+  score : ?Float;
   token_canister_id : ?Principal;
 };
 

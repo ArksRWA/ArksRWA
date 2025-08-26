@@ -4,6 +4,8 @@ services:
   dfx:
     image: ${CI_REGISTRY}/odikk60/arks-rwa:${TAG}
     container_name: dfx
+    networks:
+      - arks-network
     ports:
       - "4943:4943"
       - "3000:3000"
@@ -23,14 +25,46 @@ services:
         dfx identity new default --storage-mode=plaintext || true && \
         dfx identity use default && \
         echo "🚀 Deploying canisters..." && \
+        . /app/.env && \
         [ ! -f .env ] || export $(grep -v '^#' .env | xargs) && \
-        dfx deploy --network local arks-core && \
-        dfx deploy --network local arks-identity && \
-        dfx deploy --network local arks-risk-engine && \
-        dfx deploy --network local arks-token-factory --argument "(null, principal \"$(dfx canister id arks-core)\")" && \
+        dfx deploy --network local arks-core --argument "(principal \"$(dfx identity get-principal)\")" && \
+        dfx deploy --network local arks-identity --argument "(opt principal \"$(dfx identity get-principal)\")" && \
+        dfx deploy --network local arks-risk-engine --argument "(principal \"$(dfx identity get-principal)\", null, null)" && \
+        dfx deploy --network local arks-token-factory --argument "(opt principal \"$(dfx identity get-principal)\", principal \"$(dfx canister id arks-core)\")"  && \
+        cd /app/src/frontend && \
+        npm install && \
+        npm run build && cd ../../ && \
         dfx deploy --network local frontend && \
         echo "✅ Canisters ready!" && \
         tail -f /dev/null
 
+  ai-engine:
+    depends_on:
+      - dfx
+    build:
+      context: ./src/AI
+      dockerfile: Dockerfile
+    container_name: ai-engine
+    networks:
+      - arks-network
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./src/AI:/app
+    working_dir: /app
+    command:
+      - /bin/bash
+      - -c
+      - |
+        echo "🧠 Starting AI Engine..." && \
+        npm run start:prod && \
+        tail -f /dev/null
 volumes:
   dfx_state:
+
+networks:
+  arks-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

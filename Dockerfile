@@ -38,17 +38,6 @@ RUN dfx generate arks-core && \
     mkdir -p /app/src/frontend/declarations/arks-token-factory && \
     cp -r /app/src/declarations/arks-token-factory/* /app/src/frontend/declarations/arks-token-factory/
 
-RUN dfx start --background --clean && \
-    dfx deploy arks-core && \
-    . /app/.env && \
-    [ ! -f .env ] || export $(grep -v '^#' .env | xargs) && \
-    dfx deploy arks-identity && \
-    dfx deploy arks-risk-engine && \
-    dfx deploy arks-token-factory --argument "(null, principal \"$CANISTER_ID_ARKS_CORE\")" && \
-    cd /app/src/frontend && \
-    npm install && \
-    npm run build
-
 # Go back to app root
 WORKDIR /app
 

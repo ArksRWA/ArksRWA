@@ -105,11 +105,19 @@ class AuthServiceImpl implements AuthService {
       if (storedAuth) {
         const authData = JSON.parse(storedAuth);
         
+        // Validate that the stored wallet is actually available in current tab
+        if (!this.isWalletAvailable(authData.walletType)) {
+          console.log(`Stored wallet ${authData.walletType} not available in current tab, clearing session`);
+          localStorage.removeItem('arks-rwa-auth');
+          localStorage.removeItem('arks-rwa-role');
+          return;
+        }
+        
         // Recreate user object (note: agent will be null, needs reconnection for blockchain calls)
         this.currentUser = {
           principal: authData.principal,
           agent: null, // Will need to reconnect for agent
-          isConnected: authData.isConnected || false,
+          isConnected: false, // Set to false since agent is null and needs reconnection
           walletType: authData.walletType || 'plug'
         };
       }
@@ -117,6 +125,15 @@ class AuthServiceImpl implements AuthService {
       console.warn('Failed to restore session from local storage:', e);
       // Clear corrupted data
       localStorage.removeItem('arks-rwa-auth');
+    }
+  }
+
+  private isWalletAvailable(walletType: string): boolean {
+    switch (walletType) {
+      case 'plug':
+        return !!(window.ic?.plug);
+      default:
+        return false;
     }
   }
 

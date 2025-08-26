@@ -130,6 +130,14 @@ persistent actor class ARKSRWA_Core(init_admin : Principal) = this {
     caller : Principal
   ) : async CompanyId {
     if (_platform_paused) { throw Error.reject("Platform is paused"); };
+    
+    // Check if caller already owns a company
+    for (c in companies.vals()) {
+      if (c.owner == caller) {
+        throw Error.reject("User can only create one company");
+      }
+    };
+    
     if (valuation < governance.min_valuation_e8s) { throw Error.reject("Valuation too low"); };
     if (Text.size(symbol) < 3 or Text.size(symbol) > 5) { throw Error.reject("Symbol must be 3–5 chars"); };
 
@@ -183,7 +191,7 @@ persistent actor class ARKSRWA_Core(init_admin : Principal) = this {
       created_at       = created_at;
 
       verification     = {
-        state = #Registered; score = 0; risk_label = #Caution;
+        state = #Registered; score = null; risk_label = #Caution;
         last_scored_at = null; next_due_at = null;
         explanation_hash = null; last_vc_registration = null; last_vc_valuation = null;
       };
@@ -235,6 +243,17 @@ persistent actor class ARKSRWA_Core(init_admin : Principal) = this {
   public query func listCompanies() : async [Company] {
     Iter.toArray(companies.vals())
   };
+
+  public query func getOwnedCompanies(owner : Principal) : async [Company] {
+    let buffer = Buffer.Buffer<Company>(0);
+    for (c in companies.vals()) {
+      if (c.owner == owner) {
+        buffer.add(c);
+      }
+    };
+    Buffer.toArray(buffer)
+  };
+
 
   public query func listCompanySummaries() : async [Types.CompanySummary] {
     var out : [Types.CompanySummary] = [];

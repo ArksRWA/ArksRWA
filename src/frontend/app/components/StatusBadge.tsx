@@ -115,20 +115,41 @@ export default function StatusBadge({
   );
 }
 
-// TODO: MOCK Helper function to get risk status from company data
+// Helper function to get risk status from backend verification data
 export const getCompanyRiskStatus = (company: any): CompanyRiskStatus => {
-  // For now, return the status field if it exists, otherwise determine based on some logic
-  if (company.status) {
+  // Use verification object if available (from backend)
+  if (company.verification) {
+    const verification = company.verification;
+    
+    // Map backend risk_label to frontend status
+    if (verification.risk_label) {
+      if (verification.risk_label.Trusted !== undefined) return 'low';
+      if (verification.risk_label.Caution !== undefined) return 'medium'; 
+      if (verification.risk_label.HighRisk !== undefined) return 'high';
+    }
+    
+    // Fallback to score if risk_label not available
+    const score = verification.score;
+    if (score !== null && score !== undefined) {
+      if (score >= 70) return 'high';     // 70-100: High risk
+      if (score >= 40) return 'medium';   // 40-69: Medium risk  
+      return 'low';                       // 0-39: Low risk
+    }
+  }
+  
+  // Legacy support: Use verification_score if available
+  if (company.verification_score !== null && company.verification_score !== undefined) {
+    const score = Number(company.verification_score);
+    if (score >= 70) return 'high';
+    if (score >= 40) return 'medium';
+    return 'low';
+  }
+  
+  // Legacy support: Check status field
+  if (company.status && ['low', 'medium', 'high'].includes(company.status)) {
     return company.status;
   }
   
-  // Temporary logic to determine risk based on remaining tokens ratio
-  // This can be replaced with actual backend risk calculation
-  const remaining = Number(company.remaining || 0);
-  const supply = Number(company.supply || 1);
-  const remainingRatio = remaining / supply;
-  
-  if (remainingRatio > 0.7) return 'low';    // More than 70% tokens available = low risk
-  if (remainingRatio > 0.3) return 'medium'; // 30-70% tokens available = medium risk
-  return 'high';                             // Less than 30% tokens available = high risk
+  // Default to medium risk if no verification data available
+  return 'medium';
 };

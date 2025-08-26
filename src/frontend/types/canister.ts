@@ -1,12 +1,7 @@
 // Re-export generated types from declarations
 export type {
-  // ARKSRWA,
   Company as CandidCompany,
   TokenHolder as CandidTokenHolder,
-  // Account,
-  // TransferArgs,
-  // TransferResult,
-  // TransferError,
   _SERVICE
 } from '../declarations/arks-core/arks-core.did';
 
@@ -28,7 +23,16 @@ export interface Company {
   logo_url: string;
   description: string;
   created_at: number;
-  status: CompanyRiskStatus;
+  // Backend verification fields from main.mo
+  verification_status: any; // VerificationTypes.VerificationStatus
+  verification_score: number | null;
+  last_verified: number | null;
+  verification_job_id: number | null;
+  // Legacy frontend fields for backward compatibility
+  trading_paused?: boolean;
+  token_canister_id?: string | null;
+  treasury_account?: string;
+  status?: CompanyRiskStatus; // Keep for backward compatibility
 }
 
 export interface TokenHolder {
@@ -48,7 +52,10 @@ export interface CreateCompanyParams {
 }
 
 // Utility functions to convert between Candid and frontend types
-export const candidCompanyToFrontend = (candidCompany: import('../declarations/arks-core/arks-core.did').Company): Company => {
+export const candidCompanyToFrontend = (candidCompany: any): Company => {
+  // Check if we have the newer verification fields or the legacy VerificationProfile structure
+  const hasLegacyVerification = candidCompany.verification && candidCompany.verification.score !== undefined;
+  
   return {
     id: Number(candidCompany.id),
     name: candidCompany.name,
@@ -63,6 +70,17 @@ export const candidCompanyToFrontend = (candidCompany: import('../declarations/a
     logo_url: candidCompany.logo_url,
     description: candidCompany.description,
     created_at: Number(candidCompany.created_at),
+    // Handle verification fields - support both new structure and legacy
+    verification_status: candidCompany.verification_status || candidCompany.verification?.state || null,
+    verification_score: candidCompany.verification_score ? Number(candidCompany.verification_score) : 
+                       (hasLegacyVerification ? Number(candidCompany.verification.score) : null),
+    last_verified: candidCompany.last_verified ? Number(candidCompany.last_verified) : 
+                  (candidCompany.verification?.last_scored_at ? Number(candidCompany.verification.last_scored_at[0]) : null),
+    verification_job_id: candidCompany.verification_job_id ? Number(candidCompany.verification_job_id) : null,
+    // Current backend fields from declarations
+    trading_paused: candidCompany.trading_paused,
+    token_canister_id: candidCompany.token_canister_id?.length > 0 ? candidCompany.token_canister_id[0].toString() : null,
+    treasury_account: candidCompany.treasury_account?.toString(),
     // Default to 'medium' risk status until backend provides this field
     status: (candidCompany as any).status || 'medium',
   };

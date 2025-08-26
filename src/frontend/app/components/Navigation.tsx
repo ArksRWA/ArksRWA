@@ -3,6 +3,7 @@
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { authService, AuthUser } from '../../services/auth';
+import { backendService } from '../../services/backend';
 import LoginModal from './LoginModal';
 
 interface NavigationProps {
@@ -17,21 +18,35 @@ export default function Navigation({ className = '' }: NavigationProps) {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [userRole, setUserRole] = useState<'user' | 'company' | undefined>(undefined);
+  const [hasCompany, setHasCompany] = useState(false);
 
   useEffect(() => {
-    const checkAuth = () => {
+    const checkAuth = async () => {
       const user = authService.getCurrentUser();
       const authenticated = authService.isAuthenticated();
       const role = authService.getUserRole();
       setCurrentUser(user);
       setIsAuthenticated(authenticated);
       setUserRole(role);
+
+      // Check if user has a company (only if authenticated)
+      if (authenticated) {
+        try {
+          const userHasCompany = await backendService.hasOwnedCompany();
+          setHasCompany(userHasCompany);
+        } catch (error) {
+          console.error('Error checking owned company:', error);
+          setHasCompany(false);
+        }
+      } else {
+        setHasCompany(false);
+      }
     };
 
     checkAuth();
 
-    // Check auth state periodically
-    const interval = setInterval(checkAuth, 1000);
+    // Check auth state periodically (but don't check company too frequently)
+    const interval = setInterval(checkAuth, 5000); // Reduced frequency for backend calls
     return () => clearInterval(interval);
   }, []);
 
@@ -139,7 +154,7 @@ export default function Navigation({ className = '' }: NavigationProps) {
       <div className="absolute right-0 mt-3 w-56 bg-card-bg backdrop-blur-xl border border-card-border rounded-2xl shadow-dark-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 overflow-hidden">
         <div className="p-3">
           <button
-            onClick={() => router.push('/dashboard')}
+            onClick={() => router.push(userRole === 'company' ? '/company-dashboard' : '/dashboard')}
             className="flex items-center gap-3 w-full px-4 py-3 text-left text-foreground-secondary hover:text-foreground hover:bg-card-bg-hover rounded-xl transition-all duration-200 group/item"
           >
             <svg className="w-5 h-5 group-hover/item:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -147,15 +162,18 @@ export default function Navigation({ className = '' }: NavigationProps) {
             </svg>
             <span className="font-medium">Dashboard</span>
           </button>
-          <button
-            onClick={() => router.push('/companies')}
-            className="flex items-center gap-3 w-full px-4 py-3 text-left text-foreground-secondary hover:text-foreground hover:bg-card-bg-hover rounded-xl transition-all duration-200 group/item"
-          >
-            <svg className="w-5 h-5 group-hover/item:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-            </svg>
-            <span className="font-medium">My Companies</span>
-          </button>
+          {/* Only show My Companies for regular users, not company users */}
+          {userRole !== 'company' && (
+            <button
+              onClick={() => router.push('/companies')}
+              className="flex items-center gap-3 w-full px-4 py-3 text-left text-foreground-secondary hover:text-foreground hover:bg-card-bg-hover rounded-xl transition-all duration-200 group/item"
+            >
+              <svg className="w-5 h-5 group-hover/item:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+              <span className="font-medium">My Companies</span>
+            </button>
+          )}
           <div className="h-px bg-card-border my-2"></div>
           <button
             onClick={handleDisconnect}
@@ -206,7 +224,7 @@ export default function Navigation({ className = '' }: NavigationProps) {
             {isAuthenticated ? (
               <>
                 <NavLink
-                  href="/dashboard"
+                  href={userRole === 'company' ? '/company-dashboard' : '/dashboard'}
                   icon={
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2 2z" />
@@ -216,41 +234,50 @@ export default function Navigation({ className = '' }: NavigationProps) {
                   Dashboard
                 </NavLink>
                 
-                <NavLink
-                  href="/companies"
-                  icon={
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                  }
-                >
-                  Companies
-                </NavLink>
+                {/* Only show Companies for regular users, not company users */}
+                {userRole !== 'company' && (
+                  <NavLink
+                    href="/companies"
+                    icon={
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                    }
+                  >
+                    Companies
+                  </NavLink>
+                )}
                 
-                <NavLink
-                  href="/transactions"
-                  icon={
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                    </svg>
-                  }
-                >
-                  Transactions
-                </NavLink>
+                {/* Only show Transactions for regular users, not company users */}
+                {userRole !== 'company' && (
+                  <NavLink
+                    href="/transactions"
+                    icon={
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                      </svg>
+                    }
+                  >
+                    Transactions
+                  </NavLink>
+                )}
                 
-                <NavLink
-                  href="/transfer"
-                  icon={
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                    </svg>
-                  }
-                >
-                  Transfer
-                </NavLink>
+                {/* Only show Transfer for regular users, not company users */}
+                {userRole !== 'company' && (
+                  <NavLink
+                    href="/transfer"
+                    icon={
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                      </svg>
+                    }
+                  >
+                    Transfer
+                  </NavLink>
+                )}
                 
-                {/* Only show Create Company for company role */}
-                {userRole !== 'user' && (
+                {/* Only show Create Company for company role and if they don't have a company yet */}
+                {userRole !== 'user' && !hasCompany && (
                   <NavLink
                     href="/create-company"
                     icon={

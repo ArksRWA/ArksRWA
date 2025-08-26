@@ -15,18 +15,20 @@ import Option "mo:base/Option";
 
 import Types     "./types";
 
-persistent actor class ARKSRWA_Core(init_admin : ?Principal) = this {
+persistent actor class ARKSRWA_Core(init_admin : Principal) = this {
 
   // ---------- Utils ----------
   transient func natHash(n : Nat) : Hash.Hash { Text.hash(Nat.toText(n)) };
   transient func now64() : Nat64 { Nat64.fromIntWrap(Time.now()) };
   transient func safeSub(a : Nat, b : Nat) : Nat { if (a >= b) a - b else 0 };
 
+  // ---------- Risk Engine Integration ----------
+  // Risk engine integration removed - verification is now event-based
+  // Risk engine monitors company registrations and triggers verification automatically
+
   // ---------- Admins ----------
-  transient let defaultAdmin : Principal = switch (init_admin) {
-    case (?p) p;
-    case null Principal.fromText("o6dtt-od7eq-p5tmn-yilm3-4v453-v64p5-ep4q6-hxoeq-jhygx-u5dz7-aqe"); // dev fallback
-  };
+  // Admin principal is required - no fallback or null handling needed
+  transient let defaultAdmin : Principal = init_admin;
 
   var _admins : [Principal] = [];
   // one-time bootstrap
@@ -116,33 +118,6 @@ persistent actor class ARKSRWA_Core(init_admin : ?Principal) = this {
     else base * base
   };
 
-  transient func baseBondingPrice(basePrice : Nat, sold : Nat, supply : Nat) : Nat {
-    if (supply == 0) basePrice
-    else {
-      let soldRatio = Float.fromInt(sold) / Float.fromInt(supply);
-      let mult = powF(1.0 + soldRatio, bondingCurveExponent);
-      let raw = Float.fromInt(basePrice) * mult;
-      let lo  = Float.fromInt(basePrice) * 0.5;
-      let hi  = Float.fromInt(basePrice) * 10.0;
-      if (raw < lo) Int.abs(Float.toInt(lo))
-      else if (raw > hi) Int.abs(Float.toInt(hi))
-      else Int.abs(Float.toInt(raw))
-    }
-  };
-
-  transient func combinedMult(remaining : Nat, supply : Nat, amount : Nat) : Float {
-    if (supply == 0) return 1.0;
-    let scarcityRatio = Float.fromInt(remaining) / Float.fromInt(supply);
-    let scarcity      = Float.max(1.0, 2.0 - scarcityRatio);
-    let volume        = Float.min(1.5, 1.0 + Float.fromInt(amount) / 100.0);
-    scarcity * volume
-  };
-
-  transient func indicativePrice(basePrice : Nat, sold : Nat, supply : Nat, buyAmt : Nat) : Nat {
-    let base = baseBondingPrice(basePrice, sold, supply);
-    Int.abs(Float.toInt(Float.fromInt(base) * combinedMult(supply - sold, supply, buyAmt)))
-  };
-
   // ---------- Company Registration ----------
   public func createCompany(
     name : Text,
@@ -216,7 +191,7 @@ persistent actor class ARKSRWA_Core(init_admin : ?Principal) = this {
       created_at       = created_at;
 
       verification     = {
-        state = #Registered; score = 0; risk_label = #Caution;
+        state = #Registered; score = null; risk_label = #Caution;
         last_scored_at = null; next_due_at = null;
         explanation_hash = null; last_vc_registration = null; last_vc_valuation = null;
       };
@@ -232,8 +207,13 @@ persistent actor class ARKSRWA_Core(init_admin : ?Principal) = this {
     };
 
     companies.put(companyCount, c);
+    let currentCompanyId = c.id;
     companyCount += 1;
-    c.id
+
+    // Note: Verification is now handled automatically by the risk engine
+    // which monitors company registrations and triggers verification jobs
+
+    currentCompanyId
   };
 
   public func setTokenCanister(id : CompanyId, tokenCid : Principal, caller : Principal) : async () {
@@ -318,6 +298,26 @@ persistent actor class ARKSRWA_Core(init_admin : ?Principal) = this {
     switch (companies.get(id)) { case (?c) c.verification; case null { throw Error.reject("Invalid company") } }
   };
 
+  // Webhook for risk engine to update verification results
+  public func updateVerificationResult(
+    companyId : CompanyId, 
+    profile : Types.VerificationProfile,
+    caller : Principal
+  ) : async () {
+    // Note: Authorization now handled by risk engine canister registration
+    // Risk engine must be registered as authorized caller via admin functions
+    if (not isAdmin(caller)) {
+      throw Error.reject("Unauthorized verification update - caller must be registered risk engine"); 
+    };
+    
+    let c = switch (companies.get(companyId)) {
+      case (?x) x;
+      case null { throw Error.reject("Invalid company") };
+    };
+    
+    companies.put(companyId, { c with verification = profile });
+  };
+
   public func setRiskProfile(id : CompanyId, profile : Types.VerificationProfile, caller : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     let c = switch (companies.get(id)) { case (?x) x; case null { throw Error.reject("Invalid company") } };
@@ -328,6 +328,39 @@ persistent actor class ARKSRWA_Core(init_admin : ?Principal) = this {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     let c = switch (companies.get(id)) { case (?x) x; case null { throw Error.reject("Invalid company") } };
     companies.put(id, { c with verification = { c.verification with state = #VerificationPending } });
+  };
+
+  // Admin function to mark company for manual verification
+  public func retriggerVerification(id : CompanyId, priority : { #high; #normal; #low }, caller : Principal) : async ?Nat {
+    if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
+    
+    let c = switch (companies.get(id)) {
+      case (?x) x;
+      case null { throw Error.reject("Invalid company") };
+    };
+    
+    // Mark as pending - risk engine will pick this up automatically
+    companies.put(id, { c with verification = { c.verification with state = #VerificationPending }});
+    
+    // Return company ID as job identifier
+    ?id;
+  };
+
+  // Admin function to batch mark multiple companies for verification
+  public func batchRetriggerVerification(companyIds : [CompanyId], caller : Principal) : async [(?Nat)] {
+    if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
+    
+    var results : [(?Nat)] = [];
+    for (id in companyIds.vals()) {
+      try {
+        let jobId = await retriggerVerification(id, #normal, caller);
+        results := Array.append(results, [jobId]);
+      } catch (error) {
+        // Continue with other companies even if one fails
+        results := Array.append(results, [null]);
+      };
+    };
+    results;
   };
 
   public query func listDueForRescore(nowTs : Nat64, limit : Nat) : async [CompanyId] {

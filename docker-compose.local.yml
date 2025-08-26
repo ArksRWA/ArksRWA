@@ -6,6 +6,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: dfx
+    networks:
+      - arks-network
     ports:
       - "4943:4943"
       - "3000:3000"
@@ -18,21 +20,48 @@ services:
       - |
         echo "🧠 Starting replica..." && \
         dfx stop || true && \
-        dfx start --background --clean --host 0.0.0.0:4943 && \
+        dfx start --clean --background --host 0.0.0.0:4943 && \
         echo "⏳ Waiting for replica..." && \
         until curl -sf http://localhost:4943/api/v2/status; do sleep 1; done && \
         echo "✅ Replica ready!" && \
         dfx identity new default --storage-mode=plaintext || true && \
         dfx identity use default && \
         echo "🚀 Deploying canisters..." && \
+        . /app/.env && \
         [ ! -f .env ] || export $(grep -v '^#' .env | xargs) && \
-        dfx deploy --network local arks-core && \
-        dfx deploy --network local arks-identity && \
-        dfx deploy --network local arks-risk-engine && \
-        dfx deploy --network local arks-token-factory --argument "(null, principal \"$(dfx canister id arks-core)\")"  && \
+        dfx deploy --network local arks-core --argument "(principal \"$(dfx identity get-principal)\")" && \
+        dfx deploy --network local arks-identity --argument "(opt principal \"$(dfx identity get-principal)\")" && \
+        dfx deploy --network local arks-risk-engine --argument "(principal \"$(dfx identity get-principal)\", null, null)" && \
+        dfx deploy --network local arks-token-factory --argument "(opt principal \"$(dfx identity get-principal)\", principal \"$(dfx canister id arks-core)\")"  && \
+        cd /app/src/frontend && \
+        npm install && \
+        npm run build && cd ../../ && \
         dfx deploy --network local frontend && \
         echo "✅ Canisters ready!" && \
         tail -f /dev/null
 
+  ai-engine:
+    depends_on:
+      - dfx
+    build:
+      context: .
+      dockerfile: ./src/AI/Dockerfile
+    container_name: ai-engine
+    networks:
+      - arks-network
+    ports:
+      - "3001:3001"
+    volumes:
+      - ai-state:/app
+    working_dir: /app
+
 volumes:
   dfx_state:
+  ai-state:
+
+networks:
+  arks-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

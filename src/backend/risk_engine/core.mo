@@ -861,7 +861,7 @@ private func cleanUrl(url : Text) : Text {
 
     {
       companyId = companyId;
-      overallScore = overallScore;
+      overallScore = ?overallScore;
       verificationStatus = status;
       lastVerified = timestamp;
       nextDueAt = ?(timestamp + (30 * 24 * 60 * 60 * 1_000_000_000)); // 30 days in ns
@@ -978,7 +978,12 @@ private func cleanUrl(url : Text) : Text {
     for ((profile, actuallyFraudulent) in verificationResults.vals()) {
       let predictedFraudulent = switch (profile.verificationStatus) {
         case (#failed) { true };
-        case (#suspicious) { profile.overallScore < 60.0 }; // Consider low suspicious as fraud
+        case (#suspicious) { 
+          switch (profile.overallScore) {
+            case (?score) { score < 60.0 }; // Consider low suspicious as fraud
+            case null { false }; // No score means can't predict fraud
+          };
+        };
         case (_) { false };
       };
       
@@ -1479,7 +1484,7 @@ private func cleanUrl(url : Text) : Text {
     
     {
       companyId = companyId;
-      overallScore = response.score;
+      overallScore = ?response.score;
       verificationStatus = status;
       lastVerified = timestamp;
       nextDueAt = ?(timestamp + Constants.SCORER_CACHE_TTL_NS);

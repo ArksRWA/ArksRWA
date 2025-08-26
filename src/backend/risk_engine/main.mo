@@ -4,6 +4,7 @@ import HashMap "mo:base/HashMap";
 import Hash "mo:base/Hash";
 import Text "mo:base/Text";
 import Nat "mo:base/Nat";
+import Nat64 "mo:base/Nat64";
 import Int "mo:base/Int";
 import Float "mo:base/Float";
 import Principal "mo:base/Principal";
@@ -18,7 +19,7 @@ import Constants "./constants";
 import OldTypes "./old_types";
 
 // Verification Engine Class
-persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url: ?Text, ai_auth_token: ?Text) {
+persistent actor class VerificationEngine(init_admin: Principal, ai_service_url: ?Text, _ai_auth_token: ?Text) = self {
   type VerificationProfile = Types.VerificationProfile;
   type VerificationJob = Types.VerificationJob;
   type VerificationStatus = Types.VerificationStatus;
@@ -33,16 +34,80 @@ persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url
   type AIAnalysisResponse = Types.AIAnalysisResponse;
   type HttpMethod = Core.HttpMethod;
   type HttpHeader = Core.HttpHeader;
-    // Admin principal - configurable via constructor parameter
-    private transient let admin : Principal = switch(init_admin) {
-      case (?p) p;
-      case null Principal.fromText("o6dtt-od7eq-p5tmn-yilm3-4v453-v64p5-ep4q6-hxoeq-jhygx-u5dz7-aqe"); // fallback for local dev
-    };
-    private transient let AI_AUTH_TOKEN : ?Text = ai_auth_token;
+    // Admin principal is required - no fallback or null handling needed
+    private transient let admin : Principal = init_admin;
     // AI Service Configuration
     private transient let AI_SERVICE_URL : Text = switch(ai_service_url) {
       case (?url) url;
       case null "http://localhost:3001"; // fallback for local dev
+    };
+    
+    // Core canister registry - managed dynamically
+    private var registeredCoreCanisterIds : [Principal] = [];
+    
+    // Core canister interface types
+    public type CoreCompany = {
+      id : Nat;
+      name : Text;
+      symbol : Text;
+      owner : Principal;
+      verification : Types.VerificationProfile;
+      // Add other fields as needed
+    };
+    
+    // Core canister interface for callbacks
+    private func getCoreCanisterActor(canisterId : Principal) : actor {
+      updateVerificationResult : (Nat, Types.VerificationProfile, Principal) -> async ();
+      getCompany : (Nat) -> async ?CoreCompany;
+      listCompanies : () -> async [CoreCompany];
+    } {
+      actor(Principal.toText(canisterId))
+    };
+    
+    // Define core canister verification profile type
+    type CoreVerificationProfile = {
+      state : { #Registered; #VerificationPending; #Verified; #NeedsUpdate; #Rejected; #Failed };
+      score : ?Float;
+      risk_label : { #Trusted; #Caution; #HighRisk };
+      last_scored_at : ?Nat64;
+      next_due_at : ?Nat64;
+      explanation_hash : ?Text;
+      last_vc_registration : ?Nat64;
+      last_vc_valuation : ?Nat64;
+    };
+
+    // Core canister interface type
+    type CoreCanisterInterface = actor {
+      updateVerificationResult : (Nat, CoreVerificationProfile, Principal) -> async ();
+    };
+
+    // Core canister management functions
+    public func registerCoreCanister(canisterId : Principal, caller : Principal) : async () {
+      if (caller != admin) {
+        throw Error.reject("Authorization failed: Only admin can register core canisters");
+      };
+      
+      // Check if already registered
+      for (id in registeredCoreCanisterIds.vals()) {
+        if (id == canisterId) { return }; // Already registered
+      };
+      
+      registeredCoreCanisterIds := Array.append(registeredCoreCanisterIds, [canisterId]);
+    };
+    
+    public func unregisterCoreCanister(canisterId : Principal, caller : Principal) : async () {
+      if (caller != admin) {
+        throw Error.reject("Authorization failed: Only admin can unregister core canisters");
+      };
+      
+      registeredCoreCanisterIds := Array.filter(registeredCoreCanisterIds, func(id : Principal) : Bool { id != canisterId });
+    };
+    
+    public query func listRegisteredCoreCanisterIds(caller : Principal) : async [Principal] {
+      if (caller != admin) {
+        return [];
+      };
+      registeredCoreCanisterIds;
     };
   
     // Custom hash function for Nat
@@ -54,10 +119,6 @@ persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url
     private transient var verificationProfiles : HashMap.HashMap<Nat, VerificationProfile> = HashMap.HashMap(0, Nat.equal, natHash);
     private transient var verificationJobs : HashMap.HashMap<Nat, VerificationJob> = HashMap.HashMap(0, Nat.equal, natHash);
     private transient var jobCounter : Nat = 0;
-    
-    // Enhanced verification system storage (optional for future use)
-    private transient var performanceMetrics : ?Types.PerformanceMetrics = null;
-    private transient var weightSystemVersion : Text = "2.0.0-indonesian-enhanced";
 
     // Cache for recent search results (to avoid repeated API calls)
     private transient var searchCache : HashMap.HashMap<Text, (Int, Text)> = HashMap.HashMap(0, Text.equal, Text.hash);
@@ -77,10 +138,6 @@ persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url
     // Configuration
     private transient let config : HttpOutcallConfig = Core.DEFAULT_CONFIG;
     private transient var companies : HashMap.HashMap<Nat, OldTypes.Company> = HashMap.HashMap(0, Nat.equal, natHash);
-    // Try AI-powered verification first, fallback to legacy
-    private transient var verificationStatus : VerificationStatus = #pending;
-    private transient var verificationScore : ?Float = null;
-    private transient var verificationJobId : ?Nat = null;
     private transient var companyCount : Nat = 0;
     // Public interface functions
 
@@ -133,6 +190,17 @@ persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url
             
             // Store the verification profile
             verificationProfiles.put(job.companyId, profile);
+
+            // Update core canisters with verification result
+            for (coreCanisterId in registeredCoreCanisterIds.vals()) {
+              let coreRef = getCoreCanisterActor(coreCanisterId);
+              try {
+                await coreRef.updateVerificationResult(job.companyId, profile, Principal.fromActor(self));
+              } catch (error) {
+                Debug.print("Failed to update core canister for company " # job.companyName # ": " # Error.message(error));
+                // Continue anyway - verification is complete even if core update fails
+              };
+            };
 
             // Update job with successful completion
             let completedJob = {
@@ -196,17 +264,6 @@ persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url
         };
         case (null) { null }; // No cache entry
       };
-    };
-    
-    // NEW: Build features from company data (Step 2 of flowchart)
-    private func buildVerificationFeaturesFromCompanyData(companyId : Nat, companyName : Text) : async Types.CompanyFeatures {
-      // In production, this would extract more data from company records
-      // For now, use company name and basic description
-      let description = "Indonesian company: " # companyName; // Would be actual company description
-      let industryType = ?#services; // Would be determined from company data
-      let registrationYear = null; // Would be extracted from company records
-      
-      Core.buildVerificationFeatures(companyId, companyName, description, industryType, registrationYear);
     };
     
     // NEW: Single efficient API call to Scorer API (Step 3 of flowchart)
@@ -305,7 +362,11 @@ persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url
       // Create verification profile from all search results
       let profile = Core.createVerificationProfile(companyId, searchResults);
       
-      Debug.print("Legacy verification completed for " # companyName # " with score: " # Float.toText(profile.overallScore));
+      let scoreText = switch (profile.overallScore) {
+        case (?score) Float.toText(score);
+        case null "null";
+      };
+      Debug.print("Legacy verification completed for " # companyName # " with score: " # scoreText);
       
       profile;
     };
@@ -391,28 +452,12 @@ persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url
     };
 
     // Get verification profile for a company
-    func getVerificationProfile(companyId : Nat) : ?VerificationProfile {
+    private func getVerificationProfile(companyId : Nat) : ?VerificationProfile {
       verificationProfiles.get(companyId);
     };
 
-    // Get verification status for a company
-    func getVerificationStatus(companyId : Nat) : ?VerificationStatus {
-      switch (verificationProfiles.get(companyId)) {
-        case (?profile) { ?profile.verificationStatus };
-        case null { null };
-      };
-    };
-
-    // Get verification score for a company
-    func getVerificationScore(companyId : Nat) : ?Float {
-      switch (verificationProfiles.get(companyId)) {
-        case (?profile) { ?profile.overallScore };
-        case null { null };
-      };
-    };
-
     // Check if company needs re-verification
-    func needsReverification(companyId : Nat) : Bool {
+    private func needsReverification(companyId : Nat) : Bool {
       switch (verificationProfiles.get(companyId)) {
         case (?profile) {
           switch (profile.nextDueAt) {
@@ -425,17 +470,12 @@ persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url
     };
 
     // Get verification job status
-    func getJobStatus(jobId : Nat) : ?VerificationJob {
+    private func getJobStatus(jobId : Nat) : ?VerificationJob {
       verificationJobs.get(jobId);
     };
 
-    // List all verification profiles
-    func listVerificationProfiles() : [VerificationProfile] {
-      Iter.toArray(verificationProfiles.vals());
-    };
-
     // List pending verification jobs
-    func listPendingJobs() : [VerificationJob] {
+    private func listPendingJobs() : [VerificationJob] {
       let allJobs = Iter.toArray(verificationJobs.vals());
       Array.filter(allJobs, func(job : VerificationJob) : Bool {
         job.status == #queued or job.status == #processing;
@@ -443,7 +483,7 @@ persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url
     };
 
     // Cancel a verification job
-    func cancelJob(jobId : Nat) : Bool {
+    private func cancelJob(jobId : Nat) : Bool {
       switch (verificationJobs.get(jobId)) {
         case (?job) {
           if (job.status == #queued or job.status == #processing) {
@@ -461,26 +501,9 @@ persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url
         case null { false };
       };
     };
-
-    // Clear old cache entries (legacy search cache)
-    func cleanupCache() : Nat {
-      let currentTime = Time.now();
-      var removedCount = 0;
-      
-      let entries = Iter.toArray(searchCache.entries());
-      for ((key, value) in entries.vals()) {
-        let (timestamp, _) = value;
-        if (currentTime - timestamp > CACHE_TTL_NS) {
-          searchCache.delete(key);
-          removedCount += 1;
-        };
-      };
-      
-      removedCount;
-    };
     
     // NEW: Clean up expired verification cache entries for memory management
-    func cleanupVerificationCache() : Nat {
+    private func cleanupVerificationCache() : Nat {
       let currentTime = Time.now();
       var removedCount = 0;
       
@@ -497,7 +520,7 @@ persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url
     };
     
     // NEW: Get verification cache statistics
-    func getVerificationCacheStats() : { entries : Nat; expiredEntries : Nat; hitRate : ?Float } {
+    private func getVerificationCacheStats() : { entries : Nat; expiredEntries : Nat; hitRate : ?Float } {
       let currentTime = Time.now();
       var totalEntries = 0;
       var expiredEntries = 0;
@@ -517,63 +540,12 @@ persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url
     };
     
     // NEW: Force cache refresh for a company (admin function)
-    func refreshCompanyVerification(companyId : Nat, companyName : Text) : async VerificationProfile {
+    private func refreshCompanyVerification(companyId : Nat, _companyName : Text) : async VerificationProfile {
       // Remove from cache to force refresh
       verificationCache.delete(companyId);
       
       // Perform fresh verification
-      await performCompanyVerification(companyId, companyName);
-    };
-
-    // Get cache statistics
-    func getCacheStats() : { entries : Nat; oldEntries : Nat } {
-      let currentTime = Time.now();
-      var totalEntries = 0;
-      var oldEntries = 0;
-      
-      for ((key, value) in searchCache.entries()) {
-        totalEntries += 1;
-        let (timestamp, _) = value;
-        if (currentTime - timestamp > CACHE_TTL_NS) {
-          oldEntries += 1;
-        };
-      };
-      
-      { entries = totalEntries; oldEntries = oldEntries };
-    };
-
-    // === ENHANCED VERIFICATION SYSTEM INTEGRATION ===
-    
-    // Get current weight system version
-    func getWeightSystemVersion() : Text {
-      weightSystemVersion;
-    };
-    
-    // Get performance metrics (if available)
-    func getPerformanceMetrics() : ?Types.PerformanceMetrics {
-      performanceMetrics;
-    };
-    
-    // Update performance metrics based on verification results
-    func updatePerformanceMetrics(
-      verificationResults: [(VerificationProfile, Bool)], // (profile, isActuallyFraudulent)
-      processingTimes: [Int]
-    ) : Types.PerformanceMetrics {
-      let metrics = Core.calculatePerformanceMetrics(verificationResults, processingTimes);
-      performanceMetrics := ?metrics;
-      metrics;
-    };
-    
-    // Enhanced verification with context awareness (future integration point)
-    func performEnhancedVerification(
-      companyId : Nat, 
-      companyName : Text, 
-      _companyDescription : Text,
-      priority : JobPriority
-    ) : async Nat {
-      // For now, delegate to standard verification
-      // Future enhancement: build verification context and use enhanced weight system
-      await startVerification(companyId, companyName, priority);
+      await performCompanyVerification(companyId, _companyName);
     };
     
     // NEW: Direct Scorer API verification with external API key
@@ -611,7 +583,11 @@ persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url
         // Cache the result
         cacheVerificationResult(companyId, profile);
         
-        Debug.print("Scorer API verification completed with score: " # Float.toText(profile.overallScore));
+        let scoreText = switch (profile.overallScore) {
+          case (?score) Float.toText(score);
+          case null "null";
+        };
+        Debug.print("Scorer API verification completed with score: " # scoreText);
         profile;
         
       } catch (error) {
@@ -619,38 +595,39 @@ persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url
         throw error;
       };
     };
-    
-    // Validate current weight configuration
-    func validateWeights() : { isValid: Bool; warnings: [Text]; recommendations: [Text] } {
-      let weights = HashMap.HashMap<Text, Float>(6, Text.equal, Text.hash);
-      weights.put("fraud_keywords", Constants.FRAUD_KEYWORDS_WEIGHT);
-      weights.put("news_sentiment", Constants.NEWS_SENTIMENT_WEIGHT);
-      weights.put("business_registry", Constants.BUSINESS_REGISTRY_WEIGHT);
-      weights.put("authority_mentions", Constants.AUTHORITY_MENTIONS_WEIGHT);
-      weights.put("digital_footprint", Constants.DIGITAL_FOOTPRINT_WEIGHT);
-      weights.put("domain_age", Constants.DOMAIN_AGE_WEIGHT);
-      
-      Core.validateWeightConfiguration(weights);
-    };
-    
-    // Get weight optimization recommendations (if performance metrics available)
-    func getWeightOptimizationRecommendations() : ?[(Text, Float)] {
-      switch (performanceMetrics) {
-        case (?currentMetrics) {
-          let targetMetrics : Types.PerformanceMetrics = {
-            falsePositiveRate = Constants.TARGET_FALSE_POSITIVE_RATE;
-            falseNegativeRate = Constants.TARGET_FALSE_NEGATIVE_RATE;
-            f1Score = Constants.TARGET_F1_SCORE;
-            accuracyScore = 0.85; // Target 85% accuracy
-            processingTime = Constants.MAX_PROCESSING_TIME_MS * 1_000_000; // Convert to nanoseconds
-            totalVerifications = 0; // Not used for recommendations
-            lastCalculated = Time.now();
-          };
-          
-          ?Core.recommendWeightAdjustments(currentMetrics, targetMetrics);
-        };
-        case (null) { null };
+
+    // Map risk engine VerificationProfile to core canister types
+    private func _mapToCoreverificationProfile(riskProfile : VerificationProfile) : CoreVerificationProfile {
+      let state = switch (riskProfile.verificationStatus) {
+        case (#verified) #Verified;
+        case (#suspicious) #NeedsUpdate; 
+        case (#failed) #Rejected;
+        case (#pending) #VerificationPending;
+        case (#error) #Failed;
       };
+      
+      let risk_label = switch (riskProfile.overallScore) {
+        case (?score) {
+          if (score < 30.0) #Trusted
+          else if (score < 70.0) #Caution
+          else #HighRisk;
+        };
+        case null #Caution; // Default to caution when score is not available
+      };
+      
+      {
+        state = state;
+        score = riskProfile.overallScore;
+        risk_label = risk_label;
+        last_scored_at = ?Nat64.fromIntWrap(riskProfile.lastVerified);
+        next_due_at = switch (riskProfile.nextDueAt) {
+          case (?due) ?Nat64.fromIntWrap(due);
+          case null null;
+        };
+        explanation_hash = null; // Could map to analysis summary in future
+        last_vc_registration = null;
+        last_vc_valuation = null;
+      }
     };
 
     // NEW: Enhanced verification with Gemini API key support
@@ -736,28 +713,156 @@ persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url
       };
       
       try {
-        // Step 3: Build features from company data
-        let features = await buildVerificationFeaturesFromCompanyData(companyId, companyName);
-        
-        // Step 4: Enhanced API call with Gemini authentication
-        let scorerResponse = switch (apiKey) {
-          case (?key) { await callScorerAPI(features, key) };
-          case (null) { throw Error.reject("API key required for AI-powered verification") };
+        // Step 3: Call off-chain AI service directly (no API key needed in canister)
+        let aiRequest: AIAnalysisRequest = {
+          name = companyName;
+          description = "Company verification request";
+          industry = null;
+          region = null;
+          valuation = null;
+          symbol = null;
         };
         
-        // Step 5: Map response to VerificationProfile
-        let profile = mapScorerResponseToProfile(companyId, scorerResponse, features);
+        // Step 4: Call your off-chain AI service at localhost:3001
+        let aiResponse = await callAIService(aiRequest, ?"off-chain-service");
+        
+        // Step 5: Map AI response to VerificationProfile
+        let profile = mapAIResponseToProfile(companyId, companyName, aiResponse);
         
         // Step 6: Cache result
         cacheVerificationResult(companyId, profile);
         
-        Debug.print("Enhanced verification completed for " # companyName # " with API key support, score: " # Float.toText(profile.overallScore));
+        let scoreText = switch (profile.overallScore) {
+          case (?score) Float.toText(score);
+          case null "null";
+        };
+        Debug.print("Off-chain AI verification completed for " # companyName # " with score: " # scoreText);
         return profile;
         
       } catch (error) {
-        Debug.print("Enhanced verification failed for " # companyName # ", falling back to legacy: " # Error.message(error));
-        // Fallback to legacy verification without API key
-        return await performLegacyVerification(companyId, companyName);
+        Debug.print("Off-chain AI verification failed for " # companyName # ": " # Error.message(error));
+        // NO FALLBACK - Return error immediately
+        throw Error.reject("AI verification service unavailable: " # Error.message(error));
+      };
+    };
+
+    // NEW: Map AI response to VerificationProfile (Step 5 of off-chain verification)
+    private func mapAIResponseToProfile(companyId : Nat, companyName : Text, aiResponse : AIAnalysisResponse) : VerificationProfile {
+      // Get current timestamp
+      let currentTime = Time.now();
+      
+      switch (aiResponse.success) {
+        case (true) {
+          // Extract scores and confidence from AI response (convert Nat to Float)
+          let fraudScore : Float = switch (aiResponse.fraudScore) {
+            case (?score) Float.fromInt(score) / 100.0; // Convert Nat to Float (0-1 scale)
+            case (null) 0.5; // Default medium risk
+          };
+          
+          let confidence : Float = switch (aiResponse.confidence) {
+            case (?conf) Float.fromInt(conf) / 100.0; // Convert Nat to Float (0-1 scale)
+            case (null) 0.7; // Default confidence
+          };
+          
+          // Convert fraud score to overall score (invert since fraud = bad)
+          let overallScore : Float = (1.0 - fraudScore) * 100.0; // Scale to 0-100
+          
+          // Determine verification status based on fraud score
+          let verificationStatus = if (fraudScore >= 0.8) {
+            #suspicious
+          } else if (fraudScore >= 0.5) {
+            #failed
+          } else {
+            #verified
+          };
+          
+          // Create basic verification checks with proper type structure
+          let checks = [
+            {
+              checkType = "ai_web_presence";
+              status = #pass;
+              score = overallScore;
+              confidence = confidence;
+              details = "AI-powered web presence analysis";
+              timestamp = currentTime;
+              weightUsed = 1.0;
+              contextAdjustment = null;
+              evidenceSources = ["AI Service Analysis"];
+              processingTimeMs = null;
+            },
+            {
+              checkType = "ai_fraud_analysis";
+              status = if (fraudScore >= 0.7) #fail else if (fraudScore >= 0.4) #warning else #pass;
+              score = overallScore;
+              confidence = confidence;
+              details = "AI-powered fraud risk assessment";
+              timestamp = currentTime;
+              weightUsed = 1.0;
+              contextAdjustment = null;
+              evidenceSources = ["AI Service Analysis"];
+              processingTimeMs = null;
+            }
+          ];
+          
+          // Create risk factors based on fraud score
+          let riskFactors = if (fraudScore >= 0.7) {
+            ["High fraud risk detected by AI", "Requires manual review"]
+          } else if (fraudScore >= 0.4) {
+            ["Medium fraud risk detected"]
+          } else {
+            []
+          };
+          
+          // Create verification profile with correct type structure
+          {
+            companyId = companyId;
+            overallScore = ?overallScore;
+            verificationStatus = verificationStatus;
+            lastVerified = currentTime;
+            nextDueAt = ?(currentTime + (24 * 60 * 60 * 1_000_000_000)); // 24 hours from now
+            checks = checks;
+            fraudKeywords = []; // Empty for AI-based verification
+            newsArticles = 0; // Not applicable for AI verification
+            riskFactors = riskFactors;
+            verificationContext = null; // Could be enhanced later
+            weightConfigUsed = ?"ai-verification-v2.0";
+            confidenceLevel = confidence;
+            industryBenchmark = null; // Not available yet
+          }
+        };
+        case (false) {
+          // AI service failed - create low-confidence profile
+          let checks = [
+            {
+              checkType = "ai_service_error";
+              status = #error;
+              score = 30.0;
+              confidence = 0.2;
+              details = "AI verification service unavailable";
+              timestamp = currentTime;
+              weightUsed = 1.0;
+              contextAdjustment = null;
+              evidenceSources = ["AI Service Failure"];
+              processingTimeMs = null;
+            }
+          ];
+          
+          {
+            companyId = companyId;
+            overallScore = null; // No score available due to failed verification
+            verificationStatus = #failed;
+            lastVerified = currentTime;
+            nextDueAt = ?(currentTime + (60 * 60 * 1_000_000_000)); // Retry in 1 hour
+            checks = checks;
+            fraudKeywords = [];
+            newsArticles = 0;
+            riskFactors = ["AI verification service unavailable", "Manual review required"];
+            verificationContext = null;
+            weightConfigUsed = ?"ai-verification-v2.0";
+            confidenceLevel = 0.2; // Very low confidence
+            industryBenchmark = null;
+          }
+        };
       };
     };
 
@@ -766,380 +871,456 @@ persistent actor class VerificationEngine(init_admin: ?Principal, ai_service_url
       http_request : HttpRequest -> async HttpResponse;
     } = actor("aaaaa-aa");
 
-    
-
-  // Call AI service for fraud analysis
-  public func callAIService(companyData : AIAnalysisRequest, ai_auth_token : ?Text) : async AIAnalysisResponse {
-    switch (ai_auth_token) {
-      case (null) {
-        Debug.print("No AI auth token configured, skipping AI analysis");
-        return {
-          success = false;
-          fraudScore = null;
-          riskLevel = null;
-          confidence = null;
-          processingTimeMs = null;
-          error = ?"No AI authentication token configured";
-        };
-      };
-      case (?authToken) {
-        try {
-          let requestBody = "{\"name\":\"" # companyData.name # "\",\"description\":\"" # companyData.description # "\"" #
-            (switch (companyData.industry) { case (?industry) ",\"industry\":\"" # industry # "\""; case null "" }) #
-            (switch (companyData.region) { case (?region) ",\"region\":\"" # region # "\""; case null "" }) #
-            (switch (companyData.valuation) { case (?val) ",\"valuation\":" # Nat.toText(val); case null "" }) #
-            (switch (companyData.symbol) { case (?sym) ",\"symbol\":\"" # sym # "\""; case null "" }) #
-            "}";
-
-          let url = AI_SERVICE_URL # "/analyze-company";
-          
-          let headers : [HttpHeader] = [
-            { name = "Content-Type"; value = "application/json" },
-            { name = "Authorization"; value = "Bearer " # authToken },
-            { name = "User-Agent"; value = "ARKS-RWA-Canister/1.0" }
-          ];
-
-          let request : HttpRequest = {
-            url = url;
-            max_response_bytes = ?1048576; // 1MB limit
-            headers = headers;
-            body = ?Blob.toArray(Text.encodeUtf8(requestBody));
-            method = #post;
-            transform = null; // Simplified - no transform for now
-          };
-
-          Debug.print("Calling AI service at: " # url);
-          let response = await (with cycles = 2_000_000_000) ic.http_request(request);
-
-          if (response.status == 200) {
-            let responseText = textFromBytes(response.body);
-            Debug.print("AI service response: " # responseText);
-            
-            // Parse the JSON response (simplified parsing)
-            return parseAIResponse(responseText);
-          } else {
-            Debug.print("AI service returned status: " # Nat.toText(response.status));
-            return {
-              success = false;
-              fraudScore = null;
-              riskLevel = null;
-              confidence = null;
-              processingTimeMs = null;
-              error = ?"AI service returned error status";
-            };
-          };
-        } catch (error) {
-          Debug.print("AI service call failed: " # Error.message(error));
+    // Call AI service for fraud analysis
+    public func callAIService(companyData : AIAnalysisRequest, ai_auth_token : ?Text) : async AIAnalysisResponse {
+      switch (ai_auth_token) {
+        case (null) {
+          Debug.print("No AI auth token configured, skipping AI analysis");
           return {
             success = false;
             fraudScore = null;
             riskLevel = null;
             confidence = null;
             processingTimeMs = null;
-            error = ?"AI service call failed";
+            error = ?"No AI authentication token configured";
           };
         };
-      };
-    };
-  };
+        case (?authToken) {
+          try {
+            let requestBody = "{\"name\":\"" # companyData.name # "\",\"description\":\"" # companyData.description # "\"" #
+              (switch (companyData.industry) { case (?industry) ",\"industry\":\"" # industry # "\""; case null "" }) #
+              (switch (companyData.region) { case (?region) ",\"region\":\"" # region # "\""; case null "" }) #
+              (switch (companyData.valuation) { case (?val) ",\"valuation\":" # Nat.toText(val); case null "" }) #
+              (switch (companyData.symbol) { case (?sym) ",\"symbol\":\"" # sym # "\""; case null "" }) #
+              "}";
 
-  // Simple JSON response parser for AI service
-  private func parseAIResponse(responseText : Text) : AIAnalysisResponse {
-    // Simplified JSON parsing - in production, use proper JSON parser
-    if (Text.contains(responseText, #text "\"success\":true")) {
-      let fraudScore = extractNumberFromJson(responseText, "fraudScore");
-      let confidence = extractNumberFromJson(responseText, "confidence");
-      let processingTime = extractNumberFromJson(responseText, "processingTimeMs");
-      let riskLevel = extractTextFromJson(responseText, "riskLevel");
-      
-      {
-        success = true;
-        fraudScore = fraudScore;
-        riskLevel = riskLevel;
-        confidence = confidence;
-        processingTimeMs = processingTime;
-        error = null;
-      };
-    } else {
-      {
-        success = false;
-        fraudScore = null;
-        riskLevel = null;
-        confidence = null;
-        processingTimeMs = null;
-        error = ?"AI service returned unsuccessful response";
-      };
-    };
-  };
+            let url = AI_SERVICE_URL # "/analyze-company";
+            
+            let headers : [HttpHeader] = [
+              { name = "Content-Type"; value = "application/json" },
+              { name = "Authorization"; value = "Bearer " # authToken },
+              { name = "User-Agent"; value = "ARKS-RWA-Canister/1.0" }
+            ];
 
-  // Extract number from JSON string (simplified)
-  private func extractNumberFromJson(_json : Text, _key : Text) : ?Nat {
-    // Very simplified - in production use proper JSON parser
-    null; // Would implement JSON parsing logic
-  };
-
-  // Extract text from JSON string (simplified)
-  private func extractTextFromJson(_json : Text, _key : Text) : ?Text {
-    // Very simplified - in production use proper JSON parser
-    null; // Would implement JSON parsing logic
-  };
-  // ===== VERIFICATION SYSTEM FUNCTIONS =====
-
-  // Get verification status for a company
-  public query func getCompanyVerificationStatus(companyId : Nat) : async ?{
-    status : VerificationStatus;
-    score : ?Float;
-    lastVerified : ?Int;
-  } {
-    switch (companies.get(companyId)) {
-      case (?company) {
-        ?{
-          status = company.verification_status;
-          score = company.verification_score;
-          lastVerified = company.last_verified;
-        };
-      };
-      case null { null };
-    };
-  };
-
-  // Get detailed verification profile for a company
-  public query func getCompanyVerificationProfile(companyId : Nat) : async ?VerificationProfile {
-    getVerificationProfile(companyId);
-  };
-
-  // Check if company needs reverification
-  public query func companyNeedsReverification(companyId : Nat) : async Bool {
-    needsReverification(companyId);
-  };
-
-  // Get verification job status
-  public query func getVerificationJobStatus(jobId : Nat) : async ?VerificationJob {
-    getJobStatus(jobId);
-  };
-
-  // Start manual verification for a company (admin only)
-  public func startManualVerification(companyId : Nat, priority : JobPriority, caller : Principal) : async ?Nat {
-    if (caller != admin) {
-      throw Error.reject("Authorization failed: Only admin can start manual verification.");
-    };
-
-    switch (companies.get(companyId)) {
-      case (?company) {
-        let jobId = await startVerification(companyId, company.name, priority);
-        
-        // Update company with new verification job ID
-        let updatedCompany = {
-          company with
-          verification_status = #pending;
-          verification_job_id = ?jobId;
-        };
-        companies.put(companyId, updatedCompany);
-        
-        ?jobId;
-      };
-      case null { null };
-    };
-  };
-
-  // Process pending verification jobs (admin only)
-  public func processVerificationJobs(maxJobs : Nat, caller : Principal) : async Nat {
-    if (caller != admin) {
-      throw Error.reject("Authorization failed: Only admin can process verification jobs.");
-    };
-
-    let pendingJobs = listPendingJobs();
-    var processedCount = 0;
-
-    for (job in pendingJobs.vals()) {
-      if (processedCount < maxJobs and job.status == #queued) {
-        let success = await processVerificationJob(job.jobId);
-        if (success) {
-          processedCount += 1;
-          
-          // Update company verification status
-          await updateCompanyFromVerificationResult(job.companyId);
-        };
-      };
-    };
-
-    processedCount;
-  };
-
-  // Update company data from verification results
-  private func updateCompanyFromVerificationResult(companyId : Nat) : async () {
-    switch (companies.get(companyId)) {
-      case (?company) {
-        switch (getVerificationProfile(companyId)) {
-          case (?profile) {
-            let updatedCompany = {
-              company with
-              verification_status = profile.verificationStatus;
-              verification_score = ?profile.overallScore;
-              last_verified = ?profile.lastVerified;
+            let request : HttpRequest = {
+              url = url;
+              max_response_bytes = ?1048576; // 1MB limit
+              headers = headers;
+              body = ?Blob.toArray(Text.encodeUtf8(requestBody));
+              method = #post;
+              transform = null; // Simplified - no transform for now
             };
-            companies.put(companyId, updatedCompany);
+
+            Debug.print("Calling AI service at: " # url);
+            let response = await (with cycles = 2_000_000_000) ic.http_request(request);
+
+            if (response.status == 200) {
+              let responseText = textFromBytes(response.body);
+              Debug.print("AI service response: " # responseText);
+              
+              // Parse the JSON response (simplified parsing)
+              return parseAIResponse(responseText);
+            } else {
+              Debug.print("AI service returned status: " # Nat.toText(response.status));
+              return {
+                success = false;
+                fraudScore = null;
+                riskLevel = null;
+                confidence = null;
+                processingTimeMs = null;
+                error = ?"AI service returned error status";
+              };
+            };
+          } catch (error) {
+            Debug.print("AI service call failed: " # Error.message(error));
+            return {
+              success = false;
+              fraudScore = null;
+              riskLevel = null;
+              confidence = null;
+              processingTimeMs = null;
+              error = ?"AI service call failed";
+            };
           };
-          case null { /* No profile available yet */ };
         };
       };
-      case null { /* Company not found */ };
-    };
-  };
-
-  // Get verification statistics for admin dashboard
-  public query func getVerificationStats(caller : Principal) : async ?{
-    totalCompanies : Nat;
-    verifiedCompanies : Nat;
-    pendingVerifications : Nat;
-    suspiciousCompanies : Nat;
-    failedVerifications : Nat;
-    averageScore : ?Float;
-  } {
-    if (caller != admin) {
-      return null; // Only admin can access stats
     };
 
-    var verifiedCount = 0;
-    var pendingCount = 0;
-    var suspiciousCount = 0;
-    var failedCount = 0;
-    var totalScore : Float = 0.0;
-    var scoredCount = 0;
-
-    for (company in companies.vals()) {
-      switch (company.verification_status) {
-        case (#verified) { verifiedCount += 1 };
-        case (#pending) { pendingCount += 1 };
-        case (#suspicious) { suspiciousCount += 1 };
-        case (#failed) { failedCount += 1 };
-        case (#error) { failedCount += 1 };
-      };
-
-      switch (company.verification_score) {
-        case (?score) {
-          totalScore += score;
-          scoredCount += 1;
+    // Simple JSON response parser for AI service
+    private func parseAIResponse(responseText : Text) : AIAnalysisResponse {
+      // Simplified JSON parsing - in production, use proper JSON parser
+      if (Text.contains(responseText, #text "\"success\":true")) {
+        let fraudScore = extractNumberFromJson(responseText, "fraudScore");
+        let confidence = extractNumberFromJson(responseText, "confidence");
+        let processingTime = extractNumberFromJson(responseText, "processingTimeMs");
+        let riskLevel = extractTextFromJson(responseText, "riskLevel");
+        
+        {
+          success = true;
+          fraudScore = fraudScore;
+          riskLevel = riskLevel;
+          confidence = confidence;
+          processingTimeMs = processingTime;
+          error = null;
         };
-        case null {};
+      } else {
+        {
+          success = false;
+          fraudScore = null;
+          riskLevel = null;
+          confidence = null;
+          processingTimeMs = null;
+          error = ?"AI service returned unsuccessful response";
+        };
       };
     };
 
-    let averageScore = if (scoredCount > 0) {
-      ?(totalScore / Float.fromInt(scoredCount));
-    } else {
-      null;
+    // Extract number from JSON string (simplified)
+    private func extractNumberFromJson(_json : Text, _key : Text) : ?Nat {
+      // Very simplified - in production use proper JSON parser
+      null; // Would implement JSON parsing logic
     };
 
-    ?{
-      totalCompanies = companyCount;
-      verifiedCompanies = verifiedCount;
-      pendingVerifications = pendingCount;
-      suspiciousCompanies = suspiciousCount;
-      failedVerifications = failedCount;
-      averageScore = averageScore;
-    };
-  };
-
-  // Cancel verification job (admin only)
-  public func cancelVerificationJob(jobId : Nat, caller : Principal) : async Bool {
-    if (caller != admin) {
-      throw Error.reject("Authorization failed: Only admin can cancel verification jobs.");
+    // Extract text from JSON string (simplified)
+    private func extractTextFromJson(_json : Text, _key : Text) : ?Text {
+      // Very simplified - in production use proper JSON parser
+      null; // Would implement JSON parsing logic
     };
 
-    cancelJob(jobId);
-  };
+    // ===== VERIFICATION SYSTEM FUNCTIONS =====
+
+    // Get verification status for a company
+    public query func getCompanyVerificationStatus(companyId : Nat) : async ?{
+      status : VerificationStatus;
+      score : ?Float;
+      lastVerified : ?Int;
+    } {
+      switch (companies.get(companyId)) {
+        case (?company) {
+          ?{
+            status = company.verification_status;
+            score = company.verification_score;
+            lastVerified = company.last_verified;
+          };
+        };
+        case null { null };
+      };
+    };
+
+    // Get detailed verification profile for a company
+    public query func getCompanyVerificationProfile(companyId : Nat) : async ?VerificationProfile {
+      getVerificationProfile(companyId);
+    };
+
+    // Check if company needs reverification
+    public query func companyNeedsReverification(companyId : Nat) : async Bool {
+      needsReverification(companyId);
+    };
+
+    // Get verification job status
+    public query func getVerificationJobStatus(jobId : Nat) : async ?VerificationJob {
+      getJobStatus(jobId);
+    };
+
+    // Start manual verification for a company (admin only)
+    public func startManualVerification(companyId : Nat, priority : JobPriority, caller : Principal) : async ?Nat {
+      if (caller != admin) {
+        throw Error.reject("Authorization failed: Only admin can start manual verification.");
+      };
+
+      switch (companies.get(companyId)) {
+        case (?company) {
+          let jobId = await startVerification(companyId, company.name, priority);
+          
+          // Update company with new verification job ID
+          let updatedCompany = {
+            company with
+            verification_status = #pending;
+            verification_job_id = ?jobId;
+          };
+          companies.put(companyId, updatedCompany);
+          
+          ?jobId;
+        };
+        case null { null };
+      };
+    };
+
+    // Process pending verification jobs (admin only)
+    public func processVerificationJobs(maxJobs : Nat, caller : Principal) : async Nat {
+      if (caller != admin) {
+        throw Error.reject("Authorization failed: Only admin can process verification jobs.");
+      };
+
+      let pendingJobs = listPendingJobs();
+      var processedCount = 0;
+
+      for (job in pendingJobs.vals()) {
+        if (processedCount < maxJobs and job.status == #queued) {
+          let success = await processVerificationJob(job.jobId);
+          if (success) {
+            processedCount += 1;
+            
+            // Update company verification status
+            await updateCompanyFromVerificationResult(job.companyId);
+          };
+        };
+      };
+
+      processedCount;
+    };
+
+    // Update company data from verification results
+    private func updateCompanyFromVerificationResult(companyId : Nat) : async () {
+      switch (companies.get(companyId)) {
+        case (?company) {
+          switch (getVerificationProfile(companyId)) {
+            case (?profile) {
+              let updatedCompany = {
+                company with
+                verification_status = profile.verificationStatus;
+                verification_score = profile.overallScore;
+                last_verified = ?profile.lastVerified;
+              };
+              companies.put(companyId, updatedCompany);
+            };
+            case null { /* No profile available yet */ };
+          };
+        };
+        case null { /* Company not found */ };
+      };
+    };
+
+    // Get verification statistics for admin dashboard
+    public query func getVerificationStats(caller : Principal) : async ?{
+      totalCompanies : Nat;
+      verifiedCompanies : Nat;
+      pendingVerifications : Nat;
+      suspiciousCompanies : Nat;
+      failedVerifications : Nat;
+      averageScore : ?Float;
+    } {
+      if (caller != admin) {
+        return null; // Only admin can access stats
+      };
+
+      var verifiedCount = 0;
+      var pendingCount = 0;
+      var suspiciousCount = 0;
+      var failedCount = 0;
+      var totalScore : Float = 0.0;
+      var scoredCount = 0;
+
+      for (company in companies.vals()) {
+        switch (company.verification_status) {
+          case (#verified) { verifiedCount += 1 };
+          case (#pending) { pendingCount += 1 };
+          case (#suspicious) { suspiciousCount += 1 };
+          case (#failed) { failedCount += 1 };
+          case (#error) { failedCount += 1 };
+        };
+
+        switch (company.verification_score) {
+          case (?score) {
+            totalScore += score;
+            scoredCount += 1;
+          };
+          case null {};
+        };
+      };
+
+      let averageScore = if (scoredCount > 0) {
+        ?(totalScore / Float.fromInt(scoredCount));
+      } else {
+        null;
+      };
+
+      ?{
+        totalCompanies = companyCount;
+        verifiedCompanies = verifiedCount;
+        pendingVerifications = pendingCount;
+        suspiciousCompanies = suspiciousCount;
+        failedVerifications = failedCount;
+        averageScore = averageScore;
+      };
+    };
+
+    // Cancel verification job (admin only)
+    public func cancelVerificationJob(jobId : Nat, caller : Principal) : async Bool {
+      if (caller != admin) {
+        throw Error.reject("Authorization failed: Only admin can cancel verification jobs.");
+      };
+
+      cancelJob(jobId);
+    };
   
-  // NEW: Get Scorer API verification cache statistics
-  public query func getScorerCacheStats(caller : Principal) : async ?{ entries : Nat; expiredEntries : Nat; hitRate : ?Float } {
-    // Only admin can access cache stats
-    if (caller != admin) {
-      return null;
+    // NEW: Get Scorer API verification cache statistics
+    public query func getScorerCacheStats(caller : Principal) : async ?{ entries : Nat; expiredEntries : Nat; hitRate : ?Float } {
+      // Only admin can access cache stats
+      if (caller != admin) {
+        return null;
+      };
+      
+      ?getVerificationCacheStats();
     };
     
-    ?getVerificationCacheStats();
-  };
-  
-  // NEW: Clean up expired Scorer API cache entries
-  public func cleanupScorerCache(caller : Principal) : async ?Nat {
-    // Only admin can clean cache
-    if (caller != admin) {
-      return null;
+    // NEW: Clean up expired Scorer API cache entries
+    public func cleanupScorerCache(caller : Principal) : async ?Nat {
+      // Only admin can clean cache
+      if (caller != admin) {
+        return null;
+      };
+      
+      ?cleanupVerificationCache();
     };
     
-    ?cleanupVerificationCache();
-  };
-  
-  // NEW: Test Scorer API verification with external API key (for testing the new architecture)
-  public func testScorerApiVerification(companyId : Nat, apiKey : Text, caller : Principal) : async ?VerificationProfile {
-    // Only admin can test Scorer API
-    if (caller != admin) {
-      return null;
+    // NEW: Test Scorer API verification with external API key (for testing the new architecture)
+    public func testScorerApiVerification(companyId : Nat, _apiKey : Text, caller : Principal) : async ?VerificationProfile {
+      // Only admin can test Scorer API
+      if (caller != admin) {
+        return null;
+      };
+      
+      switch (companies.get(companyId)) {
+        case (?company) {
+          try {
+            let profile = await performScorerApiVerification(
+              companyId, 
+              company.name, 
+              company.description,
+              _apiKey
+            );
+            ?profile;
+          } catch (_error) {
+            null; // Return null on error for testing
+          };
+        };
+        case (null) { null };
+      };
     };
+
+    // NEW: Force refresh company verification using new architecture
+    public func refreshCompanyVerificationScorer(companyId : Nat, caller : Principal) : async ?VerificationProfile {
+      // Only admin can force refresh
+      if (caller != admin) {
+        return null;
+      };
+      
+      switch (companies.get(companyId)) {
+        case (?company) {
+          try {
+            let profile = await refreshCompanyVerification(companyId, company.name);
+            ?profile;
+          } catch (_error) {
+            null;
+          };
+        };
+        case (null) { null };
+      };
+    };
+
+    // Override verification status (admin emergency function)
+    public func overrideVerificationStatus(
+      companyId : Nat, 
+      newStatus : VerificationStatus, 
+      newScore : ?Float, 
+      caller : Principal
+    ) : async Bool {
+      if (caller != admin) {
+        throw Error.reject("Authorization failed: Only admin can override verification status.");
+      };
+
+      switch (companies.get(companyId)) {
+        case (?company) {
+          let updatedCompany = {
+            company with
+            verification_status = newStatus;
+            verification_score = newScore;
+            last_verified = ?Time.now();
+          };
+          companies.put(companyId, updatedCompany);
+          true;
+        };
+        case null { false };
+      };
+    };
+
+    // ==========================================
+    // COMPANY MONITORING AND AUTO-VERIFICATION
+    // ==========================================
     
-    switch (companies.get(companyId)) {
-      case (?company) {
+    // Monitor registered core canisters for new companies needing verification
+    public func scanCoreCanistersForPendingVerification(caller : Principal) : async Nat {
+      if (caller != admin) {
+        throw Error.reject("Authorization failed: Only admin can scan for pending verification.");
+      };
+      
+      var companiesProcessed = 0;
+      
+      for (coreCanisterId in registeredCoreCanisterIds.vals()) {
+        let coreRef = getCoreCanisterActor(coreCanisterId);
         try {
-          let profile = await performScorerApiVerification(
-            companyId, 
-            company.name, 
-            company.description,
-            apiKey
-          );
-          ?profile;
-        } catch (_error) {
-          null; // Return null on error for testing
+          let companies = await coreRef.listCompanies();
+          
+          for (company in companies.vals()) {
+            // Check if company needs verification (status is pending or registered)
+            switch (company.verification.verificationStatus) {
+              case (#pending or #registered) {
+                // Check if we don't already have a verification job for this company
+                var hasExistingJob = false;
+                for ((jobId, job) in verificationJobs.entries()) {
+                  if (job.companyId == company.id and (job.status == #processing or job.status == #queued)) {
+                    hasExistingJob := true;
+                  };
+                };
+                
+                if (not hasExistingJob) {
+                  // Start verification for this company
+                  ignore await startVerificationWithApiKey(company.id, company.name, #normal, null);
+                  companiesProcessed += 1;
+                };
+              };
+              case (_) {}; // Company doesn't need verification
+            };
+          };
+        } catch (error) {
+          Debug.print("Failed to scan core canister " # Principal.toText(coreCanisterId) # ": " # Error.message(error));
         };
       };
-      case (null) { null };
-    };
-  };
-  
-  // NEW: Force refresh company verification using new architecture
-  public func refreshCompanyVerificationScorer(companyId : Nat, caller : Principal) : async ?VerificationProfile {
-    // Only admin can force refresh
-    if (caller != admin) {
-      return null;
+      
+      companiesProcessed;
     };
     
-    switch (companies.get(companyId)) {
-      case (?company) {
-        try {
-          let profile = await refreshCompanyVerification(companyId, company.name);
-          ?profile;
-        } catch (_error) {
-          null;
-        };
+    // Automatic periodic scan function (can be called by a heartbeat or external scheduler)
+    public func periodicVerificationScan() : async Nat {
+      // This function doesn't require admin access as it's meant to be called automatically
+      // by the system or scheduled jobs
+      await scanCoreCanistersForPendingVerification(admin);
+    };
+    
+    // Get summary of companies across all registered core canisters
+    public query func getMultiCoreCompanySummary(caller : Principal) : async ?{
+      totalCompanies : Nat;
+      pendingVerification : Nat;
+      verified : Nat;
+      failed : Nat;
+      registeredCoreCanisterIds : [Principal];
+    } {
+      if (caller != admin) {
+        return null;
       };
-      case (null) { null };
-    };
-  };
-
-  // Override verification status (admin emergency function)
-  public func overrideVerificationStatus(
-    companyId : Nat, 
-    newStatus : VerificationStatus, 
-    newScore : ?Float, 
-    caller : Principal
-  ) : async Bool {
-    if (caller != admin) {
-      throw Error.reject("Authorization failed: Only admin can override verification status.");
-    };
-
-    switch (companies.get(companyId)) {
-      case (?company) {
-        let updatedCompany = {
-          company with
-          verification_status = newStatus;
-          verification_score = newScore;
-          last_verified = ?Time.now();
-        };
-        companies.put(companyId, updatedCompany);
-        true;
+      
+      // Note: This is a query function, so we can't make async calls to core canisters
+      // This provides a summary of the monitoring setup only
+      ?{
+        totalCompanies = 0; // Would need to be populated from cached data
+        pendingVerification = 0; // Would need to be populated from job queue
+        verified = verificationProfiles.size();
+        failed = 0; // Count from jobs with failed status
+        registeredCoreCanisterIds = registeredCoreCanisterIds;
       };
-      case null { false };
     };
-  };
+
 };
 
 // module {

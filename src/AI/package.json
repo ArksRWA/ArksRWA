@@ -6,9 +6,9 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "start:prod": "pm2 start index.js --name arks-rwa-ai-service",
+    "start:prod": "pm2 start index.js --name arks-rwa-ai-service --no-daemon",
     "stop:prod": "pm2 stop arks-rwa-ai-service",
-    "restart:prod": "pm2 restart arks-rwa-ai-service",
+    "restart:prod": "pm2 restart arks-rwa-ai-service --no-daemon",
     "status:prod": "pm2 status arks-rwa-ai-service",
     "dev": "node --watch index.js",
     "test": "echo \"Error: no test specified\" && exit 1"

@@ -7,8 +7,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     curl ca-certificates git libssl-dev pkg-config build-essential gnupg && \
     rm -rf /var/lib/apt/lists/*
 
-COPY . .
-COPY .env.example .env
+COPY ./src/AI .
+COPY ./src/AI/.env.example .env
 
 # Install dependencies
 RUN npm install -g pm2@latest
@@ -18,4 +18,4 @@ RUN npm install
 EXPOSE 3001
 
 # Start the server
-CMD ["true"]
+CMD ["npm", "run", "start:prod"]

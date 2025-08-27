@@ -1,0 +1,28 @@
+{
+  "name": "nextjs-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "sed 's/^\\([^#][^=]*\\)=/NEXT_PUBLIC_\\1=/' ../../.env > .env && NEXT_PUBLIC_ENV_FILE=.env next dev --turbopack",
+    "build": "sed 's/^\\([^#][^=]*\\)=/NEXT_PUBLIC_\\1=/' ../../.env > .env && NEXT_PUBLIC_ENV_FILE=.env next build",
+    "start": "sed 's/^\\([^#][^=]*\\)=/NEXT_PUBLIC_\\1=/' ../../.env > .env && NEXT_PUBLIC_ENV_FILE=.env npx serve build",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@dfinity/agent": "^2.4.1",
+    "@dfinity/candid": "^2.4.1",
+    "@dfinity/principal": "^2.4.1",
+    "ic-auth": "^1.1.0",
+    "next": "15.3.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

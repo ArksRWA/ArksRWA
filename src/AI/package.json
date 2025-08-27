@@ -1,0 +1,44 @@
+{
+  "name": "arks-rwa-ai-service",
+  "version": "1.0.0",
+  "description": "Off-chain AI fraud detection service for Indonesian companies using Gemini API",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "start:prod": "pm2 start index.js --name arks-rwa-ai-service --no-daemon",
+    "stop:prod": "pm2 stop arks-rwa-ai-service",
+    "restart:prod": "pm2 restart arks-rwa-ai-service --no-daemon",
+    "status:prod": "pm2 status arks-rwa-ai-service",
+    "dev": "node --watch index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "fraud-detection",
+    "indonesia",
+    "gemini-api",
+    "blockchain",
+    "verification"
+  ],
+  "author": "ARKS RWA Team",
+  "license": "MIT",
+  "dependencies": {
+    "@google/genai": "^1.15.0",
+    "axios": "^1.11.0",
+    "chalk": "^5.6.0",
+    "cheerio": "^1.1.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^4.21.2",
+    "express-rate-limit": "^8.0.1",
+    "helmet": "^8.1.0",
+    "joi": "^18.0.1",
+    "jsdom": "^26.1.0",
+    "puppeteer": "^24.17.0",
+    "serpapi": "^2.2.0",
+    "user-agents": "^1.1.639"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

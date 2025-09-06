@@ -45,9 +45,28 @@ export default function Navigation({ className = '' }: NavigationProps) {
 
     checkAuth();
 
+    // Handle wallet identity changes
+    const handleWalletIdentityChange = (event: CustomEvent) => {
+      console.warn('Wallet identity changed, redirecting to login');
+      setCurrentUser(null);
+      setIsAuthenticated(false);
+      setUserRole(undefined);
+      setShowLoginModal(true);
+      
+      // Show notification to user
+      alert('Wallet identity changed. Please reconnect with your new wallet.');
+    };
+
+    // Listen for wallet identity change events
+    window.addEventListener('wallet-identity-changed', handleWalletIdentityChange as EventListener);
+    
     // Check auth state periodically (but don't check company too frequently)
     const interval = setInterval(checkAuth, 5000); // Reduced frequency for backend calls
-    return () => clearInterval(interval);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('wallet-identity-changed', handleWalletIdentityChange as EventListener);
+    };
   }, []);
 
   const handleDisconnect = () => {

@@ -54,6 +54,18 @@ export default function CompanyDashboardPage() {
     };
 
     checkAuthAndCompany();
+
+    // Handle wallet identity changes
+    const handleWalletIdentityChange = () => {
+      console.warn('Wallet identity changed, redirecting to home');
+      router.push('/');
+    };
+
+    window.addEventListener('wallet-identity-changed', handleWalletIdentityChange);
+    
+    return () => {
+      window.removeEventListener('wallet-identity-changed', handleWalletIdentityChange);
+    };
   }, [router]);
 
   const loadCompanyData = async () => {

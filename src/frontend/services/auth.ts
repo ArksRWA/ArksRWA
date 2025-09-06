@@ -23,6 +23,7 @@ class AuthServiceImpl implements AuthService {
   private readonly canisterId = getCanisterId('arks_core');
   private readonly host = HOST;
   private userRole: 'user' | 'company' | undefined = undefined;
+  private identityCheckInterval: NodeJS.Timeout | null = null;
 
   async connectPlug(): Promise<AuthUser> {
     // Check if Plug wallet is available
@@ -46,6 +47,9 @@ class AuthServiceImpl implements AuthService {
 
       this.currentUser = authUser;
       
+      // Start periodic identity verification
+      this.startIdentityCheck();
+      
       // Persist user session in localStorage
       try {
         localStorage.setItem('arks-rwa-auth', JSON.stringify({
@@ -67,6 +71,10 @@ class AuthServiceImpl implements AuthService {
   disconnect(): void {
     this.currentUser = null;
     this.userRole = undefined;
+    
+    // Stop identity checking
+    this.stopIdentityCheck();
+    
     console.log("User disconnected");
 
     // Clear any stored session data
@@ -155,6 +163,17 @@ class AuthServiceImpl implements AuthService {
       try {
         // Attempt to reconnect the wallet silently
         if (this.currentUser.walletType === 'plug' && window.ic?.plug) {
+          // SECURITY: Verify the current wallet identity matches stored session
+          const currentPrincipal = await window.ic.plug.agent?.getPrincipal?.();
+          const currentPrincipalString = currentPrincipal ? String(currentPrincipal) : null;
+          
+          if (currentPrincipalString && currentPrincipalString !== this.currentUser.principal) {
+            // Identity has changed! Clear old session and force re-authentication
+            console.warn('Wallet identity changed, clearing old session');
+            this.disconnect();
+            return false;
+          }
+          
           // Try to get existing connection without user prompt
           const connected = await window.ic.plug.agent;
           if (connected) {
@@ -165,6 +184,9 @@ class AuthServiceImpl implements AuthService {
         }
       } catch (e) {
         console.warn('Failed to restore agent silently:', e);
+        // If we can't verify identity, clear session for security
+        this.disconnect();
+        return false;
       }
     }
 
@@ -197,6 +219,59 @@ class AuthServiceImpl implements AuthService {
     }
 
     return this.userRole;
+  }
+
+  // Periodic identity verification to detect wallet switches
+  private startIdentityCheck(): void {
+    this.stopIdentityCheck(); // Clear any existing interval
+    
+    if (typeof window !== 'undefined') {
+      this.identityCheckInterval = setInterval(async () => {
+        await this.verifyCurrentIdentity();
+      }, 5000); // Check every 5 seconds
+    }
+  }
+
+  private stopIdentityCheck(): void {
+    if (this.identityCheckInterval) {
+      clearInterval(this.identityCheckInterval);
+      this.identityCheckInterval = null;
+    }
+  }
+
+  private async verifyCurrentIdentity(): Promise<void> {
+    if (!this.currentUser || !this.currentUser.isConnected) {
+      return;
+    }
+
+    try {
+      if (this.currentUser.walletType === 'plug' && window.ic?.plug) {
+        const currentPrincipal = await window.ic.plug.agent?.getPrincipal?.();
+        const currentPrincipalString = currentPrincipal ? String(currentPrincipal) : null;
+        
+        if (currentPrincipalString && currentPrincipalString !== this.currentUser.principal) {
+          // Identity mismatch detected!
+          console.warn('Wallet identity switch detected, forcing logout');
+          
+          // Force logout and redirect to login
+          this.disconnect();
+          
+          // Notify user about the identity change
+          if (typeof window !== 'undefined' && window.location) {
+            window.dispatchEvent(new CustomEvent('wallet-identity-changed', {
+              detail: { 
+                oldPrincipal: this.currentUser.principal, 
+                newPrincipal: currentPrincipalString 
+              }
+            }));
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Identity verification failed:', e);
+      // If we can't verify identity, disconnect for security
+      this.disconnect();
+    }
   }
 }
 

@@ -394,7 +394,6 @@ private async createActor(requireAuth = true) {
       // Real backend call - no authentication required for public data
       const actor = await this.createActor(false);
       const verification = await actor.getVerification(companyId);
-      console.log("jhk get verification", verification)
       
       // Map risk labels to match expected format
       const mapRiskLabel = (label: any): 'Trusted' | 'Caution' | 'HighRisk' => {
@@ -405,10 +404,10 @@ private async createActor(requireAuth = true) {
       };
 
       return {
-        score: verification.score,
+        score: verification.score?.[0] ?? 0, // Handle optional score array - extract first element or default to 0
         risk_label: mapRiskLabel(verification.risk_label),
-        explanation_hash: verification.explanation_hash[0] || undefined,
-        last_scored_at: verification.last_scored_at[0] || undefined,
+        explanation_hash: verification.explanation_hash?.[0] || undefined,
+        last_scored_at: verification.last_scored_at?.[0] || undefined,
       };
     } catch (error) {
       console.error('Error getting risk profile:', error);

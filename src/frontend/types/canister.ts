@@ -54,7 +54,7 @@ export interface CreateCompanyParams {
 // Utility functions to convert between Candid and frontend types
 export const candidCompanyToFrontend = (candidCompany: any): Company => {
   // Check if we have the newer verification fields or the legacy VerificationProfile structure
-  const hasLegacyVerification = candidCompany.verification && candidCompany.verification.score !== undefined;
+  const hasLegacyVerification = candidCompany.verification && candidCompany.verification.score && candidCompany.verification.score.length > 0;
   
   return {
     id: Number(candidCompany.id),
@@ -73,7 +73,7 @@ export const candidCompanyToFrontend = (candidCompany: any): Company => {
     // Handle verification fields - support both new structure and legacy
     verification_status: candidCompany.verification_status || candidCompany.verification?.state || null,
     verification_score: candidCompany.verification_score ? Number(candidCompany.verification_score) : 
-                       (hasLegacyVerification ? Number(candidCompany.verification.score) : null),
+                       (hasLegacyVerification ? Number(candidCompany.verification.score[0]) : null),
     last_verified: candidCompany.last_verified ? Number(candidCompany.last_verified) : 
                   (candidCompany.verification?.last_scored_at ? Number(candidCompany.verification.last_scored_at[0]) : null),
     verification_job_id: candidCompany.verification_job_id ? Number(candidCompany.verification_job_id) : null,

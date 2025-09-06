@@ -385,7 +385,7 @@ private async createActor(requireAuth = true) {
   }
 
   async getRiskProfile(companyId: number): Promise<{
-    score: number;
+    score: number | null;
     risk_label: 'Trusted' | 'Caution' | 'HighRisk';
     explanation_hash?: string;
     last_scored_at?: bigint;
@@ -404,7 +404,7 @@ private async createActor(requireAuth = true) {
       };
 
       return {
-        score: verification.score?.[0] ?? 0, // Handle optional score array - extract first element or default to 0
+        score: verification.score?.[0] ?? null, // Handle optional score array - extract first element or null if not available
         risk_label: mapRiskLabel(verification.risk_label),
         explanation_hash: verification.explanation_hash?.[0] || undefined,
         last_scored_at: verification.last_scored_at?.[0] || undefined,

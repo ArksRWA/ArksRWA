@@ -9,19 +9,27 @@ interface RiskScoreDetailProps {
 }
 
 interface RiskData {
-  riskScore: number;
-  riskLevel: 'Low' | 'Medium' | 'High' | 'Very High';
+  riskScore: number | null;
+  riskLevel: 'Low' | 'Medium' | 'High' | 'Very High' | 'Pending';
   note: string;
 }
 
 // Convert backend risk profile to frontend format
 const mapBackendRiskData = (riskProfile: {
-  score: number;
+  score: number | null;
   risk_label: 'Trusted' | 'Caution' | 'HighRisk';
   explanation_hash?: string;
 }): RiskData => {
-  // Backend score is 0-100, convert to risk level and note
+  // Handle null score - verification ongoing
   const score = riskProfile.score;
+  
+  if (score === null) {
+    return {
+      riskScore: null,
+      riskLevel: 'Pending',
+      note: 'Risk assessment is currently in progress. Our verification system is analyzing company data and documentation. Please check back soon for the complete risk profile.'
+    };
+  }
   
   let riskLevel: 'Low' | 'Medium' | 'High' | 'Very High';
   let note: string;
@@ -49,8 +57,8 @@ const mapBackendRiskData = (riskProfile: {
 
 // Fallback data for when backend is unavailable
 const getFallbackRiskData = (): RiskData => ({
-  riskScore: 50,
-  riskLevel: 'Medium',
+  riskScore: null,
+  riskLevel: 'Pending',
   note: 'Risk assessment temporarily unavailable. Please try again later.'
 });
 
@@ -65,7 +73,6 @@ export default function RiskScoreDetail({ company, className = "" }: RiskScoreDe
         setLoading(true);
         setError(null);
         const riskProfile = await backendService.getRiskProfile(company.id);
-        console.log("jhk fetchRiskData", riskProfile)
         setRiskData(mapBackendRiskData(riskProfile));
       } catch (err) {
         console.error('Failed to fetch risk data:', err);
@@ -85,11 +92,13 @@ export default function RiskScoreDetail({ company, className = "" }: RiskScoreDe
       case 'Medium': return 'text-yellow-400 bg-yellow-900/20 border-yellow-500/30';
       case 'High': return 'text-orange-400 bg-orange-900/20 border-orange-500/30';
       case 'Very High': return 'text-red-400 bg-red-900/20 border-red-500/30';
+      case 'Pending': return 'text-blue-400 bg-blue-900/20 border-blue-500/30';
       default: return 'text-gray-400 bg-gray-900/20 border-gray-500/30';
     }
   };
   
-  const getScoreColor = (score: number) => {
+  const getScoreColor = (score: number | null) => {
+    if (score === null) return 'text-blue-400';  // Pending verification = Blue
     if (score >= 80) return 'text-red-400';      // High score = High risk = Red
     if (score >= 60) return 'text-orange-400';   // Medium-high score = Orange
     if (score >= 40) return 'text-yellow-400';   // Medium score = Yellow
@@ -110,7 +119,7 @@ export default function RiskScoreDetail({ company, className = "" }: RiskScoreDe
         <div className="flex items-center gap-4">
           <div className="text-center">
             <div className={`text-3xl font-bold ${getScoreColor(riskData.riskScore)}`}>
-              {loading ? '...' : riskData.riskScore}
+              {loading ? '...' : riskData.riskScore === null ? '⏳' : riskData.riskScore}
             </div>
             <div className="text-sm text-gray-400">Risk Score</div>
           </div>
@@ -126,12 +135,16 @@ export default function RiskScoreDetail({ company, className = "" }: RiskScoreDe
           <div className="w-full bg-gray-700 rounded-full h-2">
             <div 
               className={`h-2 rounded-full transition-all duration-300 ${
-                riskData.riskScore >= 80 ? 'bg-red-400' :      // High score = High risk = Red
-                riskData.riskScore >= 60 ? 'bg-orange-400' :   // Medium-high score = Orange
-                riskData.riskScore >= 40 ? 'bg-yellow-400' :   // Medium score = Yellow
-                'bg-green-400'                                 // Low score = Low risk = Green
+                riskData.riskScore === null ? 'bg-blue-400' :       // Pending = Blue
+                riskData.riskScore >= 80 ? 'bg-red-400' :           // High score = High risk = Red
+                riskData.riskScore >= 60 ? 'bg-orange-400' :        // Medium-high score = Orange
+                riskData.riskScore >= 40 ? 'bg-yellow-400' :        // Medium score = Yellow
+                'bg-green-400'                                      // Low score = Low risk = Green
               }`}
-              style={{ width: `${riskData.riskScore}%` }}
+              style={{ 
+                width: riskData.riskScore === null ? '50%' : `${riskData.riskScore}%`,
+                animation: riskData.riskScore === null ? 'pulse 2s infinite' : 'none'
+              }}
             />
           </div>
           <div className="flex justify-between text-xs text-gray-500 mt-1">

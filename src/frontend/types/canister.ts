@@ -6,7 +6,7 @@ export type {
 } from '../declarations/arks-core/arks-core.did';
 
 // Risk level status type
-export type CompanyRiskStatus = 'low' | 'medium' | 'high';
+export type CompanyRiskStatus = 'low' | 'medium' | 'high' | 'pending';
 
 // Frontend-friendly types that convert bigint to number for easier use
 export interface Company {

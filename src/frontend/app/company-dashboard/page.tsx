@@ -212,7 +212,7 @@ export default function CompanyDashboardPage() {
                   <div>
                     <span className="text-gray-400">Verification Score:</span>
                     <span className="text-white ml-2">
-                      {company.verification_score ? `${company.verification_score.toFixed(1)}/100` : 'N/A'}
+                      {company.verification_score ? `${company.verification_score.toFixed(1)}/100` : 'Ongoing Verification'}
                     </span>
                   </div>
                   {company.last_verified && (
@@ -294,7 +294,7 @@ export default function CompanyDashboardPage() {
                   <span className={`${company.verification_score >= 70 ? 'text-red-400' : company.verification_score >= 40 ? 'text-yellow-400' : 'text-green-400'}`}>
                     {company.verification_score.toFixed(1)}/100
                   </span>
-                ) : 'Not Available'}
+                ) : <span className="text-blue-400">Ongoing Verification</span>}
               </div>
             </div>
 

@@ -16,22 +16,40 @@ export default function CompanyDashboardPage() {
 
   useEffect(() => {
     const checkAuthAndCompany = async () => {
+      // Check if we're in the browser (not SSR)
+      if (typeof window === 'undefined') {
+        return;
+      }
+      
+      // Simple auth check - the auth service handles session restoration internally
       const user = authService.getCurrentUser();
-      const role = authService.getUserRole();
-
+      
+      // Quick check for immediate redirect
       if (!user || !user.isConnected) {
+        // Give auth service a brief moment to restore session if needed
+        await new Promise(resolve => setTimeout(resolve, 100));
+        const retryUser = authService.getCurrentUser();
+        if (!retryUser || !retryUser.isConnected) {
+          router.push('/');
+          return;
+        }
+      }
+      
+      const finalUser = authService.getCurrentUser();
+      const finalRole = authService.getUserRole();
+      
+      if (!finalUser || !finalUser.isConnected) {
         router.push('/');
         return;
       }
-
-      if (role !== 'company') {
-        // Redirect non-company users to regular dashboard
+      
+      if (finalRole !== 'company') {
         router.push('/dashboard');
         return;
       }
-
-      setCurrentUser(user);
-      setUserRole(role);
+      
+      setCurrentUser(finalUser);
+      setUserRole(finalRole);
       await loadCompanyData();
     };
 

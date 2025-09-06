@@ -26,6 +26,11 @@ class BackendService {
     if (requireAuth && (!user || !user.isConnected)) {
       throw new Error('User not authenticated');
     }
+    
+    // For authenticated calls, ensure we have a working agent
+    if (requireAuth && user) {
+      await authService.ensureAgent();
+    }
 
     // Always clear cache for now to ensure fresh connections
     this.actorCache = null;

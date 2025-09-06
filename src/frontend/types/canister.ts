@@ -141,6 +141,7 @@ export interface AuthUser {
   isConnected: boolean;
   walletType: 'plug';
   role?: 'user' | 'company';
+  sessionRestored?: boolean; // Flag to indicate if session was restored from localStorage
 }
 
 export interface AuthService {

@@ -102,23 +102,27 @@ class AuthServiceImpl implements AuthService {
   private restoreSession(): void {
     try {
       const storedAuth = localStorage.getItem('arks-rwa-auth');
+      
       if (storedAuth) {
         const authData = JSON.parse(storedAuth);
         
         // Validate that the stored wallet is actually available in current tab
-        if (!this.isWalletAvailable(authData.walletType)) {
-          console.log(`Stored wallet ${authData.walletType} not available in current tab, clearing session`);
+        const walletAvailable = this.isWalletAvailable(authData.walletType);
+        
+        if (!walletAvailable) {
+          // Wallet not available, clear session silently
           localStorage.removeItem('arks-rwa-auth');
           localStorage.removeItem('arks-rwa-role');
           return;
         }
         
-        // Recreate user object (note: agent will be null, needs reconnection for blockchain calls)
+        // Recreate user object with session state (agent will be recreated on demand)
         this.currentUser = {
           principal: authData.principal,
-          agent: null, // Will need to reconnect for agent
-          isConnected: false, // Set to false since agent is null and needs reconnection
-          walletType: authData.walletType || 'plug'
+          agent: null, // Will be recreated on first blockchain call
+          isConnected: true, // Session is valid, but may need wallet reconnection for transactions
+          walletType: authData.walletType || 'plug',
+          sessionRestored: true // Flag to indicate this is a restored session
         };
       }
     } catch (e) {
@@ -139,6 +143,32 @@ class AuthServiceImpl implements AuthService {
 
   isAuthenticated(): boolean {
     return this.currentUser !== null && this.currentUser.isConnected;
+  }
+
+  // Recreate agent if session was restored and agent is needed for blockchain calls
+  async ensureAgent(): Promise<boolean> {
+    if (!this.currentUser || this.currentUser.agent) {
+      return !!this.currentUser?.agent;
+    }
+
+    if (this.currentUser.sessionRestored) {
+      try {
+        // Attempt to reconnect the wallet silently
+        if (this.currentUser.walletType === 'plug' && window.ic?.plug) {
+          // Try to get existing connection without user prompt
+          const connected = await window.ic.plug.agent;
+          if (connected) {
+            this.currentUser.agent = connected;
+            this.currentUser.sessionRestored = false;
+            return true;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to restore agent silently:', e);
+      }
+    }
+
+    return false;
   }
 
   setUserRole(role: 'user' | 'company'): void {

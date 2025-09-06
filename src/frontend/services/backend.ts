@@ -262,12 +262,34 @@ private async createActor(requireAuth = true) {
     }
 
     try {
-      // Real backend call - import Principal for proper typing
+      // Check if company exists and has a token canister deployed
+      const company = await this.getCompanyById(companyId);
+      if (!company) {
+        throw new Error('Company not found');
+      }
+
+      // Check if the company has a token canister deployed
+      if (!company.token_canister_id) {
+        throw new Error('Token canister not deployed for this company yet. Please contact the company to deploy their token canister first.');
+      }
+
+      // TODO: Implement actual token buying through company's individual token canister
+      // This would require:
+      // 1. Creating actor for the company's specific token canister
+      // 2. Calling the ICRC-1/2 transfer methods on that canister
+      // 3. Handling the purchase flow through the token factory system
+      
+      throw new Error('Token purchasing will be available once individual company token canisters are implemented through the token factory.');
+      
+      /*
+      // Future implementation:
       const { Principal } = await import('@dfinity/principal');
-      const actor = await this.createActor();
+      const tokenCanisterId = company.token_canister_id;
+      const tokenActor = await this.createCompanyTokenActor(tokenCanisterId);
       const callerPrincipal = Principal.fromText(user.principal);
-      const result = await actor.buyTokens(companyId, amount, callerPrincipal);
+      const result = await tokenActor.purchase(amount, callerPrincipal);
       return result as string;
+      */
     } catch (error) {
       console.error('Error buying tokens:', error);
       throw error;
@@ -281,12 +303,34 @@ private async createActor(requireAuth = true) {
     }
 
     try {
-      // Real backend call
+      // Check if company exists and has a token canister deployed
+      const company = await this.getCompanyById(companyId);
+      if (!company) {
+        throw new Error('Company not found');
+      }
+
+      // Check if the company has a token canister deployed
+      if (!company.token_canister_id) {
+        throw new Error('Token canister not deployed for this company yet. Cannot sell tokens that don\'t exist.');
+      }
+
+      // TODO: Implement actual token selling through company's individual token canister
+      // This would require:
+      // 1. Creating actor for the company's specific token canister
+      // 2. Calling the ICRC-1/2 transfer methods on that canister
+      // 3. Handling the sale flow through the token factory system
+      
+      throw new Error('Token selling will be available once individual company token canisters are implemented through the token factory.');
+      
+      /*
+      // Future implementation:
       const { Principal } = await import('@dfinity/principal');
-      const actor = await this.createActor();
+      const tokenCanisterId = company.token_canister_id;
+      const tokenActor = await this.createCompanyTokenActor(tokenCanisterId);
       const callerPrincipal = Principal.fromText(user.principal);
-      const result = await actor.sellTokens(companyId, amount, callerPrincipal);
+      const result = await tokenActor.sell(amount, callerPrincipal);
       return result as string;
+      */
     } catch (error) {
       console.error('Error selling tokens:', error);
       throw error;

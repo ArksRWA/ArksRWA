@@ -213,8 +213,14 @@ export default function CompanyDashboardPage() {
                     {company.verification_score ? `${company.verification_score.toFixed(1)}/100` : 'Ongoing Verification'}
                   </span>
                 </div>
+                <div>
+                  <span className="text-gray-400">Company Valuation:</span>
+                  <span className="text-white ml-2">
+                    {Number(company.valuation).toLocaleString()}
+                  </span>
+                </div>
                 {company.last_verified && (
-                  <div className="col-span-2">
+                  <div className="text-right">
                     <span className="text-gray-400">Last Verified:</span>
                     <span className="text-white ml-2">
                       {new Date(company.last_verified / 1000000).toLocaleDateString()}
@@ -226,49 +232,34 @@ export default function CompanyDashboardPage() {
           </div>
         </div>
 
-        {/* Quick Stats */}
+        {/* Company Metrics */}
         <div className="bg-card-bg border border-gray-700 rounded-lg p-6 mb-8">
-          <h3 className="text-lg font-semibold text-white mb-4">Quick Stats</h3>
-          <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-white mb-4">Company Metrics</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-center justify-between">
             <div>
-              <div className="text-2xl font-bold text-primary">{tokensSold.toLocaleString()}</div>
-              <div className="text-sm text-gray-400">Tokens Sold</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-green-400">{Number(totalRaised).toLocaleString()}</div>
+              <div className="text-2xl font-semibold text-gray-300">{Number(totalRaised).toLocaleString()}</div>
               <div className="text-sm text-gray-400">Total Raised</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-blue-400">{soldPercentage.toFixed(1)}%</div>
+              <div className="text-2xl font-semibold text-gray-300">{Number(company.token_price).toLocaleString()}</div>
+              <div className="text-sm text-gray-400">Token Price</div>
+            </div>
+            <div>
+              <div className="text-2xl font-semibold text-gray-300">{Number(marketCap).toLocaleString()}</div>
+              <div className="text-sm text-gray-400">Market Cap</div>
+            </div>
+            <div>
+              <div className="text-2xl font-semibold text-gray-300">{tokensSold.toLocaleString()}</div>
               <div className="text-sm text-gray-400">Tokens Sold</div>
             </div>
-          </div>
-        </div>
-
-        {/* Detailed Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
-            <h4 className="text-sm font-medium text-gray-400 mb-2">Token Price</h4>
-            <div className="text-2xl font-bold text-white">{Number(company.token_price).toLocaleString()}</div>
-            <div className="text-sm text-gray-400">per token</div>
-          </div>
-
-          <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
-            <h4 className="text-sm font-medium text-gray-400 mb-2">Market Cap</h4>
-            <div className="text-2xl font-bold text-white">{Number(marketCap).toLocaleString()}</div>
-            <div className="text-sm text-gray-400">total value</div>
-          </div>
-
-          <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
-            <h4 className="text-sm font-medium text-gray-400 mb-2">Remaining Supply</h4>
-            <div className="text-2xl font-bold text-white">{Number(company.remaining).toLocaleString()}</div>
-            <div className="text-sm text-gray-400">tokens available</div>
-          </div>
-
-          <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
-            <h4 className="text-sm font-medium text-gray-400 mb-2">Valuation</h4>
-            <div className="text-2xl font-bold text-white">{Number(company.valuation).toLocaleString()}</div>
-            <div className="text-sm text-gray-400">company value</div>
+            <div>
+              <div className="text-2xl font-semibold text-gray-300">{Number(company.remaining).toLocaleString()}</div>
+              <div className="text-sm text-gray-400">Remaining Supply</div>
+            </div>
+            <div>
+              <div className="text-2xl font-semibold text-gray-300">{soldPercentage.toFixed(1)}%</div>
+              <div className="text-sm text-gray-400">Sold Percentage</div>
+            </div>
           </div>
         </div>
 

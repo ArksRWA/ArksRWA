@@ -176,74 +176,71 @@ export default function CompanyDashboardPage() {
           </div>
         </div>
 
-        {/* Company Overview */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* Company Info Card */}
-          <div className="lg:col-span-2 bg-card-bg border border-gray-700 rounded-lg p-6">
-            <div className="flex items-start gap-4">
-              {company.logo_url && (
-                <img
-                  src={company.logo_url}
-                  alt={`${company.name} logo`}
-                  className="w-16 h-16 rounded-lg object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-              )}
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <h2 className="text-2xl font-bold text-white">{company.name}</h2>
-                  <span className="px-3 py-1 bg-gray-700 text-gray-300 rounded-full text-sm font-medium">
-                    {company.symbol}
-                  </span>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getVerificationColor(company.verification_status)} bg-gray-800 border border-gray-600`}>
-                    {getVerificationStatusLabel(company.verification_status)}
+        {/* Company Info Card */}
+        <div className="lg:col-span-2 bg-card-bg border border-gray-700 rounded-lg p-6 mb-8">
+          <div className="flex items-start gap-4">
+            {company.logo_url && (
+              <img
+                src={company.logo_url}
+                alt={`${company.name} logo`}
+                className="w-16 h-16 rounded-lg object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            )}
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <h2 className="text-2xl font-bold text-white">{company.name}</h2>
+                <span className="px-3 py-1 bg-gray-700 text-gray-300 rounded-full text-sm font-medium">
+                  {company.symbol}
+                </span>
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${getVerificationColor(company.verification_status)} bg-gray-800 border border-gray-600`}>
+                  {getVerificationStatusLabel(company.verification_status)}
+                </span>
+              </div>
+              <p className="text-gray-300 mb-4">{company.description || 'No description available'}</p>
+              <div className="justify-between grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-gray-400">Created:</span>
+                  <span className="text-white ml-2">
+                    {new Date(company.created_at / 1000000).toLocaleDateString()}
                   </span>
                 </div>
-                <p className="text-gray-300 mb-4">{company.description || 'No description available'}</p>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-400">Created:</span>
-                    <span className="text-white ml-2">
-                      {new Date(company.created_at / 1000000).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400">Verification Score:</span>
-                    <span className="text-white ml-2">
-                      {company.verification_score ? `${company.verification_score.toFixed(1)}/100` : 'Ongoing Verification'}
-                    </span>
-                  </div>
-                  {company.last_verified && (
-                    <div className="col-span-2">
-                      <span className="text-gray-400">Last Verified:</span>
-                      <span className="text-white ml-2">
-                        {new Date(company.last_verified / 1000000).toLocaleDateString()}
-                      </span>
-                    </div>
-                  )}
+                <div className="text-right">
+                  <span className="text-gray-400">Verification Score:</span>
+                  <span className="text-white ml-2">
+                    {company.verification_score ? `${company.verification_score.toFixed(1)}/100` : 'Ongoing Verification'}
+                  </span>
                 </div>
+                {company.last_verified && (
+                  <div className="col-span-2">
+                    <span className="text-gray-400">Last Verified:</span>
+                    <span className="text-white ml-2">
+                      {new Date(company.last_verified / 1000000).toLocaleDateString()}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Quick Stats */}
-          <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Quick Stats</h3>
-            <div className="space-y-4">
-              <div>
-                <div className="text-2xl font-bold text-primary">{tokensSold.toLocaleString()}</div>
-                <div className="text-sm text-gray-400">Tokens Sold</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-green-400">{Number(totalRaised).toLocaleString()}</div>
-                <div className="text-sm text-gray-400">Total Raised</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-blue-400">{soldPercentage.toFixed(1)}%</div>
-                <div className="text-sm text-gray-400">Tokens Sold</div>
-              </div>
+        {/* Quick Stats */}
+        <div className="bg-card-bg border border-gray-700 rounded-lg p-6 mb-8">
+          <h3 className="text-lg font-semibold text-white mb-4">Quick Stats</h3>
+          <div className="space-y-4">
+            <div>
+              <div className="text-2xl font-bold text-primary">{tokensSold.toLocaleString()}</div>
+              <div className="text-sm text-gray-400">Tokens Sold</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-green-400">{Number(totalRaised).toLocaleString()}</div>
+              <div className="text-sm text-gray-400">Total Raised</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-blue-400">{soldPercentage.toFixed(1)}%</div>
+              <div className="text-sm text-gray-400">Tokens Sold</div>
             </div>
           </div>
         </div>

@@ -30,3 +30,5 @@ target/
 
 **/.next
 src/AI/package-lock.json
+
+references/

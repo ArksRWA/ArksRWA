@@ -49,6 +49,15 @@ export default function StatusBadge({
           icon: '🔴',
           tooltip: '🚨 DANGER: High fraud risk - Avoid investment!'
         };
+      case 'pending':
+        return {
+          label: 'Ongoing Verification',
+          bgColor: 'bg-blue-900/20',
+          textColor: 'text-blue-400',
+          borderColor: 'border-blue-500/30',
+          icon: '⏳',
+          tooltip: '⏳ VERIFYING: Risk assessment in progress...'
+        };
       default:
         return {
           label: 'On Validation',
@@ -120,21 +129,25 @@ export const getCompanyRiskStatus = (company: any): CompanyRiskStatus => {
   // Use verification object if available (from backend)
   if (company.verification) {
     const verification = company.verification;
-    
-    // Map backend risk_label to frontend status
-    if (verification.risk_label) {
-      if (verification.risk_label.Trusted !== undefined) return 'low';
-      if (verification.risk_label.Caution !== undefined) return 'medium'; 
-      if (verification.risk_label.HighRisk !== undefined) return 'high';
-    }
-    
-    // Fallback to score if risk_label not available
+        
+    // Handle score as Candid array format: [] means null, [number] means value present
     const score = verification.score;
-    if (score !== null && score !== undefined) {
-      if (score >= 70) return 'high';     // 70-100: High risk
-      if (score >= 40) return 'medium';   // 40-69: Medium risk  
-      return 'low';                       // 0-39: Low risk
+    if (!score || !Array.isArray(score) || score.length === 0) {
+      return 'pending';                   // No score available - verification ongoing
     }
+    
+    const scoreValue = score[0]; // Extract first element from Candid array
+    if (scoreValue >= 70) return 'high';       // 70-100: High risk
+    if (scoreValue >= 40) return 'medium';     // 40-69: Medium risk  
+    return 'low';                              // 0-39: Low risk
+    
+    // Save for later
+    // Map backend risk_label to frontend status first (most reliable)
+    // if (verification.risk_label) {
+    //   if (verification.risk_label.Trusted !== undefined) return 'low';
+    //   if (verification.risk_label.Caution !== undefined) return 'medium'; 
+    //   if (verification.risk_label.HighRisk !== undefined) return 'high';
+    // }
   }
   
   // Legacy support: Use verification_score if available
@@ -150,6 +163,6 @@ export const getCompanyRiskStatus = (company: any): CompanyRiskStatus => {
     return company.status;
   }
   
-  // Default to medium risk if no verification data available
-  return 'medium';
+  // Default to pending if no verification data available
+  return 'pending';
 };

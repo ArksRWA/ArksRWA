@@ -6,7 +6,7 @@ export type {
 } from '../declarations/arks-core/arks-core.did';
 
 // Risk level status type
-export type CompanyRiskStatus = 'low' | 'medium' | 'high';
+export type CompanyRiskStatus = 'low' | 'medium' | 'high' | 'pending';
 
 // Frontend-friendly types that convert bigint to number for easier use
 export interface Company {
@@ -33,6 +33,17 @@ export interface Company {
   token_canister_id?: string | null;
   treasury_account?: string;
   status?: CompanyRiskStatus; // Keep for backward compatibility
+  // Full verification object for StatusBadge component
+  verification?: {
+    state: any;
+    score: any;
+    risk_label: any;
+    last_scored_at: any;
+    next_due_at: any;
+    explanation_hash: any;
+    last_vc_registration: any;
+    last_vc_valuation: any;
+  };
 }
 
 export interface TokenHolder {
@@ -53,36 +64,43 @@ export interface CreateCompanyParams {
 
 // Utility functions to convert between Candid and frontend types
 export const candidCompanyToFrontend = (candidCompany: any): Company => {
-  // Check if we have the newer verification fields or the legacy VerificationProfile structure
-  const hasLegacyVerification = candidCompany.verification && candidCompany.verification.score !== undefined;
-  
   return {
     id: Number(candidCompany.id),
     name: candidCompany.name,
     symbol: candidCompany.symbol,
     owner: candidCompany.owner.toString(),
-    valuation: candidCompany.valuation,
-    base_price: candidCompany.base_price,
-    token_price: candidCompany.token_price,
-    supply: candidCompany.supply,
-    remaining: candidCompany.remaining,
-    minimum_purchase: candidCompany.minimum_purchase,
+    valuation: BigInt(candidCompany.valuation),
+    base_price: BigInt(candidCompany.base_price),
+    token_price: BigInt(candidCompany.token_price),
+    supply: BigInt(candidCompany.supply),
+    remaining: BigInt(candidCompany.remaining),
+    minimum_purchase: BigInt(candidCompany.minimum_purchase),
     logo_url: candidCompany.logo_url,
     description: candidCompany.description,
     created_at: Number(candidCompany.created_at),
-    // Handle verification fields - support both new structure and legacy
-    verification_status: candidCompany.verification_status || candidCompany.verification?.state || null,
-    verification_score: candidCompany.verification_score ? Number(candidCompany.verification_score) : 
-                       (hasLegacyVerification ? Number(candidCompany.verification.score) : null),
-    last_verified: candidCompany.last_verified ? Number(candidCompany.last_verified) : 
-                  (candidCompany.verification?.last_scored_at ? Number(candidCompany.verification.last_scored_at[0]) : null),
-    verification_job_id: candidCompany.verification_job_id ? Number(candidCompany.verification_job_id) : null,
-    // Current backend fields from declarations
     trading_paused: candidCompany.trading_paused,
-    token_canister_id: candidCompany.token_canister_id?.length > 0 ? candidCompany.token_canister_id[0].toString() : null,
+    
+    // Handle verification fields from the verification object
+    verification_status: candidCompany.verification?.state || null,
+    verification_score: candidCompany.verification?.score?.[0] ?? null,
+    last_verified: candidCompany.verification?.last_scored_at?.[0] ? Number(candidCompany.verification.last_scored_at[0]) : null,
+    verification_job_id: null, // Not available in current backend structure
+    
+    // Handle optional fields with Candid array format
+    token_canister_id: candidCompany.token_canister_id?.[0]?.toString() || null,
     treasury_account: candidCompany.treasury_account?.toString(),
-    // Default to 'medium' risk status until backend provides this field
-    status: (candidCompany as any).status || 'medium',
+    
+    // Add verification object for StatusBadge component
+    verification: {
+      state: candidCompany.verification?.state,
+      score: candidCompany.verification?.score,
+      risk_label: candidCompany.verification?.risk_label,
+      last_scored_at: candidCompany.verification?.last_scored_at,
+      next_due_at: candidCompany.verification?.next_due_at,
+      explanation_hash: candidCompany.verification?.explanation_hash,
+      last_vc_registration: candidCompany.verification?.last_vc_registration,
+      last_vc_valuation: candidCompany.verification?.last_vc_valuation
+    }
   };
 };
 
@@ -123,6 +141,7 @@ export interface AuthUser {
   isConnected: boolean;
   walletType: 'plug';
   role?: 'user' | 'company';
+  sessionRestored?: boolean; // Flag to indicate if session was restored from localStorage
 }
 
 export interface AuthService {

@@ -151,6 +151,24 @@ class VerificationSchedulerService {
           'low': IDL.Null,
         });
 
+        const VerificationProfile = IDL.Record({
+          'companyId': IDL.Nat,
+          'overallScore': IDL.Opt(IDL.Float64),
+          'verificationStatus': VerificationStatus,
+          'lastVerified': IDL.Int,
+          'nextDueAt': IDL.Opt(IDL.Int),
+          'checks': IDL.Vec(IDL.Record({
+            'checkType': IDL.Text,
+            'status': IDL.Text,
+            'score': IDL.Float64,
+            'details': IDL.Text,
+          })),
+          'fraudKeywords': IDL.Vec(IDL.Text),
+          'newsArticles': IDL.Nat,
+          'riskFactors': IDL.Vec(IDL.Text),
+          'confidenceLevel': IDL.Float64,
+        });
+
         return IDL.Service({
           'startVerification': IDL.Func(
             [IDL.Nat, IDL.Text, JobPriority],
@@ -164,6 +182,11 @@ class VerificationSchedulerService {
               'score': IDL.Opt(IDL.Float64),
               'lastVerified': IDL.Opt(IDL.Int),
             }))],
+            ['query']
+          ),
+          'getCompanyVerificationProfile': IDL.Func(
+            [IDL.Nat],
+            [IDL.Opt(VerificationProfile)],
             ['query']
           ),
           'companyNeedsReverification': IDL.Func(
@@ -486,6 +509,41 @@ class VerificationSchedulerService {
     }
   }
 
+  // Get complete company verification profile
+  public async getCompanyVerificationProfile(companyId: number): Promise<VerificationProfile | null> {
+    try {
+      console.log(`🔍 Getting verification profile for company ${companyId}`);
+      const actor = await this.createRiskEngineActor();
+      const profile = await actor.getCompanyVerificationProfile(companyId);
+      
+      if (profile) {
+        console.log(`✅ Retrieved verification profile for company ${companyId}:`, {
+          overallScore: profile.overallScore,
+          status: profile.verificationStatus,
+          confidenceLevel: profile.confidenceLevel,
+          fraudKeywords: profile.fraudKeywords?.length || 0,
+          riskFactors: profile.riskFactors?.length || 0
+        });
+        
+        // Convert BigInt values to numbers for frontend compatibility
+        return {
+          companyId: Number(profile.companyId),
+          overallScore: profile.overallScore ? Number(profile.overallScore) : 0,
+          verificationStatus: profile.verificationStatus,
+          lastVerified: Number(profile.lastVerified),
+          nextDueAt: profile.nextDueAt ? Number(profile.nextDueAt) : undefined,
+          confidenceLevel: Number(profile.confidenceLevel),
+        } as VerificationProfile;
+      } else {
+        console.log(`❌ No verification profile found for company ${companyId}`);
+        return null;
+      }
+    } catch (error) {
+      console.error(`❌ Error getting verification profile for company ${companyId}:`, error);
+      return null;
+    }
+  }
+
   // Testing utilities for development
   public getTestInfo() {
     const indonesianTime = this.getIndonesianTime();
@@ -526,6 +584,34 @@ class VerificationSchedulerService {
     }, minutesFromNow * 60 * 1000);
 
     this.nextScheduledRun = testTime;
+  }
+
+  // Test getting verification profile for a company
+  public async testGetVerificationProfile(companyId: number): Promise<void> {
+    if (process.env.NODE_ENV !== 'development') {
+      console.warn('⚠️ Test functions only available in development mode');
+      return;
+    }
+
+    console.log(`🧪 Testing getCompanyVerificationProfile for company ${companyId}`);
+    
+    try {
+      const profile = await this.getCompanyVerificationProfile(companyId);
+      
+      if (profile) {
+        console.log('🎉 Test successful! Verification profile retrieved:', {
+          companyId: profile.companyId,
+          overallScore: profile.overallScore,
+          status: profile.verificationStatus,
+          lastVerified: new Date(profile.lastVerified / 1000000).toLocaleString(),
+          confidenceLevel: profile.confidenceLevel,
+        });
+      } else {
+        console.log('📭 Test result: No verification profile found for this company');
+      }
+    } catch (error) {
+      console.error('❌ Test failed:', error);
+    }
   }
 }
 

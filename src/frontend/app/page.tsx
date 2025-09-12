@@ -6,6 +6,7 @@ import { authService, AuthUser } from '../services/auth';
 import { verificationScheduler } from '../services/verificationScheduler';
 import CompanyList from './components/CompanyList';
 import LoginModal from './components/LoginModal';
+import { CANISTER_IDS, NETWORK, HOST, getCurrentCanisterIds } from '../config/canister';
 
 export default function HomePage() {
   const router = useRouter();
@@ -263,6 +264,117 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+
+      {/* Debug: Canister Information Section */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
+          <div className="modern-card p-8">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-bold text-foreground mb-2">🔧 Debug: Canister Information</h2>
+              <p className="text-foreground-muted">Current network and canister configuration</p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Network Information */}
+              <div className="bg-card-bg/50 backdrop-blur-sm border border-card-border rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                  Network Status
+                </h3>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-foreground-muted">Current Network:</span>
+                    <span className="font-mono text-primary font-medium">{NETWORK}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-foreground-muted">Host:</span>
+                    <span className="font-mono text-foreground text-xs">{HOST}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-foreground-muted">Environment:</span>
+                    <span className="font-mono text-accent-blue">{process.env.NODE_ENV}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Current Canister IDs */}
+              <div className="bg-card-bg/50 backdrop-blur-sm border border-card-border rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                  Active Canisters
+                </h3>
+                <div className="space-y-3 text-sm">
+                  {Object.entries(getCurrentCanisterIds()).map(([name, id]) => (
+                    <div key={name} className="flex flex-col gap-1">
+                      <span className="text-foreground-muted text-xs uppercase tracking-wide">{name}:</span>
+                      <span className="font-mono text-foreground text-xs break-all">
+                        {id || <span className="text-red-400">Not Set</span>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* All Available Canister IDs */}
+              <div className="bg-card-bg/50 backdrop-blur-sm border border-card-border rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                  All Configured IDs
+                </h3>
+                <div className="space-y-4 text-sm">
+                  {Object.entries(CANISTER_IDS).map(([network, ids]) => (
+                    <div key={network}>
+                      <h4 className="text-foreground font-medium text-xs uppercase tracking-wide mb-2">
+                        {network} Network:
+                      </h4>
+                      <div className="space-y-2 pl-2">
+                        {Object.entries(ids).map(([name, id]) => (
+                          <div key={`${network}-${name}`} className="flex flex-col gap-1">
+                            <span className="text-foreground-muted text-xs">{name}:</span>
+                            <span className="font-mono text-foreground text-xs break-all">
+                              {id || <span className="text-red-400">Not Set</span>}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Environment Variables Section */}
+            <div className="mt-8 bg-card-bg/30 backdrop-blur-sm border border-card-border rounded-xl p-6">
+              <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
+                Environment Variables
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-foreground-muted">NEXT_PUBLIC_DFX_NETWORK:</span>
+                    <span className="font-mono text-foreground">{process.env.NEXT_PUBLIC_DFX_NETWORK || 'Not Set'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-foreground-muted">NEXT_PUBLIC_CANISTER_ID_ARKS_CORE:</span>
+                    <span className="font-mono text-foreground text-xs break-all">{process.env.NEXT_PUBLIC_CANISTER_ID_ARKS_CORE || 'Not Set'}</span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-foreground-muted">NEXT_PUBLIC_CANISTER_ID_ARKS_RISK_ENGINE:</span>
+                    <span className="font-mono text-foreground text-xs break-all">{process.env.NEXT_PUBLIC_CANISTER_ID_ARKS_RISK_ENGINE || 'Not Set'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-foreground-muted">NEXT_PUBLIC_CANISTER_ID_FRONTEND:</span>
+                    <span className="font-mono text-foreground text-xs break-all">{process.env.NEXT_PUBLIC_CANISTER_ID_FRONTEND || 'Not Set'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Companies Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative z-10">

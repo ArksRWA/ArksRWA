@@ -16,26 +16,56 @@ export default function CompanyDashboardPage() {
 
   useEffect(() => {
     const checkAuthAndCompany = async () => {
+      // Check if we're in the browser (not SSR)
+      if (typeof window === 'undefined') {
+        return;
+      }
+      
+      // Simple auth check - the auth service handles session restoration internally
       const user = authService.getCurrentUser();
-      const role = authService.getUserRole();
-
+      
+      // Quick check for immediate redirect
       if (!user || !user.isConnected) {
+        // Give auth service a brief moment to restore session if needed
+        await new Promise(resolve => setTimeout(resolve, 100));
+        const retryUser = authService.getCurrentUser();
+        if (!retryUser || !retryUser.isConnected) {
+          router.push('/');
+          return;
+        }
+      }
+      
+      const finalUser = authService.getCurrentUser();
+      const finalRole = authService.getUserRole();
+      
+      if (!finalUser || !finalUser.isConnected) {
         router.push('/');
         return;
       }
-
-      if (role !== 'company') {
-        // Redirect non-company users to regular dashboard
+      
+      if (finalRole !== 'company') {
         router.push('/dashboard');
         return;
       }
-
-      setCurrentUser(user);
-      setUserRole(role);
+      
+      setCurrentUser(finalUser);
+      setUserRole(finalRole);
       await loadCompanyData();
     };
 
     checkAuthAndCompany();
+
+    // Handle wallet identity changes
+    const handleWalletIdentityChange = () => {
+      console.warn('Wallet identity changed, redirecting to home');
+      router.push('/');
+    };
+
+    window.addEventListener('wallet-identity-changed', handleWalletIdentityChange);
+    
+    return () => {
+      window.removeEventListener('wallet-identity-changed', handleWalletIdentityChange);
+    };
   }, [router]);
 
   const loadCompanyData = async () => {
@@ -176,102 +206,90 @@ export default function CompanyDashboardPage() {
           </div>
         </div>
 
-        {/* Company Overview */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* Company Info Card */}
-          <div className="lg:col-span-2 bg-card-bg border border-gray-700 rounded-lg p-6">
-            <div className="flex items-start gap-4">
-              {company.logo_url && (
-                <img
-                  src={company.logo_url}
-                  alt={`${company.name} logo`}
-                  className="w-16 h-16 rounded-lg object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-              )}
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <h2 className="text-2xl font-bold text-white">{company.name}</h2>
-                  <span className="px-3 py-1 bg-gray-700 text-gray-300 rounded-full text-sm font-medium">
-                    {company.symbol}
-                  </span>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getVerificationColor(company.verification_status)} bg-gray-800 border border-gray-600`}>
-                    {getVerificationStatusLabel(company.verification_status)}
+        {/* Company Info Card */}
+        <div className="lg:col-span-2 bg-card-bg border border-gray-700 rounded-lg p-6 mb-8">
+          <div className="flex items-start gap-4">
+            {company.logo_url && (
+              <img
+                src={company.logo_url}
+                alt={`${company.name} logo`}
+                className="w-16 h-16 rounded-lg object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            )}
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <h2 className="text-2xl font-bold text-white">{company.name}</h2>
+                <span className="px-3 py-1 bg-gray-700 text-gray-300 rounded-full text-sm font-medium">
+                  {company.symbol}
+                </span>
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${getVerificationColor(company.verification_status)} bg-gray-800 border border-gray-600`}>
+                  {getVerificationStatusLabel(company.verification_status)}
+                </span>
+              </div>
+              <p className="text-gray-300 mb-4">{company.description || 'No description available'}</p>
+              <div className="justify-between grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-gray-400">Created:</span>
+                  <span className="text-white ml-2">
+                    {new Date(company.created_at / 1000000).toLocaleDateString()}
                   </span>
                 </div>
-                <p className="text-gray-300 mb-4">{company.description || 'No description available'}</p>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-400">Created:</span>
-                    <span className="text-white ml-2">
-                      {new Date(company.created_at / 1000000).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400">Verification Score:</span>
-                    <span className="text-white ml-2">
-                      {company.verification_score ? `${company.verification_score.toFixed(1)}/100` : 'N/A'}
-                    </span>
-                  </div>
-                  {company.last_verified && (
-                    <div className="col-span-2">
-                      <span className="text-gray-400">Last Verified:</span>
-                      <span className="text-white ml-2">
-                        {new Date(company.last_verified / 1000000).toLocaleDateString()}
-                      </span>
-                    </div>
-                  )}
+                <div className="text-right">
+                  <span className="text-gray-400">Verification Score:</span>
+                  <span className="text-white ml-2">
+                    {company.verification_score ? `${company.verification_score.toFixed(1)}/100` : 'Ongoing Verification'}
+                  </span>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Stats */}
-          <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Quick Stats</h3>
-            <div className="space-y-4">
-              <div>
-                <div className="text-2xl font-bold text-primary">{tokensSold.toLocaleString()}</div>
-                <div className="text-sm text-gray-400">Tokens Sold</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-green-400">{Number(totalRaised).toLocaleString()}</div>
-                <div className="text-sm text-gray-400">Total Raised</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-blue-400">{soldPercentage.toFixed(1)}%</div>
-                <div className="text-sm text-gray-400">Tokens Sold</div>
+                <div>
+                  <span className="text-gray-400">Company Valuation:</span>
+                  <span className="text-white ml-2">
+                    {Number(company.valuation).toLocaleString()}
+                  </span>
+                </div>
+                {company.last_verified && (
+                  <div className="text-right">
+                    <span className="text-gray-400">Last Verified:</span>
+                    <span className="text-white ml-2">
+                      {new Date(company.last_verified / 1000000).toLocaleDateString()}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Detailed Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
-            <h4 className="text-sm font-medium text-gray-400 mb-2">Token Price</h4>
-            <div className="text-2xl font-bold text-white">{Number(company.token_price).toLocaleString()}</div>
-            <div className="text-sm text-gray-400">per token</div>
-          </div>
-
-          <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
-            <h4 className="text-sm font-medium text-gray-400 mb-2">Market Cap</h4>
-            <div className="text-2xl font-bold text-white">{Number(marketCap).toLocaleString()}</div>
-            <div className="text-sm text-gray-400">total value</div>
-          </div>
-
-          <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
-            <h4 className="text-sm font-medium text-gray-400 mb-2">Remaining Supply</h4>
-            <div className="text-2xl font-bold text-white">{Number(company.remaining).toLocaleString()}</div>
-            <div className="text-sm text-gray-400">tokens available</div>
-          </div>
-
-          <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
-            <h4 className="text-sm font-medium text-gray-400 mb-2">Valuation</h4>
-            <div className="text-2xl font-bold text-white">{Number(company.valuation).toLocaleString()}</div>
-            <div className="text-sm text-gray-400">company value</div>
+        {/* Company Metrics */}
+        <div className="bg-card-bg border border-gray-700 rounded-lg p-6 mb-8">
+          <h3 className="text-lg font-semibold text-white mb-4">Company Metrics</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-center justify-between">
+            <div>
+              <div className="text-2xl font-semibold text-gray-300">{Number(totalRaised).toLocaleString()}</div>
+              <div className="text-sm text-gray-400">Total Raised</div>
+            </div>
+            <div>
+              <div className="text-2xl font-semibold text-gray-300">{Number(company.token_price).toLocaleString()}</div>
+              <div className="text-sm text-gray-400">Token Price</div>
+            </div>
+            <div>
+              <div className="text-2xl font-semibold text-gray-300">{Number(marketCap).toLocaleString()}</div>
+              <div className="text-sm text-gray-400">Market Cap</div>
+            </div>
+            <div>
+              <div className="text-2xl font-semibold text-gray-300">{tokensSold.toLocaleString()}</div>
+              <div className="text-sm text-gray-400">Tokens Sold</div>
+            </div>
+            <div>
+              <div className="text-2xl font-semibold text-gray-300">{Number(company.remaining).toLocaleString()}</div>
+              <div className="text-sm text-gray-400">Remaining Supply</div>
+            </div>
+            <div>
+              <div className="text-2xl font-semibold text-gray-300">{soldPercentage.toFixed(1)}%</div>
+              <div className="text-sm text-gray-400">Sold Percentage</div>
+            </div>
           </div>
         </div>
 
@@ -294,7 +312,7 @@ export default function CompanyDashboardPage() {
                   <span className={`${company.verification_score >= 70 ? 'text-red-400' : company.verification_score >= 40 ? 'text-yellow-400' : 'text-green-400'}`}>
                     {company.verification_score.toFixed(1)}/100
                   </span>
-                ) : 'Not Available'}
+                ) : <span className="text-blue-400">Ongoing Verification</span>}
               </div>
             </div>
 

@@ -139,6 +139,7 @@ kill_by_pattern() {
 }
 
 start_dev() {
+  # Usage: start_dev <dir> <name> <logfile> <pidfile> [VAR=VAL ...]
   local dir="$1"; local name="$2"; local logfile="$3"; local pidfile="$4"
   shift 4
   local extra_env=( "$@" )
@@ -161,7 +162,12 @@ start_dev() {
   log "Starting $name dev server..."
   (
     cd "$dir"
-    ${extra_env[*]} npm run dev
+    if (( ${#extra_env[@]} )); then
+      # Pass VAR=VAL pairs safely as environment to the command
+      env "${extra_env[@]}" npm run dev
+    else
+      npm run dev
+    fi
   ) >>"$logfile" 2>&1 &
   local pid=$!
   echo "${pid}" > "${pidfile}"

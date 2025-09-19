@@ -242,7 +242,7 @@ module {
 
   // HTTP outcall configuration constants (optimized for Indonesian internet conditions)
   public let DEFAULT_TIMEOUT_MS : Nat = 45_000;             // 45 seconds (increased for Indonesian latency)
-  public let MAX_RESPONSE_BYTES : Nat64 = 1_048_576;        // 1MB
+  public let MAX_RESPONSE_BYTES : Nat64 = 307_200;          // 300KB
   public let RATE_LIMIT_DELAY_MS : Nat = 5_000;             // 5 seconds (increased to avoid blocking)
   public let MAX_RETRIES : Nat = 3;                         // Increased retries for Indonesian network
   public let MAX_CYCLES_PER_REQUEST : Nat = 75_000_000;     // 75M cycles (increased for complex processing)

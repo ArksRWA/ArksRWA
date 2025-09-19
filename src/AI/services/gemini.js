@@ -650,8 +650,8 @@ class GeminiService {
     this.testMode = !this.apiKey || this.apiKey === 'test-api-key-for-development';
     
     if (!this.testMode) {
-      this.genAI = new GoogleGenAI(this.apiKey);
-      // New API uses models directly without getGenerativeModel
+      this.genAI = new GoogleGenAI({apiKey: this.apiKey});
+      // Use models API for @google/genai
       this.model = this.genAI.models;
     } else {
       console.log('Running in test mode - using mock responses for Gemini API');
@@ -915,9 +915,16 @@ BEGIN ANALYSIS - RESPOND WITH JSON ONLY:`;
       
       // New @google/genai API format
       const result = await this.model.generateContent({
-        model: 'gemini-1.5-flash',
-        prompt: prompt,
-        generationConfig: this.config,
+        model: 'gemini-2.0-flash',
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt
+              }
+            ]
+          }
+        ]
       });
 
       // New API returns text directly without .response step
@@ -1203,13 +1210,16 @@ Perform triage analysis now:`;
       }
       
       const result = await this.model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: triagePrompt }] }],
-        generationConfig: {
-          temperature: 0.1,
-          topK: 1,
-          topP: 0.1,
-          maxOutputTokens: 1024, // Smaller output for faster triage
-        },
+        model: 'gemini-2.0-flash',
+        contents: [
+          {
+            parts: [
+              {
+                text: triagePrompt
+              }
+            ]
+          }
+        ]
       });
 
       // New API returns text directly
@@ -1385,13 +1395,16 @@ Perform triage analysis now:`;
       }
       
       const result = await this.model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.1,
-          topK: 1,
-          topP: 0.1,
-          maxOutputTokens: 2048,
-        },
+        model: 'gemini-2.0-flash',
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt
+              }
+            ]
+          }
+        ]
       });
 
       // New API returns text directly
@@ -1793,9 +1806,16 @@ ${index + 1}. Title: ${result.title}
       
       // New @google/genai API format
       const result = await this.model.generateContent({
-        model: 'gemini-1.5-flash',
-        prompt: prompt,
-        generationConfig: this.config,
+        model: 'gemini-2.0-flash',
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt
+              }
+            ]
+          }
+        ]
       });
 
       // New API returns text directly without .response step
@@ -2263,8 +2283,16 @@ ${index + 1}. Title: ${result.title}
       
       const testPrompt = 'Respond with "OK" if you can process this message.';
       const result = await this.model.generateContent({
-        model: 'gemini-1.5-flash',
-        prompt: testPrompt
+        model: 'gemini-2.0-flash',
+        contents: [
+          {
+            parts: [
+              {
+                text: testPrompt
+              }
+            ]
+          }
+        ]
       });
       // New API returns text directly
       const text = (result.text || result.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
@@ -2363,13 +2391,16 @@ ${index + 1}. Title: ${result.title}
       }
       
       const result = await this.model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.3, // Slightly higher for more natural language
-          topK: 10,
-          topP: 0.7,
-          maxOutputTokens: 1024,
-        },
+        model: 'gemini-2.0-flash',
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt
+              }
+            ]
+          }
+        ]
       });
 
       // New API returns text directly

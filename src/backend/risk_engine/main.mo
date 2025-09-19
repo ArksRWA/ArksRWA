@@ -284,7 +284,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
       
       let httpRequest : HttpRequest = {
         url = scorerUrl;
-        max_response_bytes = ?1048576; // 1MB limit
+        max_response_bytes = ?Constants.MAX_RESPONSE_BYTES;
         headers = headers;
         body = ?Blob.toArray(requestBody);
         method = #post;
@@ -392,11 +392,11 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
       
       let request : HttpRequest = {
         url = searchUrl;
-        max_response_bytes = ?1048576; // 1MB limit
+        max_response_bytes = ?Constants.MAX_RESPONSE_BYTES;
         headers = headers;
         body = null;
         method = #get;
-        transform = null; // Simplified for now - remove transform function
+        transform = null;
       };
 
       try {
@@ -894,7 +894,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
               (switch (companyData.symbol) { case (?sym) ",\"symbol\":\"" # sym # "\""; case null "" }) #
               "}";
 
-            let url = AI_SERVICE_URL # "/analyze-company";
+            let url = AI_SERVICE_URL # "/analyze";
             
             let headers : [HttpHeader] = [
               { name = "Content-Type"; value = "application/json" },
@@ -904,11 +904,11 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
 
             let request : HttpRequest = {
               url = url;
-              max_response_bytes = ?1048576; // 1MB limit
+              max_response_bytes = ?Constants.MAX_RESPONSE_BYTES;
               headers = headers;
               body = ?Blob.toArray(Text.encodeUtf8(requestBody));
               method = #post;
-              transform = null; // Simplified - no transform for now
+              transform = null;
             };
 
             Debug.print("Calling AI service at: " # url);

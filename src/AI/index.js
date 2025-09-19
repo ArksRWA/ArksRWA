@@ -47,7 +47,7 @@ app.get('/health', (req, res) => {
 });
 
 // Authentication middleware for protected routes
-app.use('/analyze-company', authMiddleware);
+app.use('/analyze', authMiddleware);
 
 // Analysis routes
 app.use('/', analyzeRoutes);

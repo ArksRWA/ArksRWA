@@ -46,11 +46,11 @@ router.get('/test-connection', async (req, res) => {
 });
 
 /**
- * POST /analyze-company/serpapi
+ * POST /analyze
  * NEW: Enhanced fraud analysis using SerpAPI + Gemini AI with 15-minute timeout support
  * Superior data quality and evidence-based scoring
  */
-router.post('/analyze-company/serpapi', async (req, res) => {
+router.post('/analyze', async (req, res) => {
   // Set extended timeout for this request (15 minutes)
   const requestTimeout = parseInt(process.env.REQUEST_TIMEOUT_MS) || 900000; // 15 minutes
   req.setTimeout(requestTimeout);

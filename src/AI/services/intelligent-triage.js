@@ -222,13 +222,16 @@ class IntelligentRiskTriageService {
       
       // Use Gemini for intelligent risk assessment
       const aiResponse = await this.gemini.model?.generateContent({
-        contents: [{ role: 'user', parts: [{ text: triagePrompt }] }],
-        generationConfig: {
-          temperature: 0.1,
-          topK: 1,
-          topP: 0.1,
-          maxOutputTokens: 1024
-        }
+        model: 'gemini-2.0-flash',
+        contents: [
+          {
+            parts: [
+              {
+                text: triagePrompt
+              }
+            ]
+          }
+        ]
       });
       
       const processingTime = Date.now() - startTime;
@@ -241,8 +244,7 @@ class IntelligentRiskTriageService {
         throw new Error('AI triage service in test mode - no mock data fallback available');
       }
       
-      const response = await aiResponse.response;
-      const text = response.text();
+      const text = aiResponse.text || aiResponse.candidates?.[0]?.content?.parts?.[0]?.text || '';
       
       // Extract structured response
       const jsonMatch = text.match(/\{[\s\S]*\}/);

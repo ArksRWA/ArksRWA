@@ -159,7 +159,7 @@ export default function CreateCompanyPage() {
           <p className="text-gray-400 mb-6">You can only create one company per account.</p>
           <button
             onClick={() => router.push('/company-dashboard')}
-            className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+            className="px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg transition-colors"
           >
             Go to Company Dashboard
           </button>
@@ -180,18 +180,18 @@ export default function CreateCompanyPage() {
             <div className="flex items-center justify-center mt-6">
               <div className={`flex items-center ${currentStep >= 1 ? 'text-primary' : 'text-gray-500'}`}>
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  currentStep >= 1 ? 'bg-primary text-white' : 'bg-gray-700 text-gray-400'
+                  currentStep >= 1 ? 'bg-gradient-to-r from-green-600 to-green-700 text-white' : 'bg-gray-700 text-gray-400'
                 }`}>
                   1
                 </div>
                 <span className="ml-2 font-medium">Company Info</span>
               </div>
 
-              <div className={`w-12 h-0.5 mx-2 ${currentStep >= 2 ? 'bg-primary' : 'bg-gray-700'}`}></div>
+              <div className={`w-12 h-0.5 mx-2 ${currentStep >= 2 ? 'bg-gradient-to-r from-green-600 to-green-700' : 'bg-gray-700'}`}></div>
 
               <div className={`flex items-center ${currentStep >= 2 ? 'text-primary' : 'text-gray-500'}`}>
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  currentStep >= 2 ? 'bg-primary text-white' : 'bg-gray-700 text-gray-400'
+                  currentStep >= 2 ? 'bg-gradient-to-r from-green-600 to-green-700 text-white' : 'bg-gray-700 text-gray-400'
                 }`}>
                   2
                 </div>
@@ -386,7 +386,7 @@ export default function CreateCompanyPage() {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg transition-colors"
                   >
                     Next Step
                   </button>
@@ -403,7 +403,7 @@ export default function CreateCompanyPage() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex-1 px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? 'Creating...' : 'Create Company'}
                   </button>

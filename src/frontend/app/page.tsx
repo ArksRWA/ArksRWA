@@ -204,11 +204,11 @@ export default function HomePage() {
 
       {/* Hero Section */}
       <div className="relative overflow-hidden">
-        {/* Animated background elements */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/10 rounded-full blur-3xl animate-float"></div>
-          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-accent-blue/10 rounded-full blur-3xl animate-float" style={{animationDelay: '3s'}}></div>
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-accent-purple/5 rounded-full blur-3xl animate-float" style={{animationDelay: '6s'}}></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-green-900/20 via-blue-900/10 to-purple-900/20"></div>
+        <div className="absolute inset-0">
+          <div className="absolute top-10 left-10 w-32 h-32 bg-green-500/10 rounded-full blur-2xl animate-pulse"></div>
+          <div className="absolute bottom-10 right-10 w-40 h-40 bg-blue-500/10 rounded-full blur-2xl animate-pulse" style={{animationDelay: '2s'}}></div>
+          <div className="absolute top-1/2 left-1/3 w-24 h-24 bg-purple-500/10 rounded-full blur-2xl animate-pulse" style={{animationDelay: '4s'}}></div>
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-32 pb-20 relative z-10">
@@ -223,13 +223,32 @@ export default function HomePage() {
               Create, trade, and manage tokenized companies with full transparency and security.
               Built on the Internet Computer for true decentralization.
             </p>
-
+            <div className="hidden flex flex-wrap justify-center gap-6 mb-12 text-sm text-foreground-muted">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                <span>Fully Decentralized</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                <span>Real-time Trading</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                <span>Zero Gas Fees</span>
+              </div>
+            </div>
             {/* Connection Buttons */}
             <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-12">
               <button
                 onClick={handleShowLoginModal}
                 disabled={isConnecting}
-                className="group relative flex items-center gap-3 px-10 py-5 bg-primary text-white rounded-2xl hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed min-w-[240px] font-semibold shadow-glow transition-all duration-300 overflow-hidden"
+                className="group relative flex items-center gap-3 px-10 py-5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-2xl hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed min-w-[240px] font-semibold shadow-2xl transition-all duration-300 overflow-hidden"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
                 <svg className="w-6 h-6 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -267,130 +286,161 @@ export default function HomePage() {
 
       {/* Debug: Canister Information Section */}
       {process.env.NODE_ENV === 'development' && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
+        <div className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-green-900/20 via-blue-900/10 to-purple-900/20"></div>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
           <div className="modern-card p-8">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-foreground mb-2">🔧 Debug: Canister Information</h2>
-              <p className="text-foreground-muted">Current network and canister configuration</p>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Network Information */}
-              <div className="bg-card-bg/50 backdrop-blur-sm border border-card-border rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                  <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                  Network Status
-                </h3>
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">Current Network:</span>
-                    <span className="font-mono text-primary font-medium">{NETWORK}</span>
+            {/* Website Screenshot */}
+                {/* Browser Chrome */}
+                <div className="flex items-center gap-3 px-4 py-3 bg-gray-800 border-b border-gray-700">
+                  <div className="flex gap-2">
+                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                    <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">Host:</span>
-                    <span className="font-mono text-foreground text-xs">{HOST}</span>
+                  <div className="flex-1 bg-gray-700 rounded-lg px-3 py-1">
+                    <span className="text-gray-400 text-xs font-mono">{typeof window !== 'undefined' ? window.location.href : 'http://localhost:3000'}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">Environment:</span>
-                    <span className="font-mono text-accent-blue">{process.env.NODE_ENV}</span>
-                  </div>
+                </div>
+                
+                {/* Screenshot Image */}
+                <div className="relative">
+                  <img 
+                    src="/screenshot-web.jpeg" 
+                    alt="ARKS RWA Homepage Screenshot" 
+                    className="w-full h-auto object-cover"
+                    style={{ maxHeight: '600px' }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
                 </div>
               </div>
-
-              {/* Current Canister IDs */}
-              <div className="bg-card-bg/50 backdrop-blur-sm border border-card-border rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                  <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                  Active Canisters
-                </h3>
-                <div className="space-y-3 text-sm">
-                  {Object.entries(getCurrentCanisterIds()).map(([name, id]) => (
-                    <div key={name} className="flex flex-col gap-1">
-                      <span className="text-foreground-muted text-xs uppercase tracking-wide">{name}:</span>
-                      <span className="font-mono text-foreground text-xs break-all">
-                        {id || <span className="text-red-400">Not Set</span>}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* All Available Canister IDs */}
-              <div className="bg-card-bg/50 backdrop-blur-sm border border-card-border rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                  <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-                  All Configured IDs
-                </h3>
-                <div className="space-y-4 text-sm">
-                  {Object.entries(CANISTER_IDS).map(([network, ids]) => (
-                    <div key={network}>
-                      <h4 className="text-foreground font-medium text-xs uppercase tracking-wide mb-2">
-                        {network} Network:
-                      </h4>
-                      <div className="space-y-2 pl-2">
-                        {Object.entries(ids).map(([name, id]) => (
-                          <div key={`${network}-${name}`} className="flex flex-col gap-1">
-                            <span className="text-foreground-muted text-xs">{name}:</span>
-                            <span className="font-mono text-foreground text-xs break-all">
-                              {id || <span className="text-red-400">Not Set</span>}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Environment Variables Section */}
-            <div className="mt-8 bg-card-bg/30 backdrop-blur-sm border border-card-border rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
-                Environment Variables
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">NEXT_PUBLIC_DFX_NETWORK:</span>
-                    <span className="font-mono text-foreground">{process.env.NEXT_PUBLIC_DFX_NETWORK || 'Not Set'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">NEXT_PUBLIC_CANISTER_ID_ARKS_CORE:</span>
-                    <span className="font-mono text-foreground text-xs break-all">{process.env.NEXT_PUBLIC_CANISTER_ID_ARKS_CORE || 'Not Set'}</span>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">NEXT_PUBLIC_CANISTER_ID_ARKS_RISK_ENGINE:</span>
-                    <span className="font-mono text-foreground text-xs break-all">{process.env.NEXT_PUBLIC_CANISTER_ID_ARKS_RISK_ENGINE || 'Not Set'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">NEXT_PUBLIC_CANISTER_ID_FRONTEND:</span>
-                    <span className="font-mono text-foreground text-xs break-all">{process.env.NEXT_PUBLIC_CANISTER_ID_FRONTEND || 'Not Set'}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       )}
 
       {/* Companies Section */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative z-10">
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-green-900/20 via-blue-900/10 to-purple-900/20"></div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative z-10">
         <div className="text-center mb-16 animate-fade-in-up" style={{animationDelay: '0.2s'}}>
           <h2 className="text-4xl font-bold text-foreground mb-6">Trending Companies</h2>
           <p className="text-foreground-muted max-w-3xl mx-auto text-lg leading-relaxed">
             Discover and invest in tokenized companies. View real-time pricing and market data with our advanced trading platform.
           </p>
         </div>
-        <div className="animate-fade-in-up" style={{animationDelay: '0.4s'}}>
-          <CompanyList />
+          <div className="animate-fade-in-up" style={{animationDelay: '0.4s'}}>
+            <CompanyList />
+          </div>
+        </div>
+      </div>
+
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-green-900/20 via-blue-900/10 to-purple-900/20"></div>
+        <div className="absolute inset-0">
+          <div className="absolute top-10 left-10 w-32 h-32 bg-green-500/10 rounded-full blur-2xl animate-pulse"></div>
+          <div className="absolute bottom-10 right-10 w-40 h-40 bg-blue-500/10 rounded-full blur-2xl animate-pulse" style={{animationDelay: '2s'}}></div>
+          <div className="absolute top-1/2 left-1/3 w-24 h-24 bg-purple-500/10 rounded-full blur-2xl animate-pulse" style={{animationDelay: '4s'}}></div>
+        </div>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-24 relative z-10">
+          <div className="grid lg:grid-cols-2 gap-12 items-center animate-fade-in-up" style={{animationDelay: '0.5s'}}>
+            {/* Left Content */}
+            <div className="text-left">
+              <div className="inline-flex items-center px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-full mb-6">
+                <span className="text-sm font-medium text-green-400">⚡ Ready in under 1 minute</span>
+              </div>
+              <h2 className="text-4xl lg:text-5xl font-bold text-white mb-6 leading-tight">
+                Join the <span className="bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent">Revolution</span>
+              </h2>
+              <p className="text-gray-300 mb-8 text-lg leading-relaxed">
+                Be part of the next generation of financial infrastructure. Start tokenizing real world assets with zero fees and instant settlements.
+              </p>
+              
+              {/* Benefits List */}
+              <div className="space-y-3 mb-8">
+                {[
+                  { icon: "⚡", text: "Connect wallet & start trading instantly" },
+                  { icon: "🔒", text: "100% decentralized & secure" },
+                  { icon: "💰", text: "Zero gas fees on all transactions" }
+                ].map((benefit, index) => (
+                  <div key={index} className="flex items-center gap-3">
+                    <span className="text-xl">{benefit.icon}</span>
+                    <span className="text-gray-300">{benefit.text}</span>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="flex flex-col sm:flex-row gap-4">
+                <button
+                  onClick={handleShowLoginModal}
+                  disabled={isConnecting}
+                  className="group relative px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-xl hover:scale-105 transition-all duration-300 disabled:opacity-50 font-bold shadow-2xl overflow-hidden"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
+                  <span className="relative z-10 flex items-center gap-2">
+                    Launch App
+                  </span>
+                </button>
+                <button
+                  onClick={() => router.push('/companies')}
+                  className="hidden px-8 py-4 bg-transparent border-2 border-gray-600 hover:border-green-500 text-gray-300 hover:text-green-400 rounded-xl hover:bg-green-500/5 transition-all duration-300 font-semibold"
+                >
+                  📈 View Market
+                </button>
+              </div>
+            </div>
+            
+            {/* Right Visual */}
+            <div className="relative">
+              <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 border border-gray-700 shadow-2xl">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                  <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <span className="text-gray-400 text-sm ml-4">ARKS RWA Trading Interface</span>
+                </div>
+                
+                {/* Mock Trading Interface */}
+                <div className="space-y-4">
+                  <div className="bg-gray-800 rounded-lg p-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-white font-semibold">💻 TechCorp</span>
+                      <span className="text-green-400">+12.5%</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-gray-400">
+                      <span>$125.50</span>
+                      <span>24h Volume: $2.1M</span>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gray-800 rounded-lg p-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-white font-semibold">🌱 GreenEnergy</span>
+                      <span className="text-green-400">+8.3%</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-gray-400">
+                      <span>$89.25</span>
+                      <span>24h Volume: $1.8M</span>
+                    </div>
+                  </div>
+                  
+                  <button className="w-full py-3 bg-green-600 text-white rounded-lg font-semibold">
+                    Start Trading →
+                  </button>
+                </div>
+              </div>
+              
+              {/* Floating Elements */}
+              <div className="absolute -top-4 -right-4 w-16 h-16 bg-green-500/20 rounded-full blur-xl animate-pulse"></div>
+              <div className="absolute -bottom-4 -left-4 w-20 h-20 bg-blue-500/20 rounded-full blur-xl animate-pulse" style={{animationDelay: '1s'}}></div>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Features Section */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 relative z-10">
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-green-900/20 via-blue-900/10 to-purple-900/20"></div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 relative z-10">
         <div className="text-center mb-20 animate-fade-in-up" style={{animationDelay: '0.3s'}}>
           <h2 className="text-4xl font-bold text-foreground mb-6">Why Choose ARKS RWA?</h2>
           <p className="text-foreground-muted max-w-3xl mx-auto text-lg leading-relaxed">
@@ -400,7 +450,7 @@ export default function HomePage() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="modern-card p-10 text-center group animate-fade-in-up hover-float" style={{animationDelay: '0.4s'}}>
-            <div className="w-20 h-20 bg-primary/20 rounded-2xl flex items-center justify-center mx-auto mb-8 group-hover:bg-primary/30 group-hover:scale-110 transition-all duration-300">
+            <div className="w-20 h-20 bg-gradient-to-r from-green-600/20 to-green-700/20 rounded-2xl flex items-center justify-center mx-auto mb-8 group-hover:bg-gradient-to-r group-hover:from-green-500/30 group-hover:to-green-600/30 group-hover:scale-110 transition-all duration-300">
               <svg className="w-10 h-10 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
@@ -412,7 +462,7 @@ export default function HomePage() {
           </div>
 
           <div className="modern-card p-10 text-center group animate-fade-in-up hover-float" style={{animationDelay: '0.5s'}}>
-            <div className="w-20 h-20 bg-primary/20 rounded-2xl flex items-center justify-center mx-auto mb-8 group-hover:bg-primary/30 group-hover:scale-110 transition-all duration-300">
+            <div className="w-20 h-20 bg-gradient-to-r from-green-600/20 to-green-700/20 rounded-2xl flex items-center justify-center mx-auto mb-8 group-hover:bg-gradient-to-r group-hover:from-green-500/30 group-hover:to-green-600/30 group-hover:scale-110 transition-all duration-300">
               <svg className="w-10 h-10 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
               </svg>
@@ -423,16 +473,17 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="modern-card p-10 text-center group animate-fade-in-up hover-float" style={{animationDelay: '0.6s'}}>
-            <div className="w-20 h-20 bg-primary/20 rounded-2xl flex items-center justify-center mx-auto mb-8 group-hover:bg-primary/30 group-hover:scale-110 transition-all duration-300">
-              <svg className="w-10 h-10 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
+            <div className="modern-card p-10 text-center group animate-fade-in-up hover-float" style={{animationDelay: '0.6s'}}>
+              <div className="w-20 h-20 bg-gradient-to-r from-green-600/20 to-green-700/20 rounded-2xl flex items-center justify-center mx-auto mb-8 group-hover:bg-gradient-to-r group-hover:from-green-500/30 group-hover:to-green-600/30 group-hover:scale-110 transition-all duration-300">
+                <svg className="w-10 h-10 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <h3 className="text-2xl font-semibold text-foreground mb-6">Company Management</h3>
+              <p className="text-foreground-muted leading-relaxed text-lg">
+                Create and manage tokenized companies with comprehensive tools and analytics.
+              </p>
             </div>
-            <h3 className="text-2xl font-semibold text-foreground mb-6">Company Management</h3>
-            <p className="text-foreground-muted leading-relaxed text-lg">
-              Create and manage tokenized companies with comprehensive tools and analytics.
-            </p>
           </div>
         </div>
       </div>
@@ -440,7 +491,7 @@ export default function HomePage() {
 
       {/* CTA Section */}
       <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-accent-blue/10"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-green-900/20 via-blue-900/10 to-purple-900/20"></div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 relative z-10">
           <div className="text-center animate-fade-in-up" style={{animationDelay: '0.5s'}}>
             <h2 className="text-4xl font-bold text-foreground mb-6">Ready to Get Started?</h2>
@@ -451,14 +502,14 @@ export default function HomePage() {
               <button
                 onClick={handleShowLoginModal}
                 disabled={isConnecting}
-                className="group relative px-10 py-4 bg-primary text-white rounded-2xl hover:scale-105 transition-all duration-300 disabled:opacity-50 font-semibold shadow-glow overflow-hidden"
+                className="group relative px-10 py-4 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-2xl hover:scale-105 transition-all duration-300 disabled:opacity-50 font-semibold shadow-2xl overflow-hidden"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
                 <span className="relative z-10">Get Started</span>
               </button>
               <button
                 onClick={() => router.push('/companies')}
-                className="px-10 py-4 bg-card-bg backdrop-blur-sm border border-card-border text-foreground rounded-2xl hover:bg-card-bg-hover hover:border-card-border-hover hover:scale-105 transition-all duration-300 font-semibold"
+                className="hidden px-10 py-4 bg-card-bg backdrop-blur-sm border border-card-border text-foreground rounded-2xl hover:bg-card-bg-hover hover:border-card-border-hover hover:scale-105 transition-all duration-300 font-semibold"
               >
                 Explore Demo
               </button>

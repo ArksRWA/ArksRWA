@@ -156,7 +156,7 @@ function ManageCompanyContent() {
           <div className="text-red-400 mb-4">{error}</div>
           <button
             onClick={() => router.push('/company-dashboard')}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+            className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg transition-colors"
           >
             Back to Dashboard
           </button>
@@ -172,7 +172,7 @@ function ManageCompanyContent() {
           <div className="text-white mb-4">Company not found</div>
           <button
             onClick={() => router.push('/company-dashboard')}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+            className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg transition-colors"
           >
             Back to Dashboard
           </button>
@@ -189,7 +189,7 @@ function ManageCompanyContent() {
           <p className="text-gray-400 mb-6">Only the company owner can manage company details</p>
           <button
             onClick={() => router.push(`/company?id=${companyId}`)}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+            className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg transition-colors"
           >
             View Company Profile
           </button>
@@ -228,7 +228,7 @@ function ManageCompanyContent() {
                 className="w-16 h-16 rounded-lg object-cover"
               />
             ) : (
-              <div className="w-16 h-16 rounded-lg bg-primary/20 flex items-center justify-center">
+              <div className="w-16 h-16 rounded-lg bg-gradient-to-r from-green-600/20 to-green-700/20 flex items-center justify-center">
                 <span className="text-2xl font-bold text-primary">{company.symbol[0]}</span>
               </div>
             )}
@@ -283,7 +283,7 @@ function ManageCompanyContent() {
               <button
                 type="submit"
                 disabled={updateLoading}
-                className="w-full px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {updateLoading ? 'Updating...' : 'Update Description'}
               </button>

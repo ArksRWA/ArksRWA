@@ -173,7 +173,7 @@ export default function TransactionsPage() {
           <div className="text-red-400 mb-4">{error}</div>
           <button
             onClick={() => router.push('/dashboard')}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+            className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg transition-colors"
           >
             Back to Dashboard
           </button>
@@ -404,7 +404,7 @@ export default function TransactionsPage() {
                               className="w-8 h-8 rounded-lg object-cover"
                             />
                           ) : (
-                            <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-green-600/20 to-green-700/20 flex items-center justify-center">
                               <span className="text-sm font-bold text-primary">{transaction.company.symbol[0]}</span>
                             </div>
                           )}
@@ -440,7 +440,7 @@ export default function TransactionsPage() {
               <div className="text-gray-400 mb-4">No transactions found</div>
               <button
                 onClick={() => router.push('/companies')}
-                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg transition-colors"
               >
                 Start Trading
               </button>

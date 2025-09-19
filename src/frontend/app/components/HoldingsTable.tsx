@@ -50,7 +50,7 @@ export default function HoldingsTable({
       <div className="text-gray-400 mb-4 text-lg">You don't have any holdings yet</div>
       <button
         onClick={() => router.push('/companies')}
-        className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+        className="px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg transition-colors"
       >
         Browse Companies
       </button>
@@ -89,7 +89,7 @@ export default function HoldingsTable({
                         className="w-8 h-8 rounded-lg object-cover"
                       />
                     ) : (
-                      <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-green-600/20 to-green-700/20 flex items-center justify-center">
                         <span className="text-sm font-bold text-primary">{holding.company.symbol[0]}</span>
                       </div>
                     )}

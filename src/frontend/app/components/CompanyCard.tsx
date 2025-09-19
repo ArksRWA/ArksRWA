@@ -42,7 +42,7 @@ export default function CompanyCard({
             className="w-12 h-12 rounded-lg object-cover"
           />
         ) : (
-          <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center group-hover:bg-primary/30 transition-colors">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-green-600/20 to-green-700/20 flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-green-500/30 group-hover:to-green-600/30 transition-colors">
             <span className="text-xl font-bold text-primary">{company.symbol[0]}</span>
           </div>
         )}
@@ -91,7 +91,7 @@ export default function CompanyCard({
           {showManageButton && currentUser && currentUser.principal === company.owner && (
             <button
               onClick={handleManageClick}
-              className="text-xs px-2 py-1 bg-primary text-white rounded hover:bg-primary/90 transition-colors"
+              className="text-xs px-2 py-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded transition-colors"
             >
               Manage
             </button>

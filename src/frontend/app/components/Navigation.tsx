@@ -135,13 +135,9 @@ export default function Navigation({ className = '' }: NavigationProps) {
       onClick={() => router.push(href)}
       className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all duration-300 font-medium text-sm relative overflow-hidden group ${
         isActivePath(href)
-          ? 'text-white shadow-glow'
+          ? 'text-white shadow-2xl bg-gradient-to-r from-green-600 to-green-700'
           : 'text-foreground-secondary hover:text-foreground hover:bg-card-bg backdrop-blur-sm border border-transparent hover:border-card-border'
       }`}
-      style={isActivePath(href) ? { 
-        backgroundColor: '#10b981',
-        color: 'white'
-      } : {}}
     >
       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
       <span className="relative z-10">{icon}</span>
@@ -152,7 +148,7 @@ export default function Navigation({ className = '' }: NavigationProps) {
   const UserDropdown = () => (
     <div className="relative group">
       <button className="flex items-center gap-4 px-4 py-3 rounded-2xl text-foreground-secondary hover:text-foreground hover:bg-card-bg backdrop-blur-sm border border-transparent hover:border-card-border transition-all duration-300">
-        <div className="w-10 h-10 rounded-full bg-gradient-button flex items-center justify-center shadow-glow">
+        <div className="w-10 h-10 rounded-full bg-gradient-button flex items-center justify-center shadow-2xl">
           <span className="text-white font-bold text-sm">
             {currentUser?.principal.slice(0, 2).toUpperCase()}
           </span>
@@ -170,7 +166,7 @@ export default function Navigation({ className = '' }: NavigationProps) {
         </svg>
       </button>
       
-      <div className="absolute right-0 mt-3 w-56 bg-card-bg backdrop-blur-xl border border-card-border rounded-2xl shadow-dark-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 overflow-hidden">
+      <div className="absolute right-0 mt-3 w-56 bg-gray-800 border border-card-border rounded-2xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 overflow-hidden" style={{ zIndex: 9999 }}>
         <div className="p-3">
           <button
             onClick={() => router.push(userRole === 'company' ? '/company-dashboard' : '/dashboard')}
@@ -215,20 +211,23 @@ export default function Navigation({ className = '' }: NavigationProps) {
           {/* Logo */}
           <div className="flex items-center">
             {isAuthenticated ? (
-              <div className="flex items-center gap-3 text-foreground hover:text-primary transition-all duration-300 group select-none">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-button flex items-center justify-center shadow-glow group-hover:scale-110 transition-transform duration-300">
+              <button
+                onClick={() => router.push('/')}
+                className="flex items-center gap-3 text-foreground hover:text-primary transition-all duration-300 group"
+              >
+                <div className="w-10 h-10 rounded-2xl bg-gradient-button flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform duration-300">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H7a3 3 0 00-3 3v8a3 3 0 003 3z" />
                   </svg>
                 </div>
-                <span className="text-2xl font-bold tracking-tight text-white select-none">ARKS RWA</span>
-              </div>
+                <span className="text-2xl font-bold tracking-tight text-white">ARKS RWA</span>
+              </button>
             ) : (
               <button
                 onClick={() => router.push('/')}
                 className="flex items-center gap-3 text-foreground hover:text-primary transition-all duration-300 group"
               >
-                <div className="w-10 h-10 rounded-2xl bg-gradient-button flex items-center justify-center shadow-glow group-hover:scale-110 transition-transform duration-300">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-button flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform duration-300">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H7a3 3 0 00-3 3v8a3 3 0 003 3z" />
                   </svg>
@@ -317,7 +316,7 @@ export default function Navigation({ className = '' }: NavigationProps) {
               <button
                 onClick={handleShowLoginModal}
                 disabled={isConnecting}
-                className="group relative flex items-center gap-3 px-6 py-3 bg-primary text-white rounded-2xl hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-glow overflow-hidden"
+                className="group relative flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-2xl hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-2xl overflow-hidden"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
                 <svg className="w-5 h-5 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">

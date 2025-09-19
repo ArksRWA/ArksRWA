@@ -144,7 +144,7 @@ export default function CompaniesPage() {
           <div className="text-red-400 mb-4">{error}</div>
           <button
             onClick={() => router.push('/')}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+            className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg transition-colors"
           >
             Back to Home
           </button>
@@ -229,7 +229,7 @@ export default function CompaniesPage() {
                   onClick={() => setAvailableOnly(!availableOnly)}
                   className={`flex-1 px-3 py-2 rounded-lg transition-colors ${
                     availableOnly 
-                      ? 'bg-primary text-white' 
+                      ? 'bg-gradient-to-r from-green-600 to-green-700 text-white' 
                       : 'bg-gray-800 border border-gray-600 text-white hover:bg-gray-700'
                   }`}
                 >
@@ -269,7 +269,7 @@ export default function CompaniesPage() {
             <div className="text-gray-400 mb-4">No companies found matching your criteria</div>
             <button
               onClick={resetFilters}
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+              className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg transition-colors"
             >
               Clear Filters
             </button>

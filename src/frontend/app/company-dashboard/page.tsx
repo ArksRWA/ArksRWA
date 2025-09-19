@@ -122,7 +122,7 @@ export default function CompanyDashboardPage() {
           <div className="text-red-400 mb-4">{error}</div>
           <button
             onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+            className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg"
           >
             Retry
           </button>
@@ -139,7 +139,7 @@ export default function CompanyDashboardPage() {
           <p className="text-gray-400 mb-6">You don't have a company yet.</p>
           <button
             onClick={() => router.push('/create-company')}
-            className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+            className="px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg transition-colors"
           >
             Create Company
           </button>
@@ -198,7 +198,7 @@ export default function CompanyDashboardPage() {
             <div className="flex gap-4">
               <button
                 onClick={handleUpdateDescription}
-                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg transition-colors relative z-1"
               >
                 Manage Company
               </button>
@@ -362,7 +362,7 @@ export default function CompanyDashboardPage() {
               className="p-4 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-lg transition-colors text-left"
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary/20 rounded-lg flex items-center justify-center">
+                <div className="w-10 h-10 bg-gradient-to-r from-green-600/20 to-green-700/20 rounded-lg flex items-center justify-center">
                   <EditIcon className="w-5 h-5 text-primary" />
                 </div>
                 <div>

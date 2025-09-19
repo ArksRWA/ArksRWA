@@ -1,6 +1,4 @@
-import { authService } from './auth';
 import { backendService } from './backend';
-import { getCanisterId, isLocal } from '../config/canister';
 
 // Import risk engine declarations
 type VerificationStatus = 
@@ -37,8 +35,6 @@ interface VerificationProfile {
 }
 
 class VerificationSchedulerService {
-  private riskEngineCanisterId = getCanisterId('arks_risk_engine');
-  private riskEngineActor: any = null;
   private isRunning = false;
   private dailyTimeoutId: NodeJS.Timeout | null = null;
   private checkIntervalId: NodeJS.Timeout | null = null;
@@ -109,112 +105,11 @@ class VerificationSchedulerService {
     }
   }
 
-  // Initialize risk engine actor
-  private async createRiskEngineActor() {
-    if (this.riskEngineActor) {
-      return this.riskEngineActor;
-    }
-
-    try {
-      const { Actor, HttpAgent } = await import('@dfinity/agent');
-      
-      // Create agent (same pattern as backend service)
-      const isBrowser = typeof window !== 'undefined';
-      const agent = new HttpAgent({
-        ...(isBrowser ? {} : { 
-          host: (isLocal() ? 'http://127.0.0.1:4943' : 'https://icp-api.io') 
-        }),
-      });
-      
-      if (isLocal()) {
-        try { 
-          await agent.fetchRootKey(); 
-        } catch (e) {
-          console.warn('Failed to fetch root key:', e);
-        }
-      }
-
-      // For now, we'll need to create a simple IDL for the risk engine
-      // In production, this would use generated declarations
-      const riskEngineIdl = ({ IDL }: any) => {
-        const VerificationStatus = IDL.Variant({
-          'pending': IDL.Null,
-          'verified': IDL.Null,
-          'suspicious': IDL.Null,
-          'failed': IDL.Null,
-          'error': IDL.Null,
-        });
-
-        const JobPriority = IDL.Variant({
-          'high': IDL.Null,
-          'normal': IDL.Null,
-          'low': IDL.Null,
-        });
-
-        const VerificationProfile = IDL.Record({
-          'companyId': IDL.Nat,
-          'overallScore': IDL.Opt(IDL.Float64),
-          'verificationStatus': VerificationStatus,
-          'lastVerified': IDL.Int,
-          'nextDueAt': IDL.Opt(IDL.Int),
-          'checks': IDL.Vec(IDL.Record({
-            'checkType': IDL.Text,
-            'status': IDL.Text,
-            'score': IDL.Float64,
-            'details': IDL.Text,
-          })),
-          'fraudKeywords': IDL.Vec(IDL.Text),
-          'newsArticles': IDL.Nat,
-          'riskFactors': IDL.Vec(IDL.Text),
-          'confidenceLevel': IDL.Float64,
-        });
-
-        return IDL.Service({
-          'startVerification': IDL.Func(
-            [IDL.Nat, IDL.Text, JobPriority],
-            [IDL.Nat],
-            []
-          ),
-          'getCompanyVerificationStatus': IDL.Func(
-            [IDL.Nat],
-            [IDL.Opt(IDL.Record({
-              'status': VerificationStatus,
-              'score': IDL.Opt(IDL.Float64),
-              'lastVerified': IDL.Opt(IDL.Int),
-            }))],
-            ['query']
-          ),
-          'getCompanyVerificationProfile': IDL.Func(
-            [IDL.Nat],
-            [IDL.Opt(VerificationProfile)],
-            ['query']
-          ),
-          'companyNeedsReverification': IDL.Func(
-            [IDL.Nat],
-            [IDL.Bool],
-            ['query']
-          ),
-        });
-      };
-
-      this.riskEngineActor = Actor.createActor(riskEngineIdl, {
-        agent,
-        canisterId: this.riskEngineCanisterId,
-      });
-
-      console.log('Risk engine actor created successfully');
-      return this.riskEngineActor;
-    } catch (error) {
-      console.error('Error creating risk engine actor:', error);
-      throw error;
-    }
-  }
 
   // Check if a company needs verification
   private async checkCompanyVerificationStatus(companyId: number, companyName: string): Promise<boolean> {
     try {
-      const actor = await this.createRiskEngineActor();
-      const needsVerification = await actor.companyNeedsReverification(companyId);
+      const needsVerification = await backendService.companyNeedsReverification(companyId);
       
       if (needsVerification) {
         console.log(`Company ${companyName} (ID: ${companyId}) needs verification`);
@@ -243,11 +138,10 @@ class VerificationSchedulerService {
     try {
       this.activeVerifications.add(companyId);
       console.log(`Starting verification for company ${companyName} (ID: ${companyId})`);
-      
-      const actor = await this.createRiskEngineActor();
-      const jobId = await actor.startVerification(
-        companyId, 
-        companyName, 
+
+      const jobId = await backendService.startVerification(
+        companyId,
+        companyName,
         { normal: null } as JobPriority
       );
       
@@ -501,8 +395,7 @@ class VerificationSchedulerService {
   // Check specific company verification status (for debugging)
   public async checkCompanyStatus(companyId: number): Promise<any> {
     try {
-      const actor = await this.createRiskEngineActor();
-      return await actor.getCompanyVerificationStatus(companyId);
+      return await backendService.getCompanyVerificationStatus(companyId);
     } catch (error) {
       console.error(`Error checking company ${companyId} status:`, error);
       return null;
@@ -513,8 +406,7 @@ class VerificationSchedulerService {
   public async getCompanyVerificationProfile(companyId: number): Promise<VerificationProfile | null> {
     try {
       console.log(`🔍 Getting verification profile for company ${companyId}`);
-      const actor = await this.createRiskEngineActor();
-      const profile = await actor.getCompanyVerificationProfile(companyId);
+      const profile = await backendService.getCompanyVerificationProfile(companyId);
       
       if (profile) {
         console.log(`✅ Retrieved verification profile for company ${companyId}:`, {

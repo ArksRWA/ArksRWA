@@ -14,73 +14,45 @@ import * as declarations from '@declarations/arks-core/index.js';
 export type { Company, CreateCompanyParams } from '../types/canister';
 
 class BackendService {
-  private readonly canisterId = getCanisterId('arks_core');
+  private readonly coreCanisterId = getCanisterId('arks_core');
+  private readonly riskEngineCanisterId = getCanisterId('arks_risk_engine');
   private readonly host = HOST;
-  
+
   // Cache for actor and agent to avoid recreating them repeatedly
-  private actorCache: any = null;
+  private coreActorCache: any = null;
+  private riskEngineActorCache: any = null;
   private agentCache: any = null;
 
-  private async oldcreateActor(requireAuth = true) {
-    const user = authService.getCurrentUser();
-    if (requireAuth && (!user || !user.isConnected)) {
-      throw new Error('User not authenticated');
-    }
-    
-    // For authenticated calls, ensure we have a working agent
-    if (requireAuth && user) {
-      await authService.ensureAgent();
+  private async createHttpAgent(): Promise<any> {
+    const { HttpAgent } = await import('@dfinity/agent');
+
+    if (this.agentCache) {
+      return this.agentCache;
     }
 
-    // Always clear cache for now to ensure fresh connections
-    this.actorCache = null;
+    // ✅ Use SAME ORIGIN in the browser to avoid CORS
+    const isBrowser = typeof window !== 'undefined';
+    const agent = new HttpAgent({
+      // If we're in the browser, let it default to window.location.origin by not setting host
+      ...(isBrowser ? {} : { host: (isLocal() ? 'http://127.0.0.1:4943' : 'https://icp-api.io') }),
+    });
 
-    try {
-      // Only import when needed for real backend calls
-      const { Actor, HttpAgent } = await import('@dfinity/agent');
-      const canisterHost = isLocal()
-        ? `http://${this.canisterId}.localhost:4943`
-        : `https://${this.canisterId}.icp0.io`;
-      // Create agent (reuse if possible)
-      if (!this.agentCache) {
-        this.agentCache = new HttpAgent({ host: canisterHost });
-        await this.agentCache.fetchRootKey(); // For local development
-      }
+    // TESTING PURPOSE - BYPASS ISBROWSER
+    // const agent = this.agentCache ?? new HttpAgent({
+    //   host: (isLocal() ? 'http://127.0.0.1:4943' : 'https://icp-api.io'),
+    // });
+    // ENDING TESTING PURPOSE - BYPASS ISBROWSER
 
-      // If user has an agent (from wallet connection), try to use it
-      if (user && user.agent) {
-        console.log('User agent available from wallet, checking if it has the right interface...');
-        
-        // Check if the agent has the expected methods
-        if (typeof user.agent.listCompanies === 'function') {
-          console.log('Using user agent from wallet connection');
-          this.actorCache = user.agent;
-          return user.agent;
-        } else {
-          console.log('User agent missing expected methods, creating our own actor...');
-        }
-      }
 
-      // Remove the dynamic import logic and use the imported declarations directly
-      const idlFactory = declarations.idlFactory;
-
-      this.actorCache = Actor.createActor(idlFactory, {
-        agent: this.agentCache,
-        canisterId: this.canisterId,
-      });
-
-      console.log('Actor created successfully:', {
-        canisterId: this.canisterId,
-        hasListCompanies: typeof this.actorCache.listCompanies === 'function',
-        methods: Object.getOwnPropertyNames(this.actorCache)
-      });
-
-      return this.actorCache;
-    } catch (error) {
-      console.error('Error creating actor:', error);
-      throw error;
+    // For local dev only
+    if (isLocal()) {
+      try { await agent.fetchRootKey(); } catch {}
     }
+
+    this.agentCache = agent;
+    return agent;
   }
+
 private async createActor(requireAuth = true) {
   const user = await Promise.resolve(authService.getCurrentUser?.());
   if (requireAuth && (!user || !user.isConnected)) {
@@ -88,54 +60,130 @@ private async createActor(requireAuth = true) {
   }
 
   // Always clear cache for now to ensure fresh connections
-  this.actorCache = null;
+  this.coreActorCache = null;
 
   try {
-    const { Actor, HttpAgent } = await import('@dfinity/agent');
+    const { Actor } = await import('@dfinity/agent');
 
-    // ✅ Use SAME ORIGIN in the browser to avoid CORS
-    const isBrowser = typeof window !== 'undefined';
-    const agent = this.agentCache ?? new HttpAgent({
-      // If we're in the browser, let it default to window.location.origin by not setting host
-      ...(isBrowser ? {} : { host: (isLocal() ? 'http://127.0.0.1:4943' : 'https://icp-api.io') }),
-    });
-    // TESTING PURPOSE - BYPASS ISBROWSER
-    // const agent = this.agentCache ?? new HttpAgent({
-    //   host: (isLocal() ? 'http://127.0.0.1:4943' : 'https://icp-api.io'),
-    // });
-    // ENDING TESTING PURPOSE - BYPASS ISBROWSER
-    
-    // For local dev only
-    if (isLocal()) {
-      try { await agent.fetchRootKey(); } catch {}
-    }
-
-    this.agentCache = agent;
+    const agent = await this.createHttpAgent();
 
     // Prefer wallet-provided ACTOR if it really is an actor with your canister methods
     if (user && user.agent && typeof (user.agent as any).listCompanies === 'function') {
-      this.actorCache = user.agent;
-      return this.actorCache;
+      this.coreActorCache = user.agent;
+      return this.coreActorCache;
     }
 
     // Use your generated idlFactory
     const idlFactory = declarations.idlFactory;
 
-    this.actorCache = Actor.createActor(idlFactory, {
-      agent: this.agentCache,
-      canisterId: this.canisterId,
+    this.coreActorCache = Actor.createActor(idlFactory, {
+      agent,
+      canisterId: this.coreCanisterId,
     });
 
-    return this.actorCache;
+    return this.coreActorCache;
   } catch (error) {
     console.error('Error creating actor:', error);
     throw error;
   }
 }
 
+  private async createRiskEngineActor(requireAuth = false) {
+    if (requireAuth) {
+      const user = await Promise.resolve(authService.getCurrentUser?.());
+      if (!user || !user.isConnected) {
+        throw new Error('User not authenticated');
+      }
+    }
+
+    // Return cached actor if available
+    if (this.riskEngineActorCache) {
+      return this.riskEngineActorCache;
+    }
+
+    try {
+      const { Actor } = await import('@dfinity/agent');
+
+      const agent = await this.createHttpAgent();
+
+      // Create IDL for risk engine canister
+      const riskEngineIdl = ({ IDL }: any) => {
+        const VerificationStatus = IDL.Variant({
+          'pending': IDL.Null,
+          'verified': IDL.Null,
+          'suspicious': IDL.Null,
+          'failed': IDL.Null,
+          'error': IDL.Null,
+        });
+
+        const JobPriority = IDL.Variant({
+          'high': IDL.Null,
+          'normal': IDL.Null,
+          'low': IDL.Null,
+        });
+
+        const VerificationProfile = IDL.Record({
+          'companyId': IDL.Nat,
+          'overallScore': IDL.Opt(IDL.Float64),
+          'verificationStatus': VerificationStatus,
+          'lastVerified': IDL.Int,
+          'nextDueAt': IDL.Opt(IDL.Int),
+          'checks': IDL.Vec(IDL.Record({
+            'checkType': IDL.Text,
+            'status': IDL.Text,
+            'score': IDL.Float64,
+            'details': IDL.Text,
+          })),
+          'fraudKeywords': IDL.Vec(IDL.Text),
+          'newsArticles': IDL.Nat,
+          'riskFactors': IDL.Vec(IDL.Text),
+          'confidenceLevel': IDL.Float64,
+        });
+
+        return IDL.Service({
+          'startVerification': IDL.Func(
+            [IDL.Nat, IDL.Text, JobPriority],
+            [IDL.Nat],
+            []
+          ),
+          'getCompanyVerificationStatus': IDL.Func(
+            [IDL.Nat],
+            [IDL.Opt(IDL.Record({
+              'status': VerificationStatus,
+              'score': IDL.Opt(IDL.Float64),
+              'lastVerified': IDL.Opt(IDL.Int),
+            }))],
+            ['query']
+          ),
+          'getCompanyVerificationProfile': IDL.Func(
+            [IDL.Nat],
+            [IDL.Opt(VerificationProfile)],
+            ['query']
+          ),
+          'companyNeedsReverification': IDL.Func(
+            [IDL.Nat],
+            [IDL.Bool],
+            ['query']
+          ),
+        });
+      };
+
+      this.riskEngineActorCache = Actor.createActor(riskEngineIdl, {
+        agent,
+        canisterId: this.riskEngineCanisterId,
+      });
+
+      return this.riskEngineActorCache;
+    } catch (error) {
+      console.error('Error creating risk engine actor:', error);
+      throw error;
+    }
+  }
+
   // Clear cache when user changes
   private clearCache() {
-    this.actorCache = null;
+    this.coreActorCache = null;
+    this.riskEngineActorCache = null;
     this.agentCache = null;
   }
 
@@ -460,6 +508,47 @@ private async createActor(requireAuth = true) {
       };
     } catch (error) {
       console.error('Error getting risk profile:', error);
+      throw error;
+    }
+  }
+
+  // Risk Engine Methods
+  async startVerification(companyId: number, companyName: string, priority: any = { normal: null }): Promise<number> {
+    try {
+      const actor = await this.createRiskEngineActor();
+      return await actor.startVerification(companyId, companyName, priority);
+    } catch (error) {
+      console.error('Error starting verification:', error);
+      throw error;
+    }
+  }
+
+  async getCompanyVerificationStatus(companyId: number): Promise<any> {
+    try {
+      const actor = await this.createRiskEngineActor();
+      return await actor.getCompanyVerificationStatus(companyId);
+    } catch (error) {
+      console.error('Error getting verification status:', error);
+      throw error;
+    }
+  }
+
+  async getCompanyVerificationProfile(companyId: number): Promise<any> {
+    try {
+      const actor = await this.createRiskEngineActor();
+      return await actor.getCompanyVerificationProfile(companyId);
+    } catch (error) {
+      console.error('Error getting verification profile:', error);
+      throw error;
+    }
+  }
+
+  async companyNeedsReverification(companyId: number): Promise<boolean> {
+    try {
+      const actor = await this.createRiskEngineActor();
+      return await actor.companyNeedsReverification(companyId);
+    } catch (error) {
+      console.error('Error checking if company needs reverification:', error);
       throw error;
     }
   }

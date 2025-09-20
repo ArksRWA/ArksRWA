@@ -1,10 +1,11 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { backendService, Company } from '../../services/backend';
-import { authService } from '../../services/auth';
-import StatusBadge, { getCompanyRiskStatus } from './StatusBadge';
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { backendService, Company } from "../../services/backend";
+import { authService } from "../../services/auth";
+import StatusBadge, { getCompanyRiskStatus } from "./StatusBadge";
+import Link from "next/link";
 
 interface CompanyListProps {
   maxCompanies?: number;
@@ -13,12 +14,12 @@ interface CompanyListProps {
 
 export default function CompanyList({
   maxCompanies = 6,
-  showViewAllButton = true
+  showViewAllButton = true,
 }: CompanyListProps) {
   const router = useRouter();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
@@ -28,23 +29,23 @@ export default function CompanyList({
   const loadCompanies = async () => {
     try {
       setLoading(true);
-      setError('');
+      setError("");
       // Check if user is authenticated (optional for display purposes)
       const user = authService.getCurrentUser();
       setCurrentUser(user);
-      
+
       // Fetch companies data - no authentication required
       const companiesList = await backendService.listCompanies();
       setCompanies(companiesList.slice(0, maxCompanies));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load companies');
+      setError(err instanceof Error ? err.message : "Failed to load companies");
     } finally {
       setLoading(false);
     }
   };
 
   const handleViewAll = () => {
-    router.push('/companies');
+    router.push("/companies");
   };
 
   if (loading) {
@@ -55,16 +56,29 @@ export default function CompanyList({
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-700">
-                  <th className="text-left py-3 px-4 text-gray-300 font-medium">Trending Company</th>
-                  <th className="text-left py-3 px-4 text-gray-300 font-medium">Risk Level</th>
-                  <th className="text-left py-3 px-4 text-gray-300 font-medium">Price</th>
-                  <th className="text-left py-3 px-4 text-gray-300 font-medium">Total Supply</th>
-                  <th className="text-center py-3 px-4 text-gray-300 font-medium">Action</th>
+                  <th className="text-left py-3 px-4 text-gray-300 font-medium">
+                    Trending Company
+                  </th>
+                  <th className="text-left py-3 px-4 text-gray-300 font-medium">
+                    Risk Level
+                  </th>
+                  <th className="text-left py-3 px-4 text-gray-300 font-medium">
+                    Price
+                  </th>
+                  <th className="text-left py-3 px-4 text-gray-300 font-medium">
+                    Total Supply
+                  </th>
+                  <th className="text-center py-3 px-4 text-gray-300 font-medium">
+                    Action
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {[...Array(6)].map((_, index) => (
-                  <tr key={index} className="border-b border-gray-700/50 animate-pulse">
+                  <tr
+                    key={index}
+                    className="border-b border-gray-700/50 animate-pulse"
+                  >
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg bg-gray-700"></div>
@@ -116,7 +130,6 @@ export default function CompanyList({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-
       {companies.length > 0 ? (
         <>
           <div className="bg-card-bg border border-gray-700 rounded-lg p-6 mb-8">
@@ -124,11 +137,21 @@ export default function CompanyList({
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-700">
-                    <th className="text-left py-3 px-4 text-gray-300 font-medium">Company</th>
-                    <th className="text-left py-3 px-4 text-gray-300 font-medium">Risk Level</th>
-                    <th className="text-left py-3 px-4 text-gray-300 font-medium">Price</th>
-                    <th className="text-left py-3 px-4 text-gray-300 font-medium">Total Supply</th>
-                    <th className="text-center py-3 px-4 text-gray-300 font-medium">Action</th>
+                    <th className="text-left py-3 px-4 text-gray-300 font-medium">
+                      Company
+                    </th>
+                    <th className="text-left py-3 px-4 text-gray-300 font-medium">
+                      Risk Level
+                    </th>
+                    <th className="text-left py-3 px-4 text-gray-300 font-medium">
+                      Price
+                    </th>
+                    <th className="text-left py-3 px-4 text-gray-300 font-medium">
+                      Total Supply
+                    </th>
+                    <th className="text-center py-3 px-4 text-gray-300 font-medium">
+                      Action
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -136,7 +159,7 @@ export default function CompanyList({
                     <tr
                       key={company.id}
                       className={`border-b border-gray-700/50 hover:bg-gray-800/30 transition-colors ${
-                        index === companies.length - 1 ? 'border-b-0' : ''
+                        index === companies.length - 1 ? "border-b-0" : ""
                       }`}
                     >
                       <td className="py-4 px-4">
@@ -149,17 +172,26 @@ export default function CompanyList({
                             />
                           ) : (
                             <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-green-600/20 to-green-700/20 flex items-center justify-center">
-                              <span className="text-sm font-bold text-primary">{company.symbol[0]}</span>
+                              <span className="text-sm font-bold text-primary">
+                                {company.symbol[0]}
+                              </span>
                             </div>
                           )}
                           <div>
-                            <div className="font-medium text-white">{company.name}</div>
-                            <div className="text-sm text-gray-400">{company.symbol}</div>
+                            <div className="font-medium text-white">
+                              {company.name}
+                            </div>
+                            <div className="text-sm text-gray-400">
+                              {company.symbol}
+                            </div>
                           </div>
                         </div>
                       </td>
                       <td className="py-4 px-4">
-                        <StatusBadge status={getCompanyRiskStatus(company)} size="small" />
+                        <StatusBadge
+                          status={getCompanyRiskStatus(company)}
+                          size="small"
+                        />
                       </td>
                       <td className="py-4 px-4">
                         <div className="text-white font-medium">
@@ -176,12 +208,12 @@ export default function CompanyList({
                         </div>
                       </td>
                       <td className="py-4 px-4 text-center">
-                        <button
-                          onClick={() => router.push('/companies')}
-                          className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg transition-colors text-sm"
+                        <Link
+                          href={`/company?id=${company.id}`}
+                          className="inline-block px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg transition-colors text-sm"
                         >
                           View Company
-                        </button>
+                        </Link>
                       </td>
                     </tr>
                   ))}
@@ -203,7 +235,9 @@ export default function CompanyList({
         </>
       ) : (
         <div className="text-center py-12">
-          <div className="text-gray-400 mb-4">No companies available at the moment</div>
+          <div className="text-gray-400 mb-4">
+            No companies available at the moment
+          </div>
           {showViewAllButton && currentUser && currentUser.isConnected && (
             <button
               onClick={handleViewAll}

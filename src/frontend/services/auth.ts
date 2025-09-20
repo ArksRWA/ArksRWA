@@ -4,15 +4,20 @@ import type { AuthUser, AuthService } from '../types/canister';
 // Re-export types for convenience
 export type { AuthUser, AuthService } from '../types/canister';
 
-// Extend Window interface for Plug wallet
+// ---- Plug typings (updated) ----
 declare global {
   interface Window {
     ic?: {
       plug?: {
-        requestConnect: (options?: any) => Promise<any>;
-        agent: any;
-        principal: any;
-        accountId: string;
+        requestConnect: (options?: { whitelist?: string[]; host?: string; timeout?: number }) => Promise<any>;
+        isConnected: () => Promise<boolean>;
+        disconnect?: () => Promise<void>;
+        agent: any | null;
+        principalId?: string;
+        accountId?: string;
+        isWalletLocked?: boolean;
+        onExternalDisconnect?: (cb: () => void) => void;
+        onLockStateChange?: (cb: (locked: boolean) => void) => void;
       };
     };
   }
@@ -24,184 +29,95 @@ class AuthServiceImpl implements AuthService {
   private readonly host = HOST;
   private userRole: 'user' | 'company' | undefined = undefined;
   private identityCheckInterval: NodeJS.Timeout | null = null;
+  private whitelist = [this.canisterId];
 
+  constructor() {
+    // Advisory restore (NOT trusted as authenticated until verified)
+    this.restoreSession();
+
+    // React to wallet events (revokes / lock state)
+    if (window.ic?.plug) {
+      window.ic.plug.onExternalDisconnect?.(() => this.disconnect());
+      window.ic.plug.onLockStateChange?.((_locked) => {
+        // optional: reflect lock state in UI
+      });
+    }
+  }
+
+  // ---------- Public API ----------
   async connectPlug(): Promise<AuthUser> {
-    // Check if Plug wallet is available
-    if (!window.ic?.plug) {
-      throw new Error("Plug wallet not detected");
+    if (!window.ic?.plug) throw new Error('Plug wallet not detected');
+
+    // (1) Ensure live connection (request if needed)
+    let connected = await window.ic.plug.isConnected();
+    if (!connected) {
+      await window.ic.plug.requestConnect({
+        whitelist: this.whitelist,
+        host: this.host,
+        timeout: 50_000,
+      });
+      connected = await window.ic.plug.isConnected();
+    }
+    if (!connected) {
+      this.disconnect();
+      throw new Error('Unable to establish a Plug connection.');
     }
 
-    // Dynamic import to avoid SSR issues
-    const { PlugLogin } = await import('ic-auth');
-
-    const whitelist = [this.canisterId];
-    const user = await PlugLogin(whitelist, this.host);
-
-    if (user && user.principal) {
-      const authUser: AuthUser = {
-        principal: typeof user.principal === 'string' ? user.principal : String(user.principal),
-        agent: user.agent,
-        isConnected: true,
-        walletType: 'plug'
-      };
-
-      this.currentUser = authUser;
-      
-      // Start periodic identity verification
-      this.startIdentityCheck();
-      
-      // Persist user session in localStorage
-      try {
-        localStorage.setItem('arks-rwa-auth', JSON.stringify({
-          principal: authUser.principal,
-          isConnected: authUser.isConnected,
-          walletType: authUser.walletType
-        }));
-      } catch (e) {
-        console.warn('Failed to store auth in local storage:', e);
-      }
-      
-      console.log("Plug wallet connected successfully with ic-auth!");
-      return authUser;
-    } else {
-      throw new Error("Failed to get user object from Plug");
+    // (2) Hydrate from live provider (source of truth)
+    const principal = window.ic.plug.principalId;
+    if (!principal) {
+      this.disconnect();
+      throw new Error('Plug connected but principalId unavailable.');
     }
+
+    this.currentUser = {
+      principal,
+      agent: window.ic.plug.agent ?? null,
+      isConnected: true,
+      walletType: 'plug',
+      role: this.getUserRole(),
+      sessionRestored: false,
+    };
+
+    // (3) Store a minimal advisory hint
+    this.writeHint(principal);
+
+    // (4) Start identity checks (optional hardening)
+    this.startIdentityCheck();
+
+    console.log('Plug wallet connected successfully.');
+    return this.currentUser;
   }
 
   disconnect(): void {
+    try { window.ic?.plug?.disconnect?.(); } catch { /* ignore */ }
+
     this.currentUser = null;
     this.userRole = undefined;
-    
-    // Stop identity checking
     this.stopIdentityCheck();
-    
-    console.log("User disconnected");
-
-    // Clear any stored session data
-    try {
-      localStorage.removeItem('arks-rwa-auth');
-      localStorage.removeItem('arks-rwa-role');
-    } catch (e) {
-      console.warn('Failed to clear local storage:', e);
-    }
+    this.clearStorage();
+    console.log('User disconnected');
 
     // Clear backend service cache when user disconnects
-    import('./backend').then(({ backendService }) => {
-      backendService.disconnect();
-    });
+    import('./backend').then(({ backendService }) => backendService.disconnect());
   }
 
   getCurrentUser(): AuthUser | null {
-    // Try to restore session if user is null but localStorage has data
-    if (!this.currentUser) {
-      this.restoreSession();
-    }
-    
     if (this.currentUser && !this.currentUser.role) {
-      // Add role to current user if not present
       const role = this.getUserRole();
-      if (role) {
-        this.currentUser.role = role;
-      }
+      if (role) this.currentUser.role = role;
     }
     return this.currentUser;
   }
 
-  private restoreSession(): void {
-    try {
-      const storedAuth = localStorage.getItem('arks-rwa-auth');
-      
-      if (storedAuth) {
-        const authData = JSON.parse(storedAuth);
-        
-        // Validate that the stored wallet is actually available in current tab
-        const walletAvailable = this.isWalletAvailable(authData.walletType);
-        
-        if (!walletAvailable) {
-          // Wallet not available, clear session silently
-          localStorage.removeItem('arks-rwa-auth');
-          localStorage.removeItem('arks-rwa-role');
-          return;
-        }
-        
-        // Recreate user object with session state (agent will be recreated on demand)
-        this.currentUser = {
-          principal: authData.principal,
-          agent: null, // Will be recreated on first blockchain call
-          isConnected: true, // Session is valid, but may need wallet reconnection for transactions
-          walletType: authData.walletType || 'plug',
-          sessionRestored: true // Flag to indicate this is a restored session
-        };
-      }
-    } catch (e) {
-      console.warn('Failed to restore session from local storage:', e);
-      // Clear corrupted data
-      localStorage.removeItem('arks-rwa-auth');
-    }
-  }
-
-  private isWalletAvailable(walletType: string): boolean {
-    switch (walletType) {
-      case 'plug':
-        return !!(window.ic?.plug);
-      default:
-        return false;
-    }
-  }
-
   isAuthenticated(): boolean {
-    return this.currentUser !== null && this.currentUser.isConnected;
-  }
-
-  // Recreate agent if session was restored and agent is needed for blockchain calls
-  async ensureAgent(): Promise<boolean> {
-    if (!this.currentUser || this.currentUser.agent) {
-      return !!this.currentUser?.agent;
-    }
-
-    if (this.currentUser.sessionRestored) {
-      try {
-        // Attempt to reconnect the wallet silently
-        if (this.currentUser.walletType === 'plug' && window.ic?.plug) {
-          // SECURITY: Verify the current wallet identity matches stored session
-          const currentPrincipal = await window.ic.plug.agent?.getPrincipal?.();
-          const currentPrincipalString = currentPrincipal ? String(currentPrincipal) : null;
-          
-          if (currentPrincipalString && currentPrincipalString !== this.currentUser.principal) {
-            // Identity has changed! Clear old session and force re-authentication
-            console.warn('Wallet identity changed, clearing old session');
-            this.disconnect();
-            return false;
-          }
-          
-          // Try to get existing connection without user prompt
-          const connected = await window.ic.plug.agent;
-          if (connected) {
-            this.currentUser.agent = connected;
-            this.currentUser.sessionRestored = false;
-            return true;
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to restore agent silently:', e);
-        // If we can't verify identity, clear session for security
-        this.disconnect();
-        return false;
-      }
-    }
-
-    return false;
+    return !!(this.currentUser && this.currentUser.isConnected);
   }
 
   setUserRole(role: 'user' | 'company'): void {
     this.userRole = role;
-    if (this.currentUser) {
-      this.currentUser.role = role;
-    }
-
-    try {
-      localStorage.setItem('arks-rwa-role', role);
-    } catch (e) {
+    if (this.currentUser) this.currentUser.role = role;
+    try { localStorage.setItem('arks-rwa-role', role); } catch (e) {
       console.warn('Failed to store role in local storage:', e);
     }
   }
@@ -209,27 +125,96 @@ class AuthServiceImpl implements AuthService {
   getUserRole(): 'user' | 'company' | undefined {
     if (!this.userRole) {
       try {
-        const storedRole = localStorage.getItem('arks-rwa-role') as 'user' | 'company' | null;
-        if (storedRole) {
-          this.userRole = storedRole;
-        }
+        const r = localStorage.getItem('arks-rwa-role') as 'user' | 'company' | null;
+        if (r === 'user' || r === 'company') this.userRole = r;
       } catch (e) {
         console.warn('Failed to get role from local storage:', e);
       }
     }
-
     return this.userRole;
   }
 
-  // Periodic identity verification to detect wallet switches
-  private startIdentityCheck(): void {
-    this.stopIdentityCheck(); // Clear any existing interval
-    
-    if (typeof window !== 'undefined') {
-      this.identityCheckInterval = setInterval(async () => {
-        await this.verifyCurrentIdentity();
-      }, 5000); // Check every 5 seconds
+  // ---------- Internals ----------
+  private writeHint(principal: string) {
+    try {
+      localStorage.setItem('arks-rwa-auth', JSON.stringify({
+        principal,
+        walletType: 'plug',
+        ts: Date.now(),
+      }));
+    } catch (e) {
+      console.warn('Failed to store auth in local storage:', e);
     }
+  }
+
+  private clearStorage() {
+    try {
+      localStorage.removeItem('arks-rwa-auth');
+      localStorage.removeItem('arks-rwa-role');
+    } catch (e) {
+      console.warn('Failed to clear local storage:', e);
+    }
+  }
+
+  private restoreSession(): void {
+    try {
+      const raw = localStorage.getItem('arks-rwa-auth');
+      if (!raw) return;
+
+      const authData = JSON.parse(raw);
+      if (authData?.walletType !== 'plug' || !window.ic?.plug) {
+        this.clearStorage();
+        return;
+      }
+
+      // Do NOT mark as connected yet — verify later
+      this.currentUser = {
+        principal: String(authData.principal),
+        agent: null,
+        isConnected: false,
+        walletType: 'plug',
+        sessionRestored: true,
+      };
+    } catch (e) {
+      console.warn('Failed to restore session from local storage:', e);
+      this.clearStorage();
+    }
+  }
+
+  // Recreate/verify agent if needed just before canister calls
+  async ensureAgent(): Promise<boolean> {
+    if (!this.currentUser) return false;
+
+    const liveConnected = await window.ic?.plug?.isConnected?.();
+    if (this.currentUser.agent && liveConnected) return true;
+
+    if (this.currentUser.sessionRestored && window.ic?.plug) {
+      const connected = await window.ic.plug.isConnected();
+      if (!connected) return false;
+
+      const principalNow = window.ic.plug.principalId;
+      if (!principalNow || principalNow !== this.currentUser.principal) {
+        console.warn('Wallet identity changed, clearing old session');
+        this.disconnect();
+        return false;
+      }
+
+      this.currentUser.agent = window.ic.plug.agent ?? null;
+      this.currentUser.isConnected = true;
+      this.currentUser.sessionRestored = false;
+      return !!this.currentUser.agent;
+    }
+
+    return false;
+  }
+
+  // Periodic identity verification (detect account switch/revoke)
+  private startIdentityCheck(): void {
+    this.stopIdentityCheck();
+    if (typeof window === 'undefined') return;
+    this.identityCheckInterval = setInterval(async () => {
+      await this.verifyCurrentIdentity();
+    }, 5000);
   }
 
   private stopIdentityCheck(): void {
@@ -240,36 +225,21 @@ class AuthServiceImpl implements AuthService {
   }
 
   private async verifyCurrentIdentity(): Promise<void> {
-    if (!this.currentUser || !this.currentUser.isConnected) {
-      return;
-    }
+    if (!this.currentUser) return;
+    if (!window.ic?.plug) { this.disconnect(); return; }
 
     try {
-      if (this.currentUser.walletType === 'plug' && window.ic?.plug) {
-        const currentPrincipal = await window.ic.plug.agent?.getPrincipal?.();
-        const currentPrincipalString = currentPrincipal ? String(currentPrincipal) : null;
-        
-        if (currentPrincipalString && currentPrincipalString !== this.currentUser.principal) {
-          // Identity mismatch detected!
-          console.warn('Wallet identity switch detected, forcing logout');
-          
-          // Force logout and redirect to login
-          this.disconnect();
-          
-          // Notify user about the identity change
-          if (typeof window !== 'undefined' && window.location) {
-            window.dispatchEvent(new CustomEvent('wallet-identity-changed', {
-              detail: { 
-                oldPrincipal: this.currentUser.principal, 
-                newPrincipal: currentPrincipalString 
-              }
-            }));
-          }
-        }
+      const connected = await window.ic.plug.isConnected();
+      const livePrincipal = window.ic.plug.principalId;
+      if (!connected || !livePrincipal || livePrincipal !== this.currentUser.principal) {
+        console.warn('Wallet identity mismatch or disconnected, forcing logout');
+        this.disconnect();
+        window.dispatchEvent(new CustomEvent('wallet-identity-changed', {
+          detail: { oldPrincipal: this.currentUser?.principal, newPrincipal: livePrincipal || null }
+        }));
       }
     } catch (e) {
       console.warn('Identity verification failed:', e);
-      // If we can't verify identity, disconnect for security
       this.disconnect();
     }
   }

@@ -7,7 +7,7 @@ import { verificationScheduler } from '../services/verificationScheduler';
 import CompanyList from './components/CompanyList';
 import LoginModal from './components/LoginModal';
 import { CANISTER_IDS, NETWORK, HOST, getCurrentCanisterIds } from '../config/canister';
-import ScaledAppImage from '@/components/ScaledAppImage';
+import ScaledAppImage from '@/app/components/ScaledAppImage';
 
 export default function HomePage() {
   const router = useRouter();

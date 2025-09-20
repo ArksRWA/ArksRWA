@@ -7,6 +7,7 @@ import { verificationScheduler } from '../services/verificationScheduler';
 import CompanyList from './components/CompanyList';
 import LoginModal from './components/LoginModal';
 import { CANISTER_IDS, NETWORK, HOST, getCurrentCanisterIds } from '../config/canister';
+import ScaledAppImage from '@/components/ScaledAppImage';
 
 export default function HomePage() {
   const router = useRouter();
@@ -289,31 +290,7 @@ export default function HomePage() {
         <div className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-r from-green-900/20 via-blue-900/10 to-purple-900/20"></div>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
-          <div className="modern-card p-8">
-            {/* Website Screenshot */}
-                {/* Browser Chrome */}
-                <div className="flex items-center gap-3 px-4 py-3 bg-gray-800 border-b border-gray-700">
-                  <div className="flex gap-2">
-                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                    <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  </div>
-                  <div className="flex-1 bg-gray-700 rounded-lg px-3 py-1">
-                    <span className="text-gray-400 text-xs font-mono">{typeof window !== 'undefined' ? window.location.href : 'http://localhost:3000'}</span>
-                  </div>
-                </div>
-                
-                {/* Screenshot Image */}
-                <div className="relative">
-                  <img 
-                    src="/screenshot-web.jpeg" 
-                    alt="ARKS RWA Homepage Screenshot" 
-                    className="w-full h-auto object-cover"
-                    style={{ maxHeight: '600px' }}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
-                </div>
-              </div>
+            <ScaledAppImage />
           </div>
         </div>
       )}

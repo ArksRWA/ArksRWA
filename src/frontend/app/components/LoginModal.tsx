@@ -8,14 +8,16 @@ interface LoginModalProps {
   onLoginAsUser: () => void;
   onLoginAsCompany: () => void;
   isConnecting: boolean;
+  context?: 'company-view' | 'general';
 }
 
-export default function LoginModal({ 
-  isOpen, 
-  onClose, 
-  onLoginAsUser, 
-  onLoginAsCompany, 
-  isConnecting 
+export default function LoginModal({
+  isOpen,
+  onClose,
+  onLoginAsUser,
+  onLoginAsCompany,
+  isConnecting,
+  context = 'general'
 }: LoginModalProps) {
   if (!isOpen) return null;
 
@@ -53,12 +55,26 @@ export default function LoginModal({
         {/* Header */}
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-gradient-to-r from-green-600/20 to-green-700/20 rounded-lg flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
+            {context === 'company-view' ? (
+              <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+            ) : (
+              <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            )}
           </div>
-          <h3 className="text-2xl font-bold text-white mb-2">Choose Login Type</h3>
-          <p className="text-white-400">Select how you want to access the platform</p>
+          <h3 className="text-2xl font-bold text-white mb-2">
+            {context === 'company-view' ? 'Connect to View Company Details' : 'Choose Login Type'}
+          </h3>
+          <p className="text-gray-400">
+            {context === 'company-view'
+              ? 'Connect your wallet to explore company details, view pricing, and start investing'
+              : 'Select how you want to access the platform'
+            }
+          </p>
         </div>
 
         {/* Login Options */}
@@ -77,7 +93,10 @@ export default function LoginModal({
               </div>
               <h4 className="text-xl font-semibold text-white mb-2">Login as User</h4>
               <p className="text-sm text-gray-400">
-                Browse and invest in tokenized companies
+                {context === 'company-view'
+                  ? 'View company details and invest in tokens'
+                  : 'Browse and invest in tokenized companies'
+                }
               </p>
             </div>
           </button>
@@ -96,7 +115,10 @@ export default function LoginModal({
               </div>
               <h4 className="text-xl font-semibold text-white mb-2">Login as Company</h4>
               <p className="text-sm text-gray-400">
-                Create and manage your tokenized company
+                {context === 'company-view'
+                  ? 'Access company management dashboard'
+                  : 'Create and manage your tokenized company'
+                }
               </p>
             </div>
           </button>

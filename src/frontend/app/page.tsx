@@ -6,7 +6,6 @@ import { authService, AuthUser } from '../services/auth';
 import { verificationScheduler } from '../services/verificationScheduler';
 import CompanyList from './components/CompanyList';
 import LoginModal from './components/LoginModal';
-import { CANISTER_IDS, NETWORK, HOST, getCurrentCanisterIds } from '../config/canister';
 import ScaledAppImage from '@/components/ScaledAppImage';
 
 export default function HomePage() {
@@ -16,6 +15,7 @@ export default function HomePage() {
   const [error, setError] = useState('');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginType, setLoginType] = useState<'user' | 'company' | null>(null);
+  const [loginContext, setLoginContext] = useState<'company-view' | 'general'>('general');
   const [verificationStatus, setVerificationStatus] = useState<{
     isRunning: boolean;
     activeVerifications: number[];
@@ -34,8 +34,10 @@ export default function HomePage() {
     const user = authService.getCurrentUser();
     if (user && user.isConnected) {
       setCurrentUser(user);
-      // Redirect to dashboard immediately if user is already logged in
-      router.push('/dashboard');
+      // Redirect to appropriate dashboard based on user role
+      const userRole = authService.getUserRole();
+      const dashboardPath = userRole === 'company' ? '/company-dashboard' : '/dashboard';
+      router.push(dashboardPath);
     }
 
     // Start daily verification scheduler when app loads
@@ -72,7 +74,8 @@ export default function HomePage() {
     };
   }, [router]);
 
-  const handleShowLoginModal = () => {
+  const handleShowLoginModal = (context: 'company-view' | 'general' = 'general') => {
+    setLoginContext(context);
     setShowLoginModal(true);
     setError('');
   };
@@ -80,6 +83,7 @@ export default function HomePage() {
   const handleCloseLoginModal = () => {
     setShowLoginModal(false);
     setLoginType(null);
+    setLoginContext('general');
   };
 
   const handleLoginAsUser = async () => {
@@ -247,7 +251,7 @@ export default function HomePage() {
             {/* Connection Buttons */}
             <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-12">
               <button
-                onClick={handleShowLoginModal}
+                onClick={() => handleShowLoginModal()}
                 disabled={isConnecting}
                 className="group relative flex items-center gap-3 px-10 py-5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-2xl hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed min-w-[240px] font-semibold shadow-2xl transition-all duration-300 overflow-hidden"
               >
@@ -261,7 +265,7 @@ export default function HomePage() {
               </button>
               
               <button
-                onClick={handleShowLoginModal}
+                onClick={() => handleShowLoginModal()}
                 disabled={isConnecting}
                 className="group relative flex items-center gap-3 px-10 py-5 bg-card-bg backdrop-blur-sm border border-card-border text-foreground rounded-2xl hover:bg-card-bg-hover hover:border-card-border-hover hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed min-w-[240px] font-semibold transition-all duration-300"
               >
@@ -306,7 +310,7 @@ export default function HomePage() {
           </p>
         </div>
           <div className="animate-fade-in-up" style={{animationDelay: '0.4s'}}>
-            <CompanyList />
+            <CompanyList onViewCompanyClick={() => handleShowLoginModal('company-view')} />
           </div>
         </div>
       </div>
@@ -348,7 +352,7 @@ export default function HomePage() {
               
               <div className="flex flex-col sm:flex-row gap-4">
                 <button
-                  onClick={handleShowLoginModal}
+                  onClick={() => handleShowLoginModal()}
                   disabled={isConnecting}
                   className="group relative px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-xl hover:scale-105 transition-all duration-300 disabled:opacity-50 font-bold shadow-2xl overflow-hidden"
                 >
@@ -477,7 +481,7 @@ export default function HomePage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-6 justify-center">
               <button
-                onClick={handleShowLoginModal}
+                onClick={() => handleShowLoginModal()}
                 disabled={isConnecting}
                 className="group relative px-10 py-4 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-2xl hover:scale-105 transition-all duration-300 disabled:opacity-50 font-semibold shadow-2xl overflow-hidden"
               >
@@ -502,6 +506,7 @@ export default function HomePage() {
         onLoginAsUser={handleLoginAsUser}
         onLoginAsCompany={handleLoginAsCompany}
         isConnecting={isConnecting}
+        context={loginContext}
       />
     </div>
   );

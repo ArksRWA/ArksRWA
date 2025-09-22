@@ -9,11 +9,13 @@ import StatusBadge, { getCompanyRiskStatus } from './StatusBadge';
 interface CompanyListProps {
   maxCompanies?: number;
   showViewAllButton?: boolean;
+  onViewCompanyClick?: () => void;
 }
 
 export default function CompanyList({
   maxCompanies = 6,
-  showViewAllButton = true
+  showViewAllButton = true,
+  onViewCompanyClick
 }: CompanyListProps) {
   const router = useRouter();
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -177,7 +179,7 @@ export default function CompanyList({
                       </td>
                       <td className="py-4 px-4 text-center">
                         <button
-                          onClick={() => router.push('/companies')}
+                          onClick={onViewCompanyClick}
                           className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg transition-colors text-sm"
                         >
                           View Company

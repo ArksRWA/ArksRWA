@@ -212,7 +212,7 @@ export default function Navigation({ className = '' }: NavigationProps) {
           <div className="flex items-center">
             {isAuthenticated ? (
               <button
-                onClick={() => router.push('/')}
+                onClick={() => router.push(userRole === 'company' ? '/company-dashboard' : '/dashboard')}
                 className="flex items-center gap-3 text-foreground hover:text-primary transition-all duration-300 group"
               >
                 <div className="w-10 h-10 rounded-2xl bg-gradient-button flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform duration-300">
@@ -336,6 +336,7 @@ export default function Navigation({ className = '' }: NavigationProps) {
         onLoginAsUser={handleLoginAsUser}
         onLoginAsCompany={handleLoginAsCompany}
         isConnecting={isConnecting}
+        context="general"
       />
     </nav>
   );

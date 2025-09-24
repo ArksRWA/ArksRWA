@@ -78,6 +78,9 @@ dev-deploy:
     - scp -i $ID_RSA -o StrictHostKeyChecking=no .env root@$SERVER_HOST:/home/arks/domains/dev.arks.web.id/public_html/
     - scp -i $ID_RSA -o StrictHostKeyChecking=no -r ./src/AI root@$SERVER_HOST:/home/arks/domains/ai.arks.web.id/public_html/
     - ssh -i $ID_RSA -o StrictHostKeyChecking=no root@$SERVER_HOST "
+      cd /home/arks/domains/ai.arks.web.id/public_html;
+      docker build -t ai-engine-image .;
+      docker run -d --name ai-engine --network arks-network -p 1010:3001 -v ai-state:/app -w /app ai-engine-image /bin/bash -c 'echo "🧠 Starting AI Engine..." && npm run start:prod && tail -f /dev/null';
       cd /home/arks/domains/dev.arks.web.id/public_html;
       source .env;
       docker compose -f docker-compose.yml pull dfx;

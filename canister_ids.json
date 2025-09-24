@@ -1,0 +1,17 @@
+{
+  "arks-core": {
+    "ic": "3jvl6-taaaa-aaaad-qhpla-cai"
+  },
+  "arks-identity": {
+    "ic": "3ounk-6yaaa-aaaad-qhplq-cai"
+  },
+  "arks-risk-engine": {
+    "ic": "2d2je-rqaaa-aaaad-qhpma-cai"
+  },
+  "arks-token-factory": {
+    "ic": "2e3pq-4iaaa-aaaad-qhpmq-cai"
+  },
+  "frontend": {
+    "ic": "2nyem-kaaaa-aaaad-qhpna-cai"
+  }
+}

@@ -1,0 +1,453 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { backendService, Company } from '../../services/backend';
+import { authService, AuthUser } from '../../services/auth';
+
+interface Transaction {
+  id: string;
+  type: 'buy' | 'sell';
+  company: Company;
+  amount: number;
+  pricePerToken: number;
+  totalValue: number;
+  timestamp: number;
+  status: 'completed' | 'pending' | 'failed';
+  txHash?: string;
+}
+
+type FilterType = 'all' | 'buy' | 'sell';
+type SortOption = 'timestamp' | 'amount' | 'totalValue' | 'company';
+type SortDirection = 'asc' | 'desc';
+
+export default function TransactionsPage() {
+  const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // Filter and sort states
+  const [filterType, setFilterType] = useState<FilterType>('all');
+  const [sortBy, setSortBy] = useState<SortOption>('timestamp');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [selectedCompany, setSelectedCompany] = useState<string>('');
+
+  useEffect(() => {
+    const checkAuth = () => {
+      const user = authService.getCurrentUser();
+      if (!user || !user.isConnected) {
+        router.push('/');
+        return;
+      }
+      setCurrentUser(user);
+      loadTransactionData();
+    };
+    
+    checkAuth();
+  }, [router]);
+
+  useEffect(() => {
+    applyFiltersAndSort();
+  }, [transactions, filterType, sortBy, sortDirection, dateRange, selectedCompany]);
+
+  const loadTransactionData = async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      // Load companies for reference
+      const companiesList = await backendService.listCompanies();
+      setCompanies(companiesList);
+
+      // No transactions to load - real implementation would call backendService.getTransactionHistory()
+      setTransactions([]);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load transaction data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+
+  const applyFiltersAndSort = () => {
+    let filtered = [...transactions];
+
+    // Apply type filter
+    if (filterType !== 'all') {
+      filtered = filtered.filter(tx => tx.type === filterType);
+    }
+
+    // Apply company filter
+    if (selectedCompany) {
+      filtered = filtered.filter(tx => tx.company.id.toString() === selectedCompany);
+    }
+
+    // Apply date range filter
+    if (dateRange.start) {
+      const startDate = new Date(dateRange.start).getTime();
+      filtered = filtered.filter(tx => tx.timestamp >= startDate);
+    }
+    if (dateRange.end) {
+      const endDate = new Date(dateRange.end).getTime() + 24 * 60 * 60 * 1000; // End of day
+      filtered = filtered.filter(tx => tx.timestamp <= endDate);
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+
+      if (sortBy === 'company') {
+        aValue = a.company.name.toLowerCase();
+        bValue = b.company.name.toLowerCase();
+      } else {
+        aValue = a[sortBy as keyof Transaction];
+        bValue = b[sortBy as keyof Transaction];
+      }
+
+      if (sortDirection === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      } else {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+      }
+    });
+
+    setFilteredTransactions(filtered);
+  };
+
+  const handleSort = (option: SortOption) => {
+    if (sortBy === option) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(option);
+      setSortDirection('desc');
+    }
+  };
+
+  const resetFilters = () => {
+    setFilterType('all');
+    setSelectedCompany('');
+    setDateRange({ start: '', end: '' });
+    setSortBy('timestamp');
+    setSortDirection('desc');
+  };
+
+  const formatDate = (timestamp: number) => {
+    return new Date(timestamp).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return 'text-green-400 bg-green-900/20 border-green-500/30';
+      case 'pending': return 'text-yellow-400 bg-yellow-900/20 border-yellow-500/30';
+      case 'failed': return 'text-red-400 bg-red-900/20 border-red-500/30';
+      default: return 'text-gray-400 bg-gray-900/20 border-gray-500/30';
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+        <div className="text-white">Loading transactions...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-400 mb-4">{error}</div>
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg transition-colors"
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4 pt-20">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-white mb-2">Transaction History</h1>
+          <p className="text-gray-400">Track your trading activity and performance</p>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+          <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xs font-semibold text-gray-600 tracking-wider">Transactions</h2>
+              <svg className="w-7 h-7 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <div className="text-3xl font-black text-white">{transactions.length}</div>
+          </div>
+
+          <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xs font-semibold text-gray-600 tracking-wider">Orders</h2>
+              <svg className="w-7 h-7 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-green-400 font-bold">↗</span>
+                <span className="text-2xl font-black text-white">
+                  {transactions.filter(tx => tx.type === 'buy').length}
+                </span>
+                <span className="text-sm text-gray-400">Buy</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-red-400 font-bold">↙</span>
+                <span className="text-2xl font-black text-white">
+                  {transactions.filter(tx => tx.type === 'sell').length}
+                </span>
+                <span className="text-sm text-gray-400">Sell</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xs font-semibold text-gray-600 tracking-wider">Volume</h2>
+              <svg className="w-12 h-12 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+              </svg>
+            </div>
+            <div className="text-3xl font-black text-white">
+              {transactions.reduce((sum, tx) => sum + tx.totalValue, 0).toLocaleString()}
+            </div>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="bg-card-bg border border-gray-700 rounded-lg p-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+            {/* Transaction Type Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Type</label>
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value as FilterType)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              >
+                <option value="all">All Types</option>
+                <option value="buy">Buy Orders</option>
+                <option value="sell">Sell Orders</option>
+              </select>
+            </div>
+
+            {/* Company Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Company</label>
+              <select
+                value={selectedCompany}
+                onChange={(e) => setSelectedCompany(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              >
+                <option value="">All Companies</option>
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id.toString()}>
+                    {company.name} ({company.symbol})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Date Range */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">From Date</label>
+              <input
+                type="date"
+                value={dateRange.start}
+                onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">To Date</label>
+              <input
+                type="date"
+                value={dateRange.end}
+                onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+            </div>
+
+            {/* Sort */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Sort By</label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              >
+                <option value="timestamp">Date</option>
+                <option value="company">Company</option>
+                <option value="amount">Amount</option>
+                <option value="totalValue">Value</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-gray-400">
+              {filteredTransactions.length} of {transactions.length} transactions
+            </span>
+            <button
+              onClick={resetFilters}
+              className="px-4 py-2 text-sm bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+            >
+              Reset Filters
+            </button>
+          </div>
+        </div>
+
+        {/* Transactions Table */}
+        <div className="bg-card-bg border border-gray-700 rounded-lg overflow-hidden">
+          {filteredTransactions.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-800">
+                  <tr>
+                    <th className="text-left py-4 px-6 text-gray-300 font-medium">
+                      <button
+                        onClick={() => handleSort('timestamp')}
+                        className="flex items-center gap-2 hover:text-white"
+                      >
+                        Date
+                        {sortBy === 'timestamp' && (
+                          <span>{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </button>
+                    </th>
+                    <th className="text-left py-4 px-6 text-gray-300 font-medium">Type</th>
+                    <th className="text-left py-4 px-6 text-gray-300 font-medium">
+                      <button
+                        onClick={() => handleSort('company')}
+                        className="flex items-center gap-2 hover:text-white"
+                      >
+                        Company
+                        {sortBy === 'company' && (
+                          <span>{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </button>
+                    </th>
+                    <th className="text-right py-4 px-6 text-gray-300 font-medium">
+                      <button
+                        onClick={() => handleSort('amount')}
+                        className="flex items-center gap-2 hover:text-white ml-auto"
+                      >
+                        Amount
+                        {sortBy === 'amount' && (
+                          <span>{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </button>
+                    </th>
+                    <th className="text-right py-4 px-6 text-gray-300 font-medium">Price</th>
+                    <th className="text-right py-4 px-6 text-gray-300 font-medium">
+                      <button
+                        onClick={() => handleSort('totalValue')}
+                        className="flex items-center gap-2 hover:text-white ml-auto"
+                      >
+                        Total Value
+                        {sortBy === 'totalValue' && (
+                          <span>{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </button>
+                    </th>
+                    <th className="text-right py-4 px-6 text-gray-300 font-medium">Status</th>
+                    <th className="text-right py-4 px-6 text-gray-300 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTransactions.map((transaction) => (
+                    <tr key={transaction.id} className="border-t border-gray-700 hover:bg-gray-800/50">
+                      <td className="py-4 px-6 text-gray-300">{formatDate(transaction.timestamp)}</td>
+                      <td className="py-4 px-6">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          transaction.type === 'buy' 
+                            ? 'bg-green-900/20 text-green-400' 
+                            : 'bg-red-900/20 text-red-400'
+                        }`}>
+                          {transaction.type.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-3">
+                          {transaction.company.logo_url ? (
+                            <img 
+                              src={transaction.company.logo_url} 
+                              alt={transaction.company.name}
+                              className="w-8 h-8 rounded-lg object-cover"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-green-600/20 to-green-700/20 flex items-center justify-center">
+                              <span className="text-sm font-bold text-primary">{transaction.company.symbol[0]}</span>
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-medium text-white">{transaction.company.name}</div>
+                            <div className="text-sm text-gray-400">{transaction.company.symbol}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6 text-right text-white">{transaction.amount}</td>
+                      <td className="py-4 px-6 text-right text-white">{transaction.pricePerToken.toLocaleString()}</td>
+                      <td className="py-4 px-6 text-right text-white">{transaction.totalValue.toLocaleString()}</td>
+                      <td className="py-4 px-6 text-right">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(transaction.status)}`}>
+                          {transaction.status.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 text-right">
+                        <button
+                          onClick={() => router.push(`/company?id=${transaction.company.id}`)}
+                          className="text-primary hover:text-primary/80 transition-colors text-sm"
+                        >
+                          View Company
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <div className="text-gray-400 mb-4">No transactions found</div>
+              <button
+                onClick={() => router.push('/companies')}
+                className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg transition-colors"
+              >
+                Start Trading
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  dfx:
+    image: ${CI_REGISTRY}/odikk60/arks-rwa:${TAG}
+    container_name: dfx
+    networks:
+      - arks-network
+    ports:
+      - "4943:4943"
+      - "3000:3000"
+    volumes:
+      - dfx_state:/home/node/.local/share/dfx
+      - ./arks-rwa-identity-decrypted.pem:/app/arks-rwa-identity-decrypted.pem
+    working_dir: /app
+    command:
+      - /bin/bash
+      - -c
+      - |
+        echo "🧠 using arks identity..." && \
+        dfx identity import --storage-mode plaintext arks-identity arks-rwa-identity-decrypted.pem && \
+        dfx identity use arks-identity && \
+        echo "🚀 Deploying canisters..." && \
+        . /app/.env && \
+        [ ! -f .env ] || export $(grep -v '^#' .env | xargs) && \
+        dfx deploy --network ic arks-core --argument "(principal \"$(dfx identity get-principal)\")" && \
+        dfx deploy --network ic arks-identity --argument "(opt principal \"$(dfx identity get-principal)\")" && \
+        dfx deploy --network ic arks-risk-engine --argument "(principal \"$(dfx identity get-principal)\", opt \"https://ai.arks.web.id\", opt \"off-chain-service\")" && \
+        dfx deploy --network ic arks-token-factory --argument "(opt principal \"$(dfx identity get-principal)\", principal \"$(dfx canister id arks-core --network ic)\")"  && \
+        cd /app/src/frontend && \
+        npm install && \
+        npm run build && cd ../../ && \
+        dfx deploy --network ic frontend && \
+        echo "✅ Canisters ready!" && \
+        tail -f /dev/null
+
+volumes:
+  dfx_state:
+  ai-state:
+
+networks:
+  arks-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

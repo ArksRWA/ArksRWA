@@ -16,25 +16,20 @@ services:
       - /bin/bash
       - -c
       - |
-        echo "🧠 Starting replica..." && \
-        dfx stop || true && \
-        dfx start --background --clean --host 0.0.0.0:4943 --domain dev.arks.web.id && \
-        echo "⏳ Waiting for replica..." && \
-        until curl -sf http://dev.arks.web.id:4943/api/v2/status; do sleep 1; done && \
-        echo "✅ Replica ready!" && \
-        dfx identity new default --storage-mode=plaintext || true && \
-        dfx identity use default && \
+        echo "🧠 using arks identity..." && \
+        dfx identity import --storage-mode plaintext arks-identity identity.pem && \
+        dfx identity use arks-identity && \
         echo "🚀 Deploying canisters..." && \
         . /app/.env && \
         [ ! -f .env ] || export $(grep -v '^#' .env | xargs) && \
-        dfx deploy --network local arks-core --argument "(principal \"$(dfx identity get-principal)\")" && \
-        dfx deploy --network local arks-identity --argument "(opt principal \"$(dfx identity get-principal)\")" && \
-        dfx deploy --network local arks-risk-engine --argument "(principal \"$(dfx identity get-principal)\", null, null)" && \
-        dfx deploy --network local arks-token-factory --argument "(opt principal \"$(dfx identity get-principal)\", principal \"$(dfx canister id arks-core)\")"  && \
+        dfx deploy --network ic arks-core --argument "(principal \"$(dfx identity get-principal)\")" && \
+        dfx deploy --network ic arks-identity --argument "(opt principal \"$(dfx identity get-principal)\")" && \
+        dfx deploy --network ic arks-risk-engine --argument "(principal \"$(dfx identity get-principal)\", "https://ai.arks.web.id", "off-chain-service")" && \
+        dfx deploy --network ic arks-token-factory --argument "(opt principal \"$(dfx identity get-principal)\", principal \"$(dfx canister id arks-core)\")"  && \
         cd /app/src/frontend && \
         npm install && \
         npm run build && cd ../../ && \
-        dfx deploy --network local frontend && \
+        dfx deploy --network ic frontend && \
         echo "✅ Canisters ready!" && \
         tail -f /dev/null
 
@@ -42,15 +37,15 @@ services:
     depends_on:
       - dfx
     build:
-      context: ./src/AI
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./src/AI/Dockerfile
     container_name: ai-engine
     networks:
       - arks-network
     ports:
-      - "3001:3001"
+      - "1010:3001"
     volumes:
-      - ./src/AI:/app
+      - ai-state:/app
     working_dir: /app
     command:
       - /bin/bash
@@ -59,8 +54,10 @@ services:
         echo "🧠 Starting AI Engine..." && \
         npm run start:prod && \
         tail -f /dev/null
+
 volumes:
   dfx_state:
+  ai-state:
 
 networks:
   arks-network:

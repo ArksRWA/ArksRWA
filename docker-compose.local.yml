@@ -50,7 +50,7 @@ services:
     networks:
       - arks-network
     ports:
-      - "3001:3001"
+      - "1010:3001"
     volumes:
       - ai-state:/app
     working_dir: /app

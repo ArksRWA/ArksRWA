@@ -4,7 +4,7 @@ stages:
   - dev-deploy
   #- prod-pre-merge
   #- prod-build
-  #- prod-deploy
+  - mainnet-deploy
 
 variables:
   DEV_TAG: "$GIT_COMMIT_TAG"
@@ -50,9 +50,9 @@ dev-build:
     - docker build -t $CI_REGISTRY/odikk60/arks-rwa:$TAG .
     - docker push $CI_REGISTRY/odikk60/arks-rwa:$TAG
 
-dev-deploy:
+mainnet-deploy:
   rules:
-    - if: '$CI_COMMIT_BRANCH == "dev"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
   image: docker:20.10.16
   environment:
     name: Development

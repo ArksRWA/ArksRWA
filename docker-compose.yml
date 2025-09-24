@@ -34,27 +34,27 @@ services:
         echo "✅ Canisters ready!" && \
         tail -f /dev/null
 
-  ai-engine:
-    depends_on:
-      - dfx
-    build:
-      context: .
-      dockerfile: ./src/AI/Dockerfile
-    container_name: ai-engine
-    networks:
-      - arks-network
-    ports:
-      - "1010:3001"
-    volumes:
-      - ai-state:/app
-    working_dir: /app
-    command:
-      - /bin/bash
-      - -c
-      - |
-        echo "🧠 Starting AI Engine..." && \
-        npm run start:prod && \
-        tail -f /dev/null
+  # ai-engine:
+  #   depends_on:
+  #     - dfx
+  #   build:
+  #     context: .
+  #     dockerfile: ./src/AI/Dockerfile
+  #   container_name: ai-engine
+  #   networks:
+  #     - arks-network
+  #   ports:
+  #     - "1010:3001"
+  #   volumes:
+  #     - ai-state:/app
+  #   working_dir: /app
+  #   command:
+  #     - /bin/bash
+  #     - -c
+  #     - |
+  #       echo "🧠 Starting AI Engine..." && \
+  #       npm run start:prod && \
+  #       tail -f /dev/null
 
 volumes:
   dfx_state:

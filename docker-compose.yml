@@ -11,13 +11,14 @@ services:
       - "3000:3000"
     volumes:
       - dfx_state:/home/node/.local/share/dfx
+      - ./arks-rwa-identity-decrypted.pem:/app/arks-rwa-identity-decrypted.pem
     working_dir: /app
     command:
       - /bin/bash
       - -c
       - |
         echo "🧠 using arks identity..." && \
-        dfx identity import --storage-mode plaintext arks-identity identity.pem && \
+        dfx identity import --storage-mode plaintext arks-identity arks-rwa-identity-decrypted.pem && \
         dfx identity use arks-identity && \
         echo "🚀 Deploying canisters..." && \
         . /app/.env && \

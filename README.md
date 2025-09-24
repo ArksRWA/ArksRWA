@@ -6,6 +6,16 @@ A decentralized platform for tokenizing Real World Assets (RWA) on the Internet 
 
 ARKS RWA enables users to create, trade, and manage tokenized companies with full transparency and security. The platform implements ICRC-1 token standards and provides seamless wallet integration for a complete DeFi experience.
 
+## Mainnet URLs
+Deployed canisters.
+   - Frontend canister via browser:
+      - frontend: https://2nyem-kaaaa-aaaad-qhpna-cai.icp0.io/
+   - Backend canister via Candid interface:
+      - arks-core: https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.icp0.io/?id=3jvl6-taaaa-aaaad-qhpla-cai
+      - arks-identity: https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.icp0.io/?id=3ounk-6yaaa-aaaad-qhplq-cai
+      - arks-risk-engine: https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.icp0.io/?id=2d2je-rqaaa-aaaad-qhpma-cai
+      - arks-token-factory: https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.icp0.io/?id=2e3pq-4iaaa-aaaad-qhpmq-cai
+
 ### Key Features
 
 - **Company Tokenization**: Create and tokenize companies with customizable parameters
@@ -59,248 +69,20 @@ Before running this project, ensure you have the following installed:
    git --version
    ```
 
-## 🛠️ Installation & Setup
-
-### Step 1: Clone the Repository
-```bash
-git clone <your-repository-url>
-cd arks-rwa
-```
-
-### Step 2: Install Dependencies
-
-#### Install Frontend Dependencies
-```bash
-cd src/frontend
-npm install
-cd ../..
-```
-
-### Step 3: Start Local Internet Computer Replica
-```bash
-# Start the local IC replica in background
-dfx start --background
-
-# Verify it's running
-dfx ping
-```
-
-### Step 4: Deploy Backend Canister
-```bash
-# Deploy the Motoko canister
-dfx deploy arks-rwa-backend
-
-# Verify deployment
-dfx canister status arks-rwa-backend
-```
-
-### Step 5: Generate TypeScript Declarations
-```bash
-# Generate TypeScript types from Motoko canister
-dfx generate arks-rwa-backend
-
-# Copy declarations to frontend (already configured)
-# This step is automatically handled by our setup
-```
-
-### Step 6: Start Frontend Development Server
-```bash
-cd src/frontend
-npm run dev
-```
-
-The application will be available at:
-- **Frontend**: http://localhost:3000 (or 3001 if 3000 is busy)
-- **Candid UI**: http://localhost:4943/?canisterId={canister-id}
 
 ## 🚀 Running the Application
 
 ### Development Mode
-
-1. **Start IC Replica** (if not already running):
-   ```bash
-   dfx start --background
-   ```
-
-2. **Deploy Backend** (if not already deployed):
-   ```bash
-   dfx deploy arks-rwa-backend
-   ```
-
-3. **Start Frontend**:
-   ```bash
-   cd src/frontend
-   npm run dev
-   ```
-
-4. **Access Application**:
-   - Open http://localhost:3000 in your browser
-   - Choose authentication method:
-     - **Plug Wallet**: Connect with Plug browser extension
-     - **Internet Identity**: Use Internet Identity authentication
-     - **Demo Mode**: Test without wallet (limited functionality)
-
-### Production Deployment
-
-1. **Build Frontend**:
-   ```bash
-   cd src/frontend
-   npm run build
-   ```
-
-2. **Deploy to IC Mainnet**:
-   ```bash
-   dfx deploy --network ic
-   ```
-
-## 🔧 Configuration
-
-### Environment Variables
-
-The application uses the following configuration:
-
-- **Canister IDs**: Automatically managed by DFX in `.env`
-- **Network Configuration**: Set via `DFX_NETWORK` environment variable
-- **Frontend Config**: Located in `src/frontend/config/canister.ts`
-
-### Customization
-
-#### Backend Configuration
-- **Admin Principal**: Update in `src/arks-rwa-backend/main.mo` line 17
-- **Minimum Valuation**: Configurable via `setMinValuationE8s` function
-- **Token Standards**: ICRC-1 compliant, extensible for additional standards
-
-#### Frontend Configuration
-- **Styling**: Modify `src/frontend/tailwind.config.js`
-- **Components**: Located in `src/frontend/app/` directory
-- **Services**: API integration in `src/frontend/services/`
-
-## 📁 Project Structure
-
-```
-arks-rwa/
-├── dfx.json                          # DFX configuration
-├── README.md                         # This file
-├── src/
-│   ├── arks-rwa-backend/
-│   │   └── main.mo                   # Motoko canister code
-│   ├── frontend/
-│   │   ├── app/                      # Next.js app directory
-│   │   │   ├── page.tsx             # Landing page
-│   │   │   ├── layout.tsx           # Root layout
-│   │   │   ├── globals.css          # Global styles
-│   │   │   ├── companies/           # Companies page
-│   │   │   ├── dashboard/           # Dashboard page
-│   │   │   └── company/[id]/        # Individual company page
-│   │   ├── components/              # Reusable components
-│   │   ├── services/                # API services
-│   │   │   ├── auth.ts             # Authentication service
-│   │   │   ├── backend.ts          # Backend integration
-│   │   │   └── canister.ts         # Canister communication
-│   │   ├── types/                   # TypeScript type definitions
-│   │   ├── config/                  # Configuration files
-│   │   ├── declarations/            # Generated TypeScript declarations
-│   │   ├── package.json            # Frontend dependencies
-│   │   └── tailwind.config.js      # Tailwind configuration
-│   └── declarations/                # Generated canister declarations
-└── .env                             # Environment variables (auto-generated)
-```
-
-## 🔍 API Reference
-
-### Backend Canister Methods
-
-#### Company Management
-- `createCompany(name, symbol, logo_url, description, valuation, desiredSupply?, desiredPrice?)` - Create new company
-- `listCompanies()` - Get all companies
-- `getCompanyById(companyId)` - Get specific company details
-- `updateCompanyDescription(companyId, newDescription)` - Update company description
-
-#### Token Trading
-- `buyTokens(companyId, amount)` - Purchase company tokens
-- `sellTokens(companyId, amount)` - Sell company tokens
-- `getMyHolding(companyId)` - Get user's token balance
-- `listHoldings()` - Get all token holdings
-
-#### ICRC-1 Standard Methods
-- `icrc1_balance_of(companyId, account)` - Get token balance
-- `icrc1_transfer(companyId, args, caller)` - Transfer tokens
-- `icrc1_name(companyId)` - Get token name
-- `icrc1_symbol(companyId)` - Get token symbol
-- `icrc1_total_supply(companyId)` - Get total token supply
-- `icrc1_metadata(companyId)` - Get token metadata
-
-### Frontend Services
-
-#### Authentication (`src/frontend/services/auth.ts`)
-- Plug Wallet integration
-- Internet Identity support
-- Demo mode functionality
-
-#### Backend Integration (`src/frontend/services/backend.ts`)
-- Canister method calls
-- Error handling
-- Type-safe API interactions
-
-## 🧪 Testing
-
-### Backend Testing
+Run this commands
 ```bash
-# Test canister methods via Candid UI
-dfx canister call arks-rwa-backend listCompanies
-
-# Test company creation
-dfx canister call arks-rwa-backend createCompany '("Test Company", "TEST", "logo.png", "Description", 1000000, null, null)'
+chmod +x rundev.sh
+./rundev.sh
 ```
+The application will be available at:
+- **Frontend**: http://localhost:3000 
+- **AI Engine**: http://localhost:3001
+- **Candid UI**: http://localhost:4943/?canisterId={canister-id}
 
-### Frontend Testing
-```bash
-cd src/frontend
-npm run lint
-```
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-1. **"Cannot find module" errors**:
-   ```bash
-   # Clear Next.js cache
-   cd src/frontend
-   rm -rf .next build
-   npm run dev
-   ```
-
-2. **Canister not found**:
-   ```bash
-   # Redeploy canister
-   dfx deploy arks-rwa-backend
-   dfx generate arks-rwa-backend
-   ```
-
-3. **Port conflicts**:
-   ```bash
-   # Check running processes
-   lsof -i :3000
-   lsof -i :4943
-   
-   # Kill processes if needed
-   kill -9 <PID>
-   ```
-
-4. **DFX replica issues**:
-   ```bash
-   # Stop and restart replica
-   dfx stop
-   dfx start --clean --background
-   ```
-
-### Development Tips
-
-- Always run `dfx generate` after backend changes
-- Clear Next.js cache when experiencing import issues
-- Use demo mode for testing without wallet setup
-- Check browser console for detailed error messages
 
 ## 📚 Additional Resources
 

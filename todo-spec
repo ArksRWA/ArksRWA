@@ -20,6 +20,15 @@ A1) Replace spoofable caller params with real caller (Core)
   - All above functions compile and are callable from Candid UI using actual principal.
   - Admin-only calls fail for non-admin callers.
 
+A2) Replace spoofable caller params with real caller (RiskEngine admin endpoints)
+- Files: src/backend/risk_engine/main.mo
+- Problem: Several admin/privileged functions accept `caller : Principal` and are spoofable.
+- Methods to change: registerCoreCanister, unregisterCoreCanister, listRegisteredCoreCanisterIds,
+  processVerificationJobs, startManualVerification, overrideVerificationStatus,
+  scanCoreCanistersForPendingVerification.
+- Implementation: Convert to `shared ({ caller })`; remove explicit `caller` param; adjust call sites.
+- Acceptance: Only admin principal can call the above; queries return expected data for admin, redacted for others.
+
 A2) Replace spoofable caller params with real caller (TokenFactory)
 - Files: src/backend/token_factory/main.mo
 - Problem: Admin functions also accept `caller : Principal`.
@@ -32,6 +41,7 @@ B1) Holdings index updates from token canister
 - Files: src/backend/company_token/main.mo, src/backend/core/main.mo
 - Problem: Core exposes `on_token_transfer`, but CompanyToken never calls it.
 - Plan:
+
   - Ensure CompanyToken knows: companyId (Nat) and core_canister (Principal).
   - Extend `Types.Init` (company_token/types.mo) to include `company_id : Nat` and `core_canister : Principal`.
   - Update TokenFactory to pass these in ctor arg when installing token.
@@ -43,6 +53,16 @@ B1) Holdings index updates from token canister
   - Make cross-canister call after updating local state; ignore errors (log) to avoid bricking transfers.
 - Acceptance:
   - After any token op, calling Core.list_holdings reflects expected changes for principals involved.
+
+B2) Align CompanyToken constructor with TokenFactory install args
+- Files: src/backend/company_token/types.mo, src/backend/token_factory/main.mo, src/backend/token_factory/types.mo
+- Problem: TokenFactory currently installs token with `{ name; symbol; decimals; max_supply; token_factory }` only, but CompanyToken.Init requires
+  `{ name; symbol; decimals; max_supply; token_factory; treasury; primary_mint_fee_bips; transfer_fee }`. Install would fail at runtime.
+- Plan:
+  - Add to install arg in TokenFactory: `treasury = req.platform_treasury.owner`, `primary_mint_fee_bips = req.platform_equity_bips`, and a chosen `transfer_fee` (0 for MVP).
+  - Pass the new ctor fields from B1 as well: `company_id`, `core_canister`.
+  - Document fee policy in README.
+- Acceptance: TokenFactory installs CompanyToken successfully; token canister reports correct fees and metadata.
 
 B2) Frontend ICRC calls: per-token actor instead of Core
 - Files: src/frontend/services/backend.ts (new helpers), src/frontend/types/canister.ts (IDL typing if needed)
@@ -56,6 +76,14 @@ B2) Frontend ICRC calls: per-token actor instead of Core
 - Acceptance:
   - Transfer and balance queries work against a deployed token canister ID stored on the company.
   - No calls to non-existent Core methods remain.
+
+B3) TokenFactory registers token in Core
+- Files: src/backend/token_factory/main.mo, src/backend/core/main.mo
+- Problem: After spawning token, factory never calls Core.setTokenCanister (admin-gated).
+- Plan:
+  - Ensure TokenFactory principal is an admin in Core (bootstrap via deploy script) or add an allowlist for factory principals.
+  - After successful install, call `core.setTokenCanister(company_id, tokenCid)` from factory.
+- Acceptance: Core.company.token_canister_id is set immediately after spawn; frontend lists token canister ID.
 
 B3) TokenFactory enablement (upload + spawn)
 - Files: src/backend/token_factory/main.mo, src/backend/token_factory/types.mo, scripts (new), README
@@ -91,6 +119,12 @@ C3) Fix type mismatches in risk engine
 - Acceptance:
   - Scan compiles and runs; no pattern mismatch against Core types.
 
+C4) Update RiskEngine → Core call signatures after A1
+- Files: src/backend/risk_engine/main.mo
+- Problem: After Core removes `caller` param, `updateVerificationResult(companyId, profile, caller)` call is invalid.
+- Plan: Update the Core actor interface to `updateVerificationResult : (Nat, CoreVerificationProfile) -> async ()` and adjust all call sites.
+- Acceptance: Risk engine compiles and can update core after registration/admin setup.
+
 
 SECTION D — Frontend/Agent/Dev Runner
 D1) Agent host consistency in browser
@@ -113,6 +147,13 @@ D3) Frontend asset path for dfx assets canister
   - Verify Next 15 output path for static assets used by `assets` canister. Adjust `source` from `src/frontend/.next/build` if needed.
 - Acceptance:
   - `dfx deploy frontend` serves the built app correctly.
+
+D4) Frontend adapt to A1 (caller removal)
+- Files: src/frontend/services/backend.ts, pages using backend service
+- Plan:
+  - Remove explicit `callerPrincipal` args when calling core (createCompany, get_my_holding → change to shared query using implicit caller, or switch `get_my_holding` to shared query and keep owned-companies via explicit owner param).
+  - Regenerate declarations and update usages accordingly.
+- Acceptance: Frontend compiles; create company, get holdings, and transfers work with new signatures.
 
 
 SECTION E — Docker/DFX/Docs Hygiene
@@ -139,6 +180,19 @@ E3) Remove or fix obsolete `scripts/deploy-local.sh`
 - Acceptance:
   - No stale references to non-existent canisters.
 
+E4) Fix invalid init args in dfx.json
+- Files: dfx.json
+- Problem: `init_arg` defaults use `null` for constructors that require `Principal` (arks-core, arks-risk-engine, arks-token-factory). This breaks plain `dfx deploy`.
+- Plan:
+  - Remove `init_arg` entries for these canisters and rely on `rundev.sh` (or add optional constructor params in Motoko to accept `?Principal`).
+- Acceptance: `dfx deploy` without extra args does not fail due to type mismatch (either because args optional or not specified).
+
+E5) Prune legacy sources
+- Files: src/backend/old_main.mo, src/backend/risk_engine/old_types.mo, scripts/deploy-production.sh
+- Plan:
+  - Delete or quarantine legacy files and update any references. Fix production deploy script to current canister names.
+- Acceptance: No references or scripts mention `arks-rwa-backend`; production deploy uses arks-core + assets.
+
 
 SECTION F — Feature Flags & Fallbacks (AI/SerpAPI)
 F1) Graceful degradation without API keys
@@ -147,6 +201,12 @@ F1) Graceful degradation without API keys
   - Gate SerpAPI/Gemini integrations behind env flags; return “unavailable” but non-fatal results when keys are missing (instead of throwing hard errors in triage).
 - Acceptance:
   - App runs without crashing when keys are absent; logs guidance.
+
+F2) SerpAPI no-key behavior returns structured noop
+- Files: src/AI/services/serpapi-service.js, src/AI/routes/analyze.js
+- Plan:
+  - Instead of throwing when `SERPAPI_API_KEY` missing, return `{ isOperational:false, searches:{}, summary:{...zeros} }` and let route layer respond with a helpful 503 message while keeping service healthy.
+- Acceptance: `/serpapi/stats` shows `apiKeyConfigured:false`; `/analyze` returns 503 with guidance, process remains up.
 
 
 SECTION G — Testing & Validation
@@ -158,8 +218,11 @@ G1) Minimal smoke tests (manual/CLI)
   - Risk engine job updates core verification after admin setup.
   - Frontend balance/transfer work via per-token actor; no calls to non-existent core methods.
 
+G2) Candid regeneration and frontend sync
+- Run `dfx generate` and copy declarations via `rundev.sh`; restart frontend to ensure IDL changes are reflected.
+- Verify `@declarations` alias resolves to the copied declarations in Next build output.
+
 
 Notes
 - Any API signature changes in canisters require `dfx generate` and copying declarations into `src/frontend/declarations/*` (rundev.sh already automates this).
 - Keep changes focused; avoid refactors outside listed scope unless needed to complete the acceptance criteria.
-

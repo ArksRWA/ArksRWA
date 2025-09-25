@@ -1,0 +1,165 @@
+# ARKS RWA – Implementation Spec (Fix Later)
+
+Purpose: Capture precise fixes and steps so we can implement quickly on request. Each item includes files, concrete changes, and acceptance criteria.
+
+
+SECTION A — Critical Security Corrections (High Priority)
+A1) Replace spoofable caller params with real caller (Core)
+- Files: src/backend/core/main.mo, src/backend/core/types.mo (Candid impact)
+- Problem: Many public methods accept `caller : Principal` as an argument and gate admin/owner checks against it (spoofable). Must use `shared ({ caller })`.
+- Methods to change to `shared ({ caller })` and remove parameter:
+  - addAdmin, removeAdmin, setGovernance, rotateTreasury, pausePlatform, unpausePlatform,
+    setTokenCanister, listOnDex, updateDescription, pauseCompany, unpauseCompany,
+    delistCompany, relistCompany, setEscrowPolicy, requestWithdraw,
+    updateVerificationResult (webhook from risk engine).
+- Implementation:
+  - For each, convert signature to `public shared ({ caller }) func X(...)` and remove `caller` arg.
+  - Update all internal admin checks to use the implicit `caller`.
+  - Ensure Candid changes propagate; regenerate declarations.
+- Acceptance:
+  - All above functions compile and are callable from Candid UI using actual principal.
+  - Admin-only calls fail for non-admin callers.
+
+A2) Replace spoofable caller params with real caller (TokenFactory)
+- Files: src/backend/token_factory/main.mo
+- Problem: Admin functions also accept `caller : Principal`.
+- Methods to change: addAdmin, removeAdmin, setCore, setTokenWasm (and any admin-gated call), potentially createToken uses shared already.
+- Acceptance: Same as A1; only real admins can call these.
+
+
+SECTION B — Tokenization Flow Wiring
+B1) Holdings index updates from token canister
+- Files: src/backend/company_token/main.mo, src/backend/core/main.mo
+- Problem: Core exposes `on_token_transfer`, but CompanyToken never calls it.
+- Plan:
+  - Ensure CompanyToken knows: companyId (Nat) and core_canister (Principal).
+  - Extend `Types.Init` (company_token/types.mo) to include `company_id : Nat` and `core_canister : Principal`.
+  - Update TokenFactory to pass these in ctor arg when installing token.
+  - In CompanyToken, after successful state change:
+    - icrc1Transfer: call core.on_token_transfer({ companyId, from = ?caller, to = ?args.to.owner, amount })
+    - icrc2TransferFrom: same with from=args.from.owner and to=args.to.owner
+    - mintTo: from = null, to = ?to.owner
+    - burnFrom: from = ?from.owner, to = null
+  - Make cross-canister call after updating local state; ignore errors (log) to avoid bricking transfers.
+- Acceptance:
+  - After any token op, calling Core.list_holdings reflects expected changes for principals involved.
+
+B2) Frontend ICRC calls: per-token actor instead of Core
+- Files: src/frontend/services/backend.ts (new helpers), src/frontend/types/canister.ts (IDL typing if needed)
+- Problem: Frontend currently tries to call non-existent `icrc1_transfer/icrc1_balance_of` on Core.
+- Plan:
+  - Add a helper `createCompanyTokenActor(canisterId: string)` using a lightweight ICRC-1/2 IDL (or generated declarations if available later).
+  - Implement methods:
+    - getTokenBalance(companyId) → create actor for company.token_canister_id → icrc1_balance_of({ owner, subaccount:null })
+    - transferTokens(companyId, recipient, amount, memo?) → call icrc1_transfer on the token canister.
+  - Temporarily disable buyTokens/sellTokens (primary/secondary market) or switch UI to “Transfer” only until DEX/market flow exists.
+- Acceptance:
+  - Transfer and balance queries work against a deployed token canister ID stored on the company.
+  - No calls to non-existent Core methods remain.
+
+B3) TokenFactory enablement (upload + spawn)
+- Files: src/backend/token_factory/main.mo, src/backend/token_factory/types.mo, scripts (new), README
+- Plan:
+  - Provide WASM artifact for CompanyToken (or build step) and a small script to call `setTokenWasm`.
+  - Update TokenFactory.createToken to pass new ctor fields: company_id, core_canister.
+  - Add a concise CLI example to attach cycles and spawn a token.
+- Acceptance:
+  - From local dev, we can upload wasm, spawn a token, see it registered in factory and set in core via `setTokenCanister`.
+
+
+SECTION C — Risk Engine Integration
+C1) Authorize risk engine to update Core verification
+- Files: src/backend/core/main.mo, src/backend/risk_engine/main.mo, rundev.sh
+- Plan:
+  - After A1 (auth fix), restrict `core.updateVerificationResult` to be callable by admins only.
+  - On deploy (rundev.sh), add risk engine principal to Core admins (listAdmins → addAdmin).
+- Acceptance:
+  - Risk engine can call updateVerificationResult successfully; non-admins cannot.
+
+C2) Register Core with risk engine
+- Files: rundev.sh, src/backend/risk_engine/main.mo
+- Plan:
+  - After deploy, call `risk_engine.registerCoreCanister(coreId)` using deploy principal.
+- Acceptance:
+  - `listRegisteredCoreCanisterIds` returns the Core canister ID.
+
+C3) Fix type mismatches in risk engine
+- Files: src/backend/risk_engine/main.mo
+- Plan:
+  - `scanCoreCanistersForPendingVerification` should reference Core’s `verification.state` (not `verificationStatus`).
+  - Remove or implement `extractNumberFromJson/extractTextFromJson` if used; otherwise delete dead code.
+- Acceptance:
+  - Scan compiles and runs; no pattern mismatch against Core types.
+
+
+SECTION D — Frontend/Agent/Dev Runner
+D1) Agent host consistency in browser
+- Files: src/frontend/services/backend.ts
+- Plan:
+  - In `createHttpAgent()`, always set `host` explicitly: local → `http://127.0.0.1:4943`, mainnet → `https://icp-api.io`. Align with `services/canister.ts`.
+- Acceptance:
+  - Browser calls to canisters work on local dev without relying on same-origin.
+
+D2) AI service port var mismatch
+- Files: rundev.sh, src/AI/index.js
+- Plan:
+  - Ensure the AI process receives `PORT` (not only `AI_PORT`). Change `start_dev` env to include `PORT=$AI_PORT`.
+- Acceptance:
+  - AI service starts on the configured port visible in logs.
+
+D3) Frontend asset path for dfx assets canister
+- Files: dfx.json, build docs
+- Plan:
+  - Verify Next 15 output path for static assets used by `assets` canister. Adjust `source` from `src/frontend/.next/build` if needed.
+- Acceptance:
+  - `dfx deploy frontend` serves the built app correctly.
+
+
+SECTION E — Docker/DFX/Docs Hygiene
+E1) dfx bind address
+- Files: dfx.json
+- Plan:
+  - If using Docker networking per new docs, change local bind to `0.0.0.0:4943`.
+- Acceptance:
+  - Containers can reach the replica on 4943 without random port issues.
+
+E2) Docs match repo state
+- Files: README.md, README_NEW_ARCHITECTURE.md, MIGRATION_GUIDE.md, scripts/
+- Plan:
+  - Either add referenced docker-compose files and scripts or update docs to reflect current rundev flow.
+  - Update backend path references (`src/backend/core/main.mo` instead of `src/arks-rwa-backend/main.mo`).
+  - Add a post-deploy checklist covering: addAdmin(riskEngine), registerCoreCanister(coreId), setTokenWasm, createToken, setTokenCanister.
+- Acceptance:
+  - Docs are consistent; no broken file references.
+
+E3) Remove or fix obsolete `scripts/deploy-local.sh`
+- Files: scripts/deploy-local.sh
+- Plan:
+  - Update to current canister names or remove in favor of `rundev.sh`.
+- Acceptance:
+  - No stale references to non-existent canisters.
+
+
+SECTION F — Feature Flags & Fallbacks (AI/SerpAPI)
+F1) Graceful degradation without API keys
+- Files: src/AI/*, src/backend/risk_engine/*
+- Plan:
+  - Gate SerpAPI/Gemini integrations behind env flags; return “unavailable” but non-fatal results when keys are missing (instead of throwing hard errors in triage).
+- Acceptance:
+  - App runs without crashing when keys are absent; logs guidance.
+
+
+SECTION G — Testing & Validation
+G1) Minimal smoke tests (manual/CLI)
+- After fixes:
+  - Create company; update description (owner/permissions enforced).
+  - Upload token wasm; spawn token; setTokenCanister in core.
+  - Transfer tokens between two principals; holdings index reflects changes.
+  - Risk engine job updates core verification after admin setup.
+  - Frontend balance/transfer work via per-token actor; no calls to non-existent core methods.
+
+
+Notes
+- Any API signature changes in canisters require `dfx generate` and copying declarations into `src/frontend/declarations/*` (rundev.sh already automates this).
+- Keep changes focused; avoid refactors outside listed scope unless needed to complete the acceptance criteria.
+

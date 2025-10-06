@@ -42,14 +42,14 @@ persistent actor class TokenFactory(init_admin : ?Principal, core_canister : Pri
 
   public query func listAdmins() : async [Principal] { _admins };
 
-  public func addAdmin(p : Principal, caller : Principal) : async () {
+  public shared ({ caller }) func addAdmin(p : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     // dedupe
     var i = 0; while (i < _admins.size()) { if (_admins[i] == p) return; i += 1 };
     _admins := Array.append(_admins, [p]);
   };
 
-  public func removeAdmin(p : Principal, caller : Principal) : async () {
+  public shared ({ caller }) func removeAdmin(p : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     var out : [Principal] = [];
     var i = 0; while (i < _admins.size()) { if (_admins[i] != p) out := Array.append(out, [_admins[i]]); i += 1 };
@@ -58,7 +58,7 @@ persistent actor class TokenFactory(init_admin : ?Principal, core_canister : Pri
 
   public query func core() : async Principal { _core };
 
-  public func setCore(newCore : Principal, caller : Principal) : async () {
+  public shared ({ caller }) func setCore(newCore : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     _core := newCore;
   };
@@ -67,7 +67,7 @@ persistent actor class TokenFactory(init_admin : ?Principal, core_canister : Pri
   // Your renamed field: TokenWasm.token_module : [Nat8]
   var _wasm : ?Types.TokenWasm = null;
 
-  public func setTokenWasm(w : Types.TokenWasm, caller : Principal) : async () {
+  public shared ({ caller }) func setTokenWasm(w : Types.TokenWasm) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     if (w.token_module.size() == 0) { throw Error.reject("Empty token wasm"); };
     _wasm := ?w;

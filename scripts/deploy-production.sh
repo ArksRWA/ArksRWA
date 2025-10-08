@@ -43,8 +43,40 @@ npm run build
 cd ../..
 
 # Deploy to IC mainnet
-echo "🏗️  Deploying backend canister to IC..."
-dfx deploy arks-rwa-backend --network ic --argument "(opt principal \"$ADMIN_PRINCIPAL\")"
+echo "🏗️  Deploying backend canisters to IC..."
+DEPLOYER_PRINCIPAL="$(dfx identity get-principal)"
+echo "Deployer principal: ${DEPLOYER_PRINCIPAL}"
+
+# Deploy Core canister
+echo "Deploying arks-core..."
+dfx deploy --network ic arks-core \
+  --argument "(principal \"${DEPLOYER_PRINCIPAL}\")"
+
+# Deploy Identity canister
+echo "Deploying arks-identity..."
+dfx deploy --network ic arks-identity \
+  --argument "(opt principal \"${DEPLOYER_PRINCIPAL}\")"
+
+# Deploy Risk Engine canister
+echo "Deploying arks-risk-engine..."
+dfx deploy --network ic arks-risk-engine \
+  --argument "(principal \"${DEPLOYER_PRINCIPAL}\", null, null)"
+
+# Deploy Token Factory canister
+CORE_ID="$(dfx canister id arks-core)"
+echo "arks-core canister id: ${CORE_ID}"
+dfx deploy --network ic arks-token-factory \
+  --argument "(opt principal \"${DEPLOYER_PRINCIPAL}\", principal \"${CORE_ID}\")"
+
+# Add risk engine to Core admins
+RISK_ENGINE_ID="$(dfx canister id arks-risk-engine)"
+echo "arks-risk-engine canister id: ${RISK_ENGINE_ID}"
+echo "Adding risk engine to Core admins..."
+dfx canister call --network ic arks-core addAdmin "(principal \"${RISK_ENGINE_ID}\")"
+
+# Register Core with risk engine
+echo "Registering Core with risk engine..."
+dfx canister call --network ic arks-risk-engine registerCoreCanister "(principal \"${CORE_ID}\")"
 
 echo "🌐 Deploying frontend to IC..."
 dfx deploy frontend --network ic
@@ -53,6 +85,6 @@ echo "🎉 Production deployment completed!"
 echo ""
 echo "📍 Your application is now live on IC mainnet:"
 echo "   Frontend: https://$(dfx canister id frontend --network ic).icp0.io"
-echo "   Backend Canister ID: $(dfx canister id arks-rwa-backend --network ic)"
+echo "   Core Canister ID: $(dfx canister id arks-core --network ic)"
 echo ""
 echo "🔐 Admin principal configured: $ADMIN_PRINCIPAL"

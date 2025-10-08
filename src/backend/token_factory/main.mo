@@ -183,16 +183,30 @@ persistent actor class TokenFactory(init_admin : ?Principal, core_canister : Pri
     let tokenCid : Principal = res.canister_id;
 
     // 2) install code
-    // Prepare constructor argument: opt TokenConstructor
-    // { name; symbol; decimals; max_supply; token_factory = this }
-    let ctor : ?{ name : Text; symbol : Text; decimals : Nat; max_supply : Nat; token_factory : Principal } =
-      ?{
-        name           = req.name;
-        symbol         = req.symbol;
-        decimals       = req.decimals;
-        max_supply     = req.total_supply;
-        token_factory  = Principal.fromActor(this);
-      };
+    // Prepare constructor argument with all required fields for CompanyToken
+    let ctor : ?{
+      name : Text;
+      symbol : Text;
+      decimals : Nat;
+      max_supply : Nat;
+      token_factory : Principal;
+      treasury : Principal;
+      primary_mint_fee_bips : Nat;
+      transfer_fee : Nat;
+      company_id : Nat;
+      core_canister : Principal;
+    } = ?{
+      name           = req.name;
+      symbol         = req.symbol;
+      decimals       = req.decimals;
+      max_supply     = req.total_supply;
+      token_factory  = Principal.fromActor(this);
+      treasury       = req.platform_treasury.owner;
+      primary_mint_fee_bips = req.platform_equity_bips;
+      transfer_fee   = 0; // 0 for MVP as specified in the todo
+      company_id     = req.company_id;
+      core_canister  = _core;
+    };
 
     // Candid-encode init arg using Prim.encode (encodes Motoko values to Candid)
     let installArg : Blob = to_candid(ctor);
@@ -238,6 +252,15 @@ persistent actor class TokenFactory(init_admin : ?Principal, core_canister : Pri
 
     // 4) save in registry
     _registry.put(req.company_id, tokenCid);
+    
+    // 5) register token canister in Core
+    let core : actor { setTokenCanister : shared (Nat, Principal) -> async () } = actor (Principal.toText(_core));
+    try {
+      await core.setTokenCanister(req.company_id, tokenCid);
+    } catch (e) {
+      // Log error but don't fail the token creation
+      // In production, you might want to use a more robust logging mechanism
+    };
 
     #ok({
       company_id = req.company_id;

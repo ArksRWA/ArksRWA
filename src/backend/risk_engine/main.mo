@@ -57,7 +57,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     
     // Core canister interface for callbacks
     private func getCoreCanisterActor(canisterId : Principal) : actor {
-      updateVerificationResult : (Nat, Types.VerificationProfile) -> async ();
+      updateVerificationResult : (Nat, CoreVerificationProfile) -> async ();
       getCompany : (Nat) -> async ?CoreCompany;
       listCompanies : () -> async [CoreCompany];
     } {
@@ -195,7 +195,8 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
             for (coreCanisterId in registeredCoreCanisterIds.vals()) {
               let coreRef = getCoreCanisterActor(coreCanisterId);
               try {
-                await coreRef.updateVerificationResult(job.companyId, profile);
+                let coreProfile = _mapToCoreverificationProfile(profile);
+                await coreRef.updateVerificationResult(job.companyId, coreProfile);
               } catch (error) {
                 Debug.print("Failed to update core canister for company " # job.companyName # ": " # Error.message(error));
                 // Continue anyway - verification is complete even if core update fails
@@ -950,10 +951,11 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     private func parseAIResponse(responseText : Text) : AIAnalysisResponse {
       // Simplified JSON parsing - in production, use proper JSON parser
       if (Text.contains(responseText, #text "\"success\":true")) {
-        let fraudScore = extractNumberFromJson(responseText, "fraudScore");
-        let confidence = extractNumberFromJson(responseText, "confidence");
-        let processingTime = extractNumberFromJson(responseText, "processingTimeMs");
-        let riskLevel = extractTextFromJson(responseText, "riskLevel");
+        // Note: In production, implement proper JSON parsing here
+        let fraudScore = null : ?Nat;
+        let confidence = null : ?Nat;
+        let processingTime = null : ?Nat;
+        let riskLevel = null : ?Text;
         
         {
           success = true;
@@ -973,18 +975,6 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
           error = ?"AI service returned unsuccessful response";
         };
       };
-    };
-
-    // Extract number from JSON string (simplified)
-    private func extractNumberFromJson(_json : Text, _key : Text) : ?Nat {
-      // Very simplified - in production use proper JSON parser
-      null; // Would implement JSON parsing logic
-    };
-
-    // Extract text from JSON string (simplified)
-    private func extractTextFromJson(_json : Text, _key : Text) : ?Text {
-      // Very simplified - in production use proper JSON parser
-      null; // Would implement JSON parsing logic
     };
 
     // ===== VERIFICATION SYSTEM FUNCTIONS =====

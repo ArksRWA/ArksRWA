@@ -119,15 +119,14 @@ persistent actor class ARKSRWA_Core(init_admin : Principal) = this {
   };
 
   // ---------- Company Registration ----------
-  public func createCompany(
+  public shared ({ caller }) func createCompany(
     name : Text,
     symbol : Text,
     logo_url : Text,
     description : Text,
     valuation : Nat,
     desiredSupply : ?Nat,
-    desiredPrice : ?Nat,
-    caller : Principal
+    desiredPrice : ?Nat
   ) : async CompanyId {
     if (_platform_paused) { throw Error.reject("Platform is paused"); };
     
@@ -459,7 +458,7 @@ public query func list_holdings() : async [Types.TokenHolder] {
   out
 };
 
-public query func get_my_holding(companyId : Types.CompanyId, caller : Principal) : async Nat {
+public shared query ({ caller }) func get_my_holding(companyId : Types.CompanyId) : async Nat {
   switch (_holdingsIndex.get(caller)) {
     case null 0;
     case (?m) Option.get(m.get(companyId), 0);

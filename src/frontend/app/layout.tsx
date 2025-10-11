@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter, Poppins } from 'next/font/google';
 import './globals.css';
-import Navigation from './components/Navigation';
+import LayoutWrapper from './components/LayoutWrapper';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -47,10 +47,9 @@ export default function RootLayout({
         <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
       </head>
       <body className="font-['Sora'] bg-background-dark text-text-dark antialiased min-h-screen">
-        <Navigation />
-        <main>
+        <LayoutWrapper>
           {children}
-        </main>
+        </LayoutWrapper>
       </body>
     </html>
   );

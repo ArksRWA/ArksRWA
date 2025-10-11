@@ -21,6 +21,12 @@ module.exports = {
         'subtext-dark': '#9CA3AF',
         'border-light': '#E5E7EB',
         'border-dark': '#30363D',
+        // Set default border color to rgb(48 54 61 / var(--tw-border-opacity, 1))
+        border: {
+          DEFAULT: 'rgb(48 54 61 / var(--tw-border-opacity, 1))',
+          light: '#E5E7EB',
+          dark: '#30363D',
+        },
         // Dark theme color palette (keeping for compatibility)
         background: {
           DEFAULT: '#0D1117',

@@ -137,7 +137,7 @@ export default function HomePage() {
                 <a className="text-sm font-medium text-subtext-dark hover:text-text-dark transition-colors" href="#why-us">Why Us</a>
                 <a className="text-sm font-medium text-subtext-dark hover:text-text-dark transition-colors" href="#faq">FAQ</a>
               </nav>
-              <button 
+              <button
                 onClick={handleShowLoginModal}
                 className="bg-primary hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center space-x-2 transition-colors"
               >
@@ -153,9 +153,9 @@ export default function HomePage() {
         {/* Hero Section */}
         <section className="pt-32 pb-20 text-center">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-text-dark mb-4">
-              Tokenize Real World Assets on the <span className="text-primary">Internet Computer</span>
-            </h1>
+          <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-text-dark mb-4">
+            Tokenize Real World Assets on the <span className="text-primary">Internet Computer</span>
+          </h1>
             <p className="max-w-3xl mx-auto text-lg text-subtext-dark mb-8">
               Create, trade, and manage tokenized companies with full transparency and security, built on the Internet Computer for true decentralization.
             </p>
@@ -471,7 +471,7 @@ export default function HomePage() {
             </div>
           </div>
           <div className="mt-12 border-t border-border-dark pt-8 text-center text-sm text-subtext-dark">
-            <p>© 2024 ARKS RWA. All Rights Reserved. Not a financial advice.</p>
+            <p>© 2025 ARKS RWA. All Rights Reserved. Not a financial advice.</p>
           </div>
         </div>
       </footer>

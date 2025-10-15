@@ -303,62 +303,65 @@ export default function CompanyDashboardPage() {
           </div>
         </div>
 
-        {/* Verification Details */}
-        <div className="bg-card-bg border border-gray-700 rounded-lg p-6 mb-8">
-          <h3 className="text-lg font-semibold text-white mb-4">Verification Details</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="flex items-center gap-3">
-              <div className={`w-3 h-3 rounded-full ${getVerificationColor(company.verification_status).replace('text-', 'bg-')}`}></div>
+        {/* Verification Details & Progress Bar */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Verification Details */}
+          <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-white mb-6">Verification Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <div className="text-sm text-gray-400">Status</div>
-                <div className="text-white font-medium">{getVerificationStatusLabel(company.verification_status)}</div>
+                <div className="text-sm text-gray-400 mb-1">Status</div>
+                <div className="flex items-center gap-2">
+                  <div className={`w-3 h-3 rounded-full ${getVerificationColor(company.verification_status).replace('text-', 'bg-')}`}></div>
+                  <div className="text-white font-medium">{getVerificationStatusLabel(company.verification_status)}</div>
+                </div>
               </div>
-            </div>
 
-            <div>
-              <div className="text-sm text-gray-400">Score</div>
-              <div className="text-white font-medium">
-                {company.verification_score ? (
-                  <span className={`${company.verification_score >= 70 ? 'text-red-400' : company.verification_score >= 40 ? 'text-yellow-400' : 'text-green-400'}`}>
-                    {company.verification_score.toFixed(1)}/100
-                  </span>
-                ) : <span className="text-blue-400">Ongoing Verification</span>}
+              <div>
+                <div className="text-sm text-gray-400 text-center">Score</div>
+                <div className="text-white font-medium text-center">
+                  {company.verification_score ? (
+                    <span className={`${company.verification_score >= 70 ? 'text-red-400' : company.verification_score >= 40 ? 'text-yellow-400' : 'text-green-400'}`}>
+                      {company.verification_score.toFixed(1)}/100
+                    </span>
+                  ) : <span className="text-blue-400">Ongoing Verification</span>}
+                </div>
               </div>
-            </div>
 
-            <div>
-              <div className="text-sm text-gray-400">Last Verified</div>
-              <div className="text-white font-medium">
-                {company.last_verified ? new Date(company.last_verified / 1000000).toLocaleDateString() : 'Never'}
+              <div>
+                <div className="text-sm text-gray-400 text-right">Last Verified</div>
+                <div className="text-white font-medium text-right">
+                  {company.last_verified ? new Date(company.last_verified / 1000000).toLocaleDateString() : 'Never'}
+                </div>
               </div>
-            </div>
 
-            {company.verification_job_id && (
-              <div className="md:col-span-3">
-                <div className="text-sm text-gray-400">Job ID</div>
-                <div className="text-white font-medium font-mono">#{company.verification_job_id}</div>
-              </div>
-            )}
+              {company.verification_job_id && (
+                <div>
+                  <div className="text-sm text-gray-400">Job ID</div>
+                  <div className="text-white font-medium font-mono">#{company.verification_job_id}</div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* Progress Bar */}
-        <div className="bg-card-bg border border-gray-700 rounded-lg p-6 mb-8">
-          <h3 className="text-lg font-semibold text-white mb-4">Token Sale Progress</h3>
-          <div className="relative">
-            <div className="flex justify-between text-sm text-gray-400 mb-2">
-              <span>0</span>
-              <span>{Number(company.supply).toLocaleString()} Total Supply</span>
-            </div>
-            <div className="w-full bg-gray-700 rounded-full h-4">
-              <div
-                className="bg-gradient-to-r from-primary to-primary/80 h-4 rounded-full transition-all duration-300"
-                style={{ width: `${soldPercentage}%` }}
-              ></div>
-            </div>
-            <div className="flex justify-between text-sm mt-2">
-              <span className="text-green-400">{tokensSold.toLocaleString()} sold</span>
-              <span className="text-gray-400">{Number(company.remaining).toLocaleString()} remaining</span>
+          {/* Progress Bar */}
+          <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-white mb-4">Token Sale Progress</h3>
+            <div className="relative">
+              <div className="flex justify-between text-sm text-gray-400 mb-2">
+                <span>0</span>
+                <span>{Number(company.supply).toLocaleString()} Total Supply</span>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-4">
+                <div
+                  className="bg-gradient-to-r from-primary to-primary/80 h-4 rounded-full transition-all duration-300"
+                  style={{ width: `${soldPercentage}%` }}
+                ></div>
+              </div>
+              <div className="flex justify-between text-sm mt-2">
+                <span className="text-green-400">{tokensSold.toLocaleString()} sold</span>
+                <span className="text-gray-400">{Number(company.remaining).toLocaleString()} remaining</span>
+              </div>
             </div>
           </div>
         </div>

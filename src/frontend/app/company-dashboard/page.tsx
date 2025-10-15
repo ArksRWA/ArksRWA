@@ -254,7 +254,7 @@ export default function CompanyDashboardPage() {
                 </div>
                 <div className='text-right'>
                   <div className="text-gray-400">Verification Score:</div>
-                  <div className="text-white text-lg">
+                  <div className={`${getVerificationColor(company.verification_status)} text-lg`}>
                     {company.verification_score ? `${company.verification_score.toFixed(1)}/100` : 'Ongoing Verification'}
                   </div>
                 </div>
@@ -324,7 +324,7 @@ export default function CompanyDashboardPage() {
                     <span className={`${company.verification_score >= 70 ? 'text-red-400' : company.verification_score >= 40 ? 'text-yellow-400' : 'text-green-400'}`}>
                       {company.verification_score.toFixed(1)}/100
                     </span>
-                  ) : <span className="text-blue-400">Ongoing Verification</span>}
+                  ) : <span className="text-yellow-400">Ongoing Verification</span>}
                 </div>
               </div>
 

@@ -8,31 +8,35 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Enhanced primary green palette
-        primary: {
-          DEFAULT: '#10b981',
-          50: '#ecfdf5',
-          100: '#d1fae5',
-          200: '#a7f3d0',
-          300: '#6ee7b7',
-          400: '#34d399',
-          500: '#10b981',
-          600: '#059669',
-          700: '#047857',
-          800: '#065f46',
-          900: '#064e3b',
-          glow: 'rgba(16, 185, 129, 0.3)',
+        // Primary green color
+        primary: '#22C55E',
+        // Light/Dark theme colors
+        'background-light': '#F3F4F6',
+        'background-dark': '#0D1117',
+        'card-light': '#FFFFFF',
+        'card-dark': '#161B22',
+        'text-light': '#1F2937',
+        'text-dark': '#E5E7EB',
+        'subtext-light': '#6B7280',
+        'subtext-dark': '#9CA3AF',
+        'border-light': '#E5E7EB',
+        'border-dark': '#30363D',
+        // Set default border color to rgb(48 54 61 / var(--tw-border-opacity, 1))
+        border: {
+          DEFAULT: 'rgb(48 54 61 / var(--tw-border-opacity, 1))',
+          light: '#E5E7EB',
+          dark: '#30363D',
         },
-        // Dark theme color palette
+        // Dark theme color palette (keeping for compatibility)
         background: {
-          DEFAULT: '#0a0f1c',
-          secondary: '#111827',
-          tertiary: '#1f2937',
+          DEFAULT: '#0D1117',
+          secondary: '#161B22',
+          tertiary: '#21262D',
         },
         foreground: {
-          DEFAULT: '#ffffff',
-          secondary: '#e5e7eb',
-          muted: '#9ca3af',
+          DEFAULT: '#E5E7EB',
+          secondary: '#9CA3AF',
+          muted: '#6B7280',
         },
         // Enhanced gray scale for dark theme
         gray: {
@@ -48,23 +52,23 @@ module.exports = {
           900: '#111827',
           950: '#0a0f1c',
         },
-        // Glass-morphism card colors
+        // Card colors
         card: {
-          bg: 'rgba(255, 255, 255, 0.08)',
-          'bg-hover': 'rgba(255, 255, 255, 0.12)',
-          border: 'rgba(255, 255, 255, 0.1)',
-          'border-hover': 'rgba(16, 185, 129, 0.3)',
+          bg: '#161B22',
+          'bg-hover': '#21262D',
+          border: '#30363D',
+          'border-hover': '#3FB950',
         },
         // Surface colors
         surface: {
-          DEFAULT: 'rgba(255, 255, 255, 0.05)',
-          hover: 'rgba(255, 255, 255, 0.08)',
+          DEFAULT: '#21262D',
+          hover: '#30363D',
         },
         // Accent colors
         accent: {
           orange: '#f59e0b',
           yellow: '#eab308',
-          purple: '#8b5cf6',
+          green: '#22C55E',
           red: '#ef4444',
           blue: '#3b82f6',
         },

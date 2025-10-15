@@ -13,6 +13,7 @@ export default function CompanyDashboardPage() {
   const [company, setCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [imageLoadError, setImageLoadError] = useState(false);
 
   useEffect(() => {
     const checkAuthAndCompany = async () => {
@@ -20,10 +21,10 @@ export default function CompanyDashboardPage() {
       if (typeof window === 'undefined') {
         return;
       }
-      
+
       // Simple auth check - the auth service handles session restoration internally
       const user = authService.getCurrentUser();
-      
+
       // Quick check for immediate redirect
       if (!user || !user.isConnected) {
         // Give auth service a brief moment to restore session if needed
@@ -34,20 +35,20 @@ export default function CompanyDashboardPage() {
           return;
         }
       }
-      
+
       const finalUser = authService.getCurrentUser();
       const finalRole = authService.getUserRole();
-      
+
       if (!finalUser || !finalUser.isConnected) {
         router.push('/');
         return;
       }
-      
+
       if (finalRole !== 'company') {
         router.push('/dashboard');
         return;
       }
-      
+
       setCurrentUser(finalUser);
       setUserRole(finalRole);
       await loadCompanyData();
@@ -62,7 +63,7 @@ export default function CompanyDashboardPage() {
     };
 
     window.addEventListener('wallet-identity-changed', handleWalletIdentityChange);
-    
+
     return () => {
       window.removeEventListener('wallet-identity-changed', handleWalletIdentityChange);
     };
@@ -212,16 +213,20 @@ export default function CompanyDashboardPage() {
 
         {/* Company Info Card */}
         <div className="lg:col-span-2 bg-card-bg border border-gray-700 rounded-lg p-6 mb-8">
-          <div className="flex items-start gap-4">
-            {company.logo_url && (
+          <div className="flex items-center gap-8">
+            {company.logo_url && !imageLoadError ? (
               <img
                 src={company.logo_url}
                 alt={`${company.name} logo`}
-                className="w-16 h-16 rounded-lg object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
+                className="w-32 h-32 rounded-lg object-cover"
+                onError={() => setImageLoadError(true)}
               />
+            ) : (
+              <div className="w-32 h-32 rounded-lg bg-gray-700 flex items-center justify-center">
+                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
             )}
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
@@ -236,23 +241,24 @@ export default function CompanyDashboardPage() {
               <p className="text-gray-300 mb-4">{company.description || 'No description available'}</p>
               <div className="justify-between grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-gray-400">Created:</span>
-                  <span className="text-white ml-2">
+                  <span className="text-gray-400">Created: </span>
+                  <span className="text-white">
                     {new Date(company.created_at / 1000000).toLocaleDateString()}
                   </span>
+                  <div>
+                    <span className="text-gray-400">Company Valuation:</span>
+                    <span className="text-white ml-2">
+                      {Number(company.valuation).toLocaleString()}
+                    </span>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-gray-400">Verification Score:</span>
-                  <span className="text-white ml-2">
+                <div className='text-right'>
+                  <div className="text-gray-400">Verification Score:</div>
+                  <div className="text-white text-lg">
                     {company.verification_score ? `${company.verification_score.toFixed(1)}/100` : 'Ongoing Verification'}
-                  </span>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-gray-400">Company Valuation:</span>
-                  <span className="text-white ml-2">
-                    {Number(company.valuation).toLocaleString()}
-                  </span>
-                </div>
+
                 {company.last_verified && (
                   <div className="text-right">
                     <span className="text-gray-400">Last Verified:</span>

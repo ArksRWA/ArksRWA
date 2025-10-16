@@ -13,6 +13,7 @@ export default function CompanyDashboardPage() {
   const [company, setCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [imageLoadError, setImageLoadError] = useState(false);
 
   useEffect(() => {
     const checkAuthAndCompany = async () => {
@@ -20,10 +21,10 @@ export default function CompanyDashboardPage() {
       if (typeof window === 'undefined') {
         return;
       }
-      
+
       // Simple auth check - the auth service handles session restoration internally
       const user = authService.getCurrentUser();
-      
+
       // Quick check for immediate redirect
       if (!user || !user.isConnected) {
         // Give auth service a brief moment to restore session if needed
@@ -34,20 +35,20 @@ export default function CompanyDashboardPage() {
           return;
         }
       }
-      
+
       const finalUser = authService.getCurrentUser();
       const finalRole = authService.getUserRole();
-      
+
       if (!finalUser || !finalUser.isConnected) {
         router.push('/');
         return;
       }
-      
+
       if (finalRole !== 'company') {
         router.push('/dashboard');
         return;
       }
-      
+
       setCurrentUser(finalUser);
       setUserRole(finalRole);
       await loadCompanyData();
@@ -62,7 +63,7 @@ export default function CompanyDashboardPage() {
     };
 
     window.addEventListener('wallet-identity-changed', handleWalletIdentityChange);
-    
+
     return () => {
       window.removeEventListener('wallet-identity-changed', handleWalletIdentityChange);
     };
@@ -198,8 +199,12 @@ export default function CompanyDashboardPage() {
             <div className="flex gap-4">
               <button
                 onClick={handleUpdateDescription}
-                className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg transition-colors relative z-1"
+                className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors relative z-1"
               >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
                 Manage Company
               </button>
             </div>
@@ -208,16 +213,20 @@ export default function CompanyDashboardPage() {
 
         {/* Company Info Card */}
         <div className="lg:col-span-2 bg-card-bg border border-gray-700 rounded-lg p-6 mb-8">
-          <div className="flex items-start gap-4">
-            {company.logo_url && (
+          <div className="flex items-center gap-8">
+            {company.logo_url && !imageLoadError ? (
               <img
                 src={company.logo_url}
                 alt={`${company.name} logo`}
-                className="w-16 h-16 rounded-lg object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
+                className="w-32 h-32 rounded-lg object-cover"
+                onError={() => setImageLoadError(true)}
               />
+            ) : (
+              <div className="w-32 h-32 rounded-lg bg-gray-700 flex items-center justify-center">
+                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
             )}
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
@@ -232,23 +241,24 @@ export default function CompanyDashboardPage() {
               <p className="text-gray-300 mb-4">{company.description || 'No description available'}</p>
               <div className="justify-between grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-gray-400">Created:</span>
-                  <span className="text-white ml-2">
+                  <span className="text-gray-400">Created: </span>
+                  <span className="text-white">
                     {new Date(company.created_at / 1000000).toLocaleDateString()}
                   </span>
+                  <div>
+                    <span className="text-gray-400">Company Valuation:</span>
+                    <span className="text-white ml-2">
+                      {Number(company.valuation).toLocaleString()}
+                    </span>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-gray-400">Verification Score:</span>
-                  <span className="text-white ml-2">
+                <div className='text-right'>
+                  <div className="text-gray-400">Verification Score:</div>
+                  <div className={`${getVerificationColor(company.verification_status)} text-lg`}>
                     {company.verification_score ? `${company.verification_score.toFixed(1)}/100` : 'Ongoing Verification'}
-                  </span>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-gray-400">Company Valuation:</span>
-                  <span className="text-white ml-2">
-                    {Number(company.valuation).toLocaleString()}
-                  </span>
-                </div>
+
                 {company.last_verified && (
                   <div className="text-right">
                     <span className="text-gray-400">Last Verified:</span>
@@ -293,62 +303,65 @@ export default function CompanyDashboardPage() {
           </div>
         </div>
 
-        {/* Verification Details */}
-        <div className="bg-card-bg border border-gray-700 rounded-lg p-6 mb-8">
-          <h3 className="text-lg font-semibold text-white mb-4">Verification Details</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="flex items-center gap-3">
-              <div className={`w-3 h-3 rounded-full ${getVerificationColor(company.verification_status).replace('text-', 'bg-')}`}></div>
+        {/* Verification Details & Progress Bar */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Verification Details */}
+          <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-white mb-6">Verification Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <div className="text-sm text-gray-400">Status</div>
-                <div className="text-white font-medium">{getVerificationStatusLabel(company.verification_status)}</div>
+                <div className="text-sm text-gray-400 mb-1">Status</div>
+                <div className="flex items-center gap-2">
+                  <div className={`w-3 h-3 rounded-full ${getVerificationColor(company.verification_status).replace('text-', 'bg-')}`}></div>
+                  <div className="text-white font-medium">{getVerificationStatusLabel(company.verification_status)}</div>
+                </div>
               </div>
-            </div>
 
-            <div>
-              <div className="text-sm text-gray-400">Score</div>
-              <div className="text-white font-medium">
-                {company.verification_score ? (
-                  <span className={`${company.verification_score >= 70 ? 'text-red-400' : company.verification_score >= 40 ? 'text-yellow-400' : 'text-green-400'}`}>
-                    {company.verification_score.toFixed(1)}/100
-                  </span>
-                ) : <span className="text-blue-400">Ongoing Verification</span>}
+              <div>
+                <div className="text-sm text-gray-400 text-center">Score</div>
+                <div className="text-white font-medium text-center">
+                  {company.verification_score ? (
+                    <span className={`${company.verification_score >= 70 ? 'text-red-400' : company.verification_score >= 40 ? 'text-yellow-400' : 'text-green-400'}`}>
+                      {company.verification_score.toFixed(1)}/100
+                    </span>
+                  ) : <span className="text-yellow-400">Ongoing Verification</span>}
+                </div>
               </div>
-            </div>
 
-            <div>
-              <div className="text-sm text-gray-400">Last Verified</div>
-              <div className="text-white font-medium">
-                {company.last_verified ? new Date(company.last_verified / 1000000).toLocaleDateString() : 'Never'}
+              <div>
+                <div className="text-sm text-gray-400 text-right">Last Verified</div>
+                <div className="text-white font-medium text-right">
+                  {company.last_verified ? new Date(company.last_verified / 1000000).toLocaleDateString() : 'Never'}
+                </div>
               </div>
-            </div>
 
-            {company.verification_job_id && (
-              <div className="md:col-span-3">
-                <div className="text-sm text-gray-400">Job ID</div>
-                <div className="text-white font-medium font-mono">#{company.verification_job_id}</div>
-              </div>
-            )}
+              {company.verification_job_id && (
+                <div>
+                  <div className="text-sm text-gray-400">Job ID</div>
+                  <div className="text-white font-medium font-mono">#{company.verification_job_id}</div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* Progress Bar */}
-        <div className="bg-card-bg border border-gray-700 rounded-lg p-6 mb-8">
-          <h3 className="text-lg font-semibold text-white mb-4">Token Sale Progress</h3>
-          <div className="relative">
-            <div className="flex justify-between text-sm text-gray-400 mb-2">
-              <span>0</span>
-              <span>{Number(company.supply).toLocaleString()} Total Supply</span>
-            </div>
-            <div className="w-full bg-gray-700 rounded-full h-4">
-              <div
-                className="bg-gradient-to-r from-primary to-primary/80 h-4 rounded-full transition-all duration-300"
-                style={{ width: `${soldPercentage}%` }}
-              ></div>
-            </div>
-            <div className="flex justify-between text-sm mt-2">
-              <span className="text-green-400">{tokensSold.toLocaleString()} sold</span>
-              <span className="text-gray-400">{Number(company.remaining).toLocaleString()} remaining</span>
+          {/* Progress Bar */}
+          <div className="bg-card-bg border border-gray-700 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-white mb-4">Token Sale Progress</h3>
+            <div className="relative">
+              <div className="flex justify-between text-sm text-gray-400 mb-2">
+                <span>0</span>
+                <span>{Number(company.supply).toLocaleString()} Total Supply</span>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-4">
+                <div
+                  className="bg-gradient-to-r from-primary to-primary/80 h-4 rounded-full transition-all duration-300"
+                  style={{ width: `${soldPercentage}%` }}
+                ></div>
+              </div>
+              <div className="flex justify-between text-sm mt-2">
+                <span className="text-green-400">{tokensSold.toLocaleString()} sold</span>
+                <span className="text-gray-400">{Number(company.remaining).toLocaleString()} remaining</span>
+              </div>
             </div>
           </div>
         </div>

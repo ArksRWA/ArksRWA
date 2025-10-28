@@ -42,14 +42,14 @@ persistent actor class TokenFactory(init_admin : ?Principal, core_canister : Pri
 
   public query func listAdmins() : async [Principal] { _admins };
 
-  public shared ({ caller }) func addAdmin(p : Principal) : async () {
+  public func addAdmin(p : Principal, caller : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     // dedupe
     var i = 0; while (i < _admins.size()) { if (_admins[i] == p) return; i += 1 };
     _admins := Array.append(_admins, [p]);
   };
 
-  public shared ({ caller }) func removeAdmin(p : Principal) : async () {
+  public func removeAdmin(p : Principal, caller : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     var out : [Principal] = [];
     var i = 0; while (i < _admins.size()) { if (_admins[i] != p) out := Array.append(out, [_admins[i]]); i += 1 };
@@ -58,7 +58,7 @@ persistent actor class TokenFactory(init_admin : ?Principal, core_canister : Pri
 
   public query func core() : async Principal { _core };
 
-  public shared ({ caller }) func setCore(newCore : Principal) : async () {
+  public func setCore(newCore : Principal, caller : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     _core := newCore;
   };
@@ -67,7 +67,7 @@ persistent actor class TokenFactory(init_admin : ?Principal, core_canister : Pri
   // Your renamed field: TokenWasm.token_module : [Nat8]
   var _wasm : ?Types.TokenWasm = null;
 
-  public shared ({ caller }) func setTokenWasm(w : Types.TokenWasm) : async () {
+  public func setTokenWasm(w : Types.TokenWasm, caller : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     if (w.token_module.size() == 0) { throw Error.reject("Empty token wasm"); };
     _wasm := ?w;
@@ -183,30 +183,16 @@ persistent actor class TokenFactory(init_admin : ?Principal, core_canister : Pri
     let tokenCid : Principal = res.canister_id;
 
     // 2) install code
-    // Prepare constructor argument with all required fields for CompanyToken
-    let ctor : ?{
-      name : Text;
-      symbol : Text;
-      decimals : Nat;
-      max_supply : Nat;
-      token_factory : Principal;
-      treasury : Principal;
-      primary_mint_fee_bips : Nat;
-      transfer_fee : Nat;
-      company_id : Nat;
-      core_canister : Principal;
-    } = ?{
-      name           = req.name;
-      symbol         = req.symbol;
-      decimals       = req.decimals;
-      max_supply     = req.total_supply;
-      token_factory  = Principal.fromActor(this);
-      treasury       = req.platform_treasury.owner;
-      primary_mint_fee_bips = req.platform_equity_bips;
-      transfer_fee   = 0; // 0 for MVP as specified in the todo
-      company_id     = req.company_id;
-      core_canister  = _core;
-    };
+    // Prepare constructor argument: opt TokenConstructor
+    // { name; symbol; decimals; max_supply; token_factory = this }
+    let ctor : ?{ name : Text; symbol : Text; decimals : Nat; max_supply : Nat; token_factory : Principal } =
+      ?{
+        name           = req.name;
+        symbol         = req.symbol;
+        decimals       = req.decimals;
+        max_supply     = req.total_supply;
+        token_factory  = Principal.fromActor(this);
+      };
 
     // Candid-encode init arg using Prim.encode (encodes Motoko values to Candid)
     let installArg : Blob = to_candid(ctor);
@@ -252,15 +238,6 @@ persistent actor class TokenFactory(init_admin : ?Principal, core_canister : Pri
 
     // 4) save in registry
     _registry.put(req.company_id, tokenCid);
-    
-    // 5) register token canister in Core
-    let core : actor { setTokenCanister : shared (Nat, Principal) -> async () } = actor (Principal.toText(_core));
-    try {
-      await core.setTokenCanister(req.company_id, tokenCid);
-    } catch (e) {
-      // Log error but don't fail the token creation
-      // In production, you might want to use a more robust logging mechanism
-    };
 
     #ok({
       company_id = req.company_id;

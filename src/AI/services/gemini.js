@@ -647,15 +647,12 @@ class LegitimacyAnalyzer {
 class GeminiService {
   constructor() {
     this.apiKey = process.env.GEMINI_API_KEY;
-    this.geminiEnabled = process.env.GEMINI_ENABLED === 'true';
     this.testMode = !this.apiKey || this.apiKey === 'test-api-key-for-development';
     
-    if (!this.testMode && this.geminiEnabled) {
+    if (!this.testMode) {
       this.genAI = new GoogleGenAI({apiKey: this.apiKey});
       // Use models API for @google/genai
       this.model = this.genAI.models;
-    } else if (!this.geminiEnabled) {
-      console.log('Gemini API disabled via GEMINI_ENABLED flag - using mock responses');
     } else {
       console.log('Running in test mode - using mock responses for Gemini API');
     }
@@ -904,13 +901,12 @@ BEGIN ANALYSIS - RESPOND WITH JSON ONLY:`;
    * Analyze actor role in fraud cases (VICTIM vs PERPETRATOR) for fair scoring
    */
   async analyzeActorRole(companyName, newsArticles = []) {
-    if (!this.geminiEnabled || this.testMode) {
+    if (this.testMode) {
       return {
         actorRole: 'UNCLEAR',
         confidence: 50,
-        reasoning: this.testMode ? 'Test mode - no actual analysis performed' : 'Gemini API disabled - no actual analysis performed',
-        articles: [],
-        success: true
+        reasoning: 'Test mode - no actual analysis performed',
+        articles: []
       };
     }
 
@@ -1208,8 +1204,8 @@ Perform triage analysis now:`;
       
       const triagePrompt = this.createTriagePrompt(companyData, patternAnalysis);
       
-      // Handle test mode or disabled API with triage-specific mock
-      if (!this.geminiEnabled || this.testMode) {
+      // Handle test mode with triage-specific mock
+      if (this.testMode) {
         return this.generateTriageMockResponse(companyData, patternAnalysis);
       }
       
@@ -1393,8 +1389,8 @@ Perform triage analysis now:`;
       // Create enhanced prompt with SerpAPI data
       const prompt = this.createSerpAPIEnhancedPrompt(companyName, description, serpResults);
       
-      // Handle test mode or disabled API
-      if (!this.geminiEnabled || this.testMode) {
+      // Handle test mode
+      if (this.testMode) {
         return this.generateSerpAPIResponse(companyName, description, serpResults);
       }
       
@@ -1803,8 +1799,8 @@ ${index + 1}. Title: ${result.title}
       // Step 2: Create enhanced prompt with web research
       const prompt = this.createIndonesianFraudPrompt(validatedCompanyData, webResearch);
       
-      // Handle test mode or disabled API with mock responses (enhanced with web data)
-      if (!this.geminiEnabled || this.testMode) {
+      // Handle test mode with mock responses (enhanced with web data)
+      if (this.testMode) {
         return this.generateMockResponse(validatedCompanyData, webResearch);
       }
       
@@ -2277,7 +2273,7 @@ ${index + 1}. Title: ${result.title}
    */
   async testConnection() {
     try {
-      if (!this.geminiEnabled || this.testMode) {
+      if (this.testMode) {
         return {
           success: true,
           response: 'OK (Test Mode)',
@@ -2390,7 +2386,7 @@ ${index + 1}. Title: ${result.title}
     try {
       const prompt = this.createNarrativePrompt(companyData, analysisResult, entityResolution);
       
-      if (!this.geminiEnabled || this.testMode) {
+      if (this.testMode) {
         return this.generateMockNarrative(companyData, analysisResult, entityResolution);
       }
       

@@ -257,7 +257,45 @@ dfx deploy --network local arks-token-factory \
 
 log "All canisters deployed ✅"
 
-# ---------- 5) Load .env ----------
+# ---------- 5) Add risk engine to Core admins ----------
+RISK_ENGINE_ID="$(dfx canister id arks-risk-engine)"
+log "arks-risk-engine canister id: ${RISK_ENGINE_ID}"
+
+log "Adding risk engine to Core admins..."
+dfx canister call --network local arks-core addAdmin "(principal \"${RISK_ENGINE_ID}\")"
+
+log "Risk engine added to Core admins ✅"
+
+# ---------- 6) Register Core with risk engine ----------
+log "Registering Core with risk engine..."
+dfx canister call --network local arks-risk-engine registerCoreCanister "(principal \"${CORE_ID}\")"
+
+log "Core registered with risk engine ✅"
+
+# ---------- 7) Upload CompanyToken WASM to TokenFactory ----------
+log "Uploading CompanyToken WASM to TokenFactory..."
+if [[ -f "scripts/upload-token-wasm.sh" ]]; then
+  log "Found upload-token-wasm.sh script"
+  log "To upload the CompanyToken WASM, run:"
+  log "  ./scripts/upload-token-wasm.sh [version]"
+  log ""
+  log "Note: The WASM file must be built first using:"
+  log "  cd src/backend/company_token && cargo build --target wasm32-unknown-unknown --release"
+  log ""
+else
+  log "upload-token-wasm.sh script not found"
+fi
+
+# ---------- 8) Spawn token instructions ----------
+log "Token spawn instructions:"
+log "To spawn a token after uploading the WASM, run:"
+log "  ./scripts/spawn-token.sh <company_id> <name> <symbol> <decimals> <total_supply> <platform_equity_bips> <cycles>"
+log ""
+log "Example:"
+log "  ./scripts/spawn-token.sh 1 \"My Company\" \"MYCO\" 8 1000000000 300 1000000000000"
+log ""
+
+# ---------- 9) Load .env ----------
 if [[ -f .env ]]; then
   set -a; . ./.env; set +a
 fi
@@ -265,8 +303,8 @@ fi
 FRONTEND_PORT="${FRONTEND_PORT:-${NEXT_PORT:-$DEFAULT_FRONT_PORT}}"
 AI_PORT="${AI_PORT:-$DEFAULT_AI_PORT}"
 
-# ---------- 6) Start dev servers ----------
-AI_PID="$(start_dev "$AI_DIR" "AI" "$AI_LOG" "$AI_PID_FILE" "AI_PORT=$AI_PORT")"
+# ---------- 10) Start dev servers ----------
+AI_PID="$(start_dev "$AI_DIR" "AI" "$AI_LOG" "$AI_PID_FILE" "PORT=$AI_PORT")"
 FRONT_PID="$(start_dev "$FRONTEND_DIR" "Next.js" "$FRONT_LOG" "$FRONT_PID_FILE" "PORT=$FRONTEND_PORT")"
 
 if [[ -z "$AI_PID" && -z "$FRONT_PID" ]]; then
@@ -286,7 +324,7 @@ if [[ "$MODE" == "--detach" ]]; then
   exit 0
 fi
 
-# ---------- 7) Tail logs ----------
+# ---------- 8) Tail logs ----------
 log "Tailing logs (Ctrl+C to stop everything)..."
 if [[ -f "$AI_LOG" && -f "$FRONT_LOG" ]]; then
   tail -n +1 -f "$AI_LOG" "$FRONT_LOG"

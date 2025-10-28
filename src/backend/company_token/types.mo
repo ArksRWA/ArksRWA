@@ -101,5 +101,7 @@ module {
     treasury : Principal;          // platform revenue wallet
     primary_mint_fee_bips : Nat;   // e.g., 300 = 3% minted to treasury on mint_to
     transfer_fee : Nat;            // flat per-transaction fee (ICRC-1 fee), typically 0 for DEXs
+    company_id : Nat;              // ID of the company this token represents
+    core_canister : Principal;     // Core canister principal for holdings updates
   };
 }

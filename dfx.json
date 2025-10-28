@@ -3,28 +3,24 @@
     "arks-core": {
       "main": "src/backend/core/main.mo",
       "type": "motoko",
-      "init_arg": "(null)",
       "domains": ["*"]
     },
     "arks-risk-engine": {
       "dependencies": ["arks-core"],
       "main": "src/backend/risk_engine/main.mo",
       "type": "motoko",
-      "init_arg": "(null, null, null)",
       "domains": ["*"]
     },
     "arks-identity": {
       "dependencies": ["arks-core"],
       "main": "src/backend/identity/main.mo",
       "type": "motoko",
-      "init_arg": "(null)",
       "domains": ["*"]
     },
     "arks-token-factory": {
       "dependencies": ["arks-core"],
       "main": "src/backend/token_factory/main.mo",
       "type": "motoko",
-      "init_arg": "(null, null)",
       "domains": ["*"]
     },
     "frontend": {
@@ -40,7 +36,7 @@
   },
   "networks": {
     "local": {
-      "bind": "127.0.0.1:4943",
+      "bind": "0.0.0.0:4943",
       "type": "ephemeral",
       "domains": ["*"]
     },

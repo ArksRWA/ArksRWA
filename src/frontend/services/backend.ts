@@ -10,6 +10,39 @@ import {
 // Import declarations using the alias
 import * as declarations from '@declarations/arks-core/index.js';
 
+// ICRC-1/2 types for token canister interface
+interface ICRC1TransferArgs {
+  from_subaccount?: [] | [number[]] | undefined;
+  to: {
+    owner: string;
+    subaccount?: [] | [number[]] | undefined;
+  };
+  amount: number;
+  fee?: [] | [number] | undefined;
+  memo?: [] | [number[]] | undefined;
+  created_at_time?: [] | [bigint] | undefined;
+}
+
+interface ICRC1TransferResult {
+  Ok?: number;
+  Err?: {
+    InsufficientFunds?: { balance: number };
+    BadFee?: { expected_fee: number };
+    GenericError?: { error_code: number; message: string };
+  };
+}
+
+interface ICRC1Account {
+  owner: string;
+  subaccount?: [] | [number[]] | undefined;
+}
+
+// Company token actor interface
+interface CompanyTokenActor {
+  icrc1_balance_of: (account: ICRC1Account) => Promise<number>;
+  icrc1_transfer: (args: ICRC1TransferArgs) => Promise<ICRC1TransferResult>;
+}
+
 // Re-export types for convenience
 export type { Company, CreateCompanyParams } from '../types/canister';
 
@@ -22,6 +55,7 @@ class BackendService {
   private coreActorCache: any = null;
   private riskEngineActorCache: any = null;
   private agentCache: any = null;
+  private tokenActorCache: Map<string, any> = new Map(); // Cache for company token actors
 
   private async createHttpAgent(): Promise<any> {
     const { HttpAgent } = await import('@dfinity/agent');
@@ -30,19 +64,10 @@ class BackendService {
       return this.agentCache;
     }
 
-    // ✅ Use SAME ORIGIN in the browser to avoid CORS
-    const isBrowser = typeof window !== 'undefined';
+    // Always set host explicitly: local → http://127.0.0.1:4943, mainnet → https://icp-api.io
     const agent = new HttpAgent({
-      // If we're in the browser, let it default to window.location.origin by not setting host
-      ...(isBrowser ? {} : { host: (isLocal() ? 'http://127.0.0.1:4943' : 'https://icp-api.io') }),
+      host: (isLocal() ? 'http://127.0.0.1:4943' : 'https://icp-api.io'),
     });
-
-    // TESTING PURPOSE - BYPASS ISBROWSER
-    // const agent = this.agentCache ?? new HttpAgent({
-    //   host: (isLocal() ? 'http://127.0.0.1:4943' : 'https://icp-api.io'),
-    // });
-    // ENDING TESTING PURPOSE - BYPASS ISBROWSER
-
 
     // For local dev only
     if (isLocal()) {
@@ -180,11 +205,76 @@ private async createActor(requireAuth = true) {
     }
   }
 
+  // Helper function to create company token actor
+  private async createCompanyTokenActor(canisterId: string): Promise<any> {
+    // Check cache first
+    if (this.tokenActorCache.has(canisterId)) {
+      return this.tokenActorCache.get(canisterId);
+    }
+
+    try {
+      const { Actor } = await import('@dfinity/agent');
+      const agent = await this.createHttpAgent();
+
+      // Create a lightweight ICRC-1/2 IDL for the token canister
+      const tokenIdl = ({ IDL }: any) => {
+        return IDL.Service({
+          'icrc1_balance_of': IDL.Func(
+            [IDL.Record({
+              'owner': IDL.Principal,
+              'subaccount': IDL.Opt(IDL.Vec(IDL.Nat8))
+            })],
+            [IDL.Nat],
+            ['query']
+          ),
+          'icrc1_transfer': IDL.Func(
+            [IDL.Record({
+              'from_subaccount': IDL.Opt(IDL.Vec(IDL.Nat8)),
+              'to': IDL.Record({
+                'owner': IDL.Principal,
+                'subaccount': IDL.Opt(IDL.Vec(IDL.Nat8))
+              }),
+              'amount': IDL.Nat,
+              'fee': IDL.Opt(IDL.Nat),
+              'memo': IDL.Opt(IDL.Vec(IDL.Nat8)),
+              'created_at_time': IDL.Opt(IDL.Nat64)
+            })],
+            [IDL.Variant({
+              'Ok': IDL.Nat,
+              'Err': IDL.Variant({
+                'InsufficientFunds': IDL.Record({ 'balance': IDL.Nat }),
+                'BadFee': IDL.Record({ 'expected_fee': IDL.Nat }),
+                'GenericError': IDL.Record({
+                  'error_code': IDL.Nat,
+                  'message': IDL.Text
+                })
+              })
+            })],
+            []
+          )
+        });
+      };
+
+      const tokenActor = Actor.createActor(tokenIdl, {
+        agent,
+        canisterId,
+      });
+
+      // Cache the actor
+      this.tokenActorCache.set(canisterId, tokenActor);
+      return tokenActor;
+    } catch (error) {
+      console.error('Error creating company token actor:', error);
+      throw error;
+    }
+  }
+
   // Clear cache when user changes
   private clearCache() {
     this.coreActorCache = null;
     this.riskEngineActorCache = null;
     this.agentCache = null;
+    this.tokenActorCache.clear();
   }
 
   // Public method to clear cache when user disconnects
@@ -200,9 +290,7 @@ private async createActor(requireAuth = true) {
 
     try {
       // Real backend call
-      const { Principal } = await import('@dfinity/principal');
       const actor = await this.createActor();
-      const callerPrincipal = Principal.fromText(user.principal);
       const result = await actor.createCompany(
         params.name,
         params.symbol,
@@ -210,8 +298,7 @@ private async createActor(requireAuth = true) {
         params.description,
         params.valuation,
         params.desiredSupply ? [params.desiredSupply] : [],
-        params.desiredPrice ? [params.desiredPrice] : [],
-        callerPrincipal
+        params.desiredPrice ? [params.desiredPrice] : []
       );
 
       return Number(result);
@@ -240,10 +327,8 @@ private async createActor(requireAuth = true) {
     }
 
     try {
-      const { Principal } = await import('@dfinity/principal');
-      const callerPrincipal = Principal.fromText(user.principal);
       const actor = await this.createActor(true);
-      const ownedCompanies = await actor.getOwnedCompanies(callerPrincipal);
+      const ownedCompanies = await actor.getOwnedCompanies(user.principal);
       return ownedCompanies.length > 0;
     } catch (error) {
       console.error('Error checking owned company:', error);
@@ -258,10 +343,8 @@ private async createActor(requireAuth = true) {
     }
 
     try {
-      const { Principal } = await import('@dfinity/principal');
-      const callerPrincipal = Principal.fromText(user.principal);
       const actor = await this.createActor(true);
-      const ownedCompanies = await actor.getOwnedCompanies(callerPrincipal);
+      const ownedCompanies = await actor.getOwnedCompanies(user.principal);
       return (ownedCompanies as any[]).map(candidCompanyToFrontend);
     } catch (error) {
       console.error('Error getting owned companies:', error);
@@ -291,11 +374,9 @@ private async createActor(requireAuth = true) {
     }
 
     try {
-      // Real backend call
-      const { Principal } = await import('@dfinity/principal');
+      // Real backend call - using shared query which automatically uses caller
       const actor = await this.createActor();
-      const callerPrincipal = Principal.fromText(user.principal);
-      const holdings = await actor.get_my_holding(companyId, callerPrincipal);
+      const holdings = await actor.get_my_holding(companyId);
       return holdings;
     } catch (error) {
       console.error('Error getting user holdings:', error);
@@ -321,23 +402,8 @@ private async createActor(requireAuth = true) {
         throw new Error('Token canister not deployed for this company yet. Please contact the company to deploy their token canister first.');
       }
 
-      // TODO: Implement actual token buying through company's individual token canister
-      // This would require:
-      // 1. Creating actor for the company's specific token canister
-      // 2. Calling the ICRC-1/2 transfer methods on that canister
-      // 3. Handling the purchase flow through the token factory system
-      
-      throw new Error('Token purchasing will be available once individual company token canisters are implemented through the token factory.');
-      
-      /*
-      // Future implementation:
-      const { Principal } = await import('@dfinity/principal');
-      const tokenCanisterId = company.token_canister_id;
-      const tokenActor = await this.createCompanyTokenActor(tokenCanisterId);
-      const callerPrincipal = Principal.fromText(user.principal);
-      const result = await tokenActor.purchase(amount, callerPrincipal);
-      return result as string;
-      */
+      // Temporarily disable buyTokens as specified in the todo
+      throw new Error('Token purchasing is temporarily disabled. Please use the Transfer function instead.');
     } catch (error) {
       console.error('Error buying tokens:', error);
       throw error;
@@ -362,23 +428,8 @@ private async createActor(requireAuth = true) {
         throw new Error('Token canister not deployed for this company yet. Cannot sell tokens that don\'t exist.');
       }
 
-      // TODO: Implement actual token selling through company's individual token canister
-      // This would require:
-      // 1. Creating actor for the company's specific token canister
-      // 2. Calling the ICRC-1/2 transfer methods on that canister
-      // 3. Handling the sale flow through the token factory system
-      
-      throw new Error('Token selling will be available once individual company token canisters are implemented through the token factory.');
-      
-      /*
-      // Future implementation:
-      const { Principal } = await import('@dfinity/principal');
-      const tokenCanisterId = company.token_canister_id;
-      const tokenActor = await this.createCompanyTokenActor(tokenCanisterId);
-      const callerPrincipal = Principal.fromText(user.principal);
-      const result = await tokenActor.sell(amount, callerPrincipal);
-      return result as string;
-      */
+      // Temporarily disable sellTokens as specified in the todo
+      throw new Error('Token selling is temporarily disabled. Please use the Transfer function instead.');
     } catch (error) {
       console.error('Error selling tokens:', error);
       throw error;
@@ -393,10 +444,8 @@ private async createActor(requireAuth = true) {
 
     try {
       // Real backend call - use correct method name from canister interface
-      const { Principal } = await import('@dfinity/principal');
       const actor = await this.createActor();
-      const callerPrincipal = Principal.fromText(user.principal);
-      await actor.updateDescription(companyId, newDescription, callerPrincipal);
+      await actor.updateDescription(companyId, newDescription);
       return 'Company description updated successfully';
     } catch (error) {
       console.error('Error updating company description:', error);
@@ -411,23 +460,34 @@ private async createActor(requireAuth = true) {
     }
 
     try {
-      // Real backend call
-      const actor = await this.createActor();
+      // Get company details to find token canister ID
+      const company = await this.getCompanyById(companyId);
+      if (!company) {
+        throw new Error('Company not found');
+      }
+
+      // Check if the company has a token canister deployed
+      if (!company.token_canister_id) {
+        throw new Error('Token canister not deployed for this company yet');
+      }
+
+      // Create actor for the company's token canister
+      const tokenActor = await this.createCompanyTokenActor(company.token_canister_id);
       
       // Prepare transfer arguments according to ICRC-1 standard
       const transferArgs = {
-        from_subaccount: null, // Using default subaccount
+        from_subaccount: [], // Using default subaccount
         to: {
-          owner: recipient, // Principal ID as string, will be converted by backend
-          subaccount: null
+          owner: recipient,
+          subaccount: []
         },
         amount: amount,
-        fee: null, // Let backend determine fee
-        memo: memo ? [new TextEncoder().encode(memo)] : null,
-        created_at_time: null // Let backend set timestamp
+        fee: [], // Let backend determine fee
+        memo: memo ? [new TextEncoder().encode(memo)] : [],
+        created_at_time: [] // Let backend set timestamp
       };
 
-      const result = await actor.icrc1_transfer(companyId, transferArgs, user.principal);
+      const result = await tokenActor.icrc1_transfer(transferArgs);
       
       // Handle the result which is either #Ok(Nat) or #Err(TransferError)
       if (result.Ok !== undefined) {
@@ -444,7 +504,7 @@ private async createActor(requireAuth = true) {
           throw new Error('Transfer failed with unknown error');
         }
       } else {
-        throw new Error('Unexpected response format from backend');
+        throw new Error('Unexpected response format from token canister');
       }
     } catch (error) {
       console.error('Error transferring tokens:', error);
@@ -459,22 +519,28 @@ private async createActor(requireAuth = true) {
     }
 
     try {
-      // Real backend call
-      const actor = await this.createActor();
+      // Get company details to find token canister ID
+      const company = await this.getCompanyById(companyId);
+      if (!company) {
+        throw new Error('Company not found');
+      }
+
+      // Check if the company has a token canister deployed
+      if (!company.token_canister_id) {
+        throw new Error('Token canister not deployed for this company yet');
+      }
+
+      // Create actor for the company's token canister
+      const tokenActor = await this.createCompanyTokenActor(company.token_canister_id);
+      
       const account = {
         owner: principalId || user.principal,
-        subaccount: null
+        subaccount: []
       };
       
-      const result = await actor.icrc1_balance_of(companyId, account);
+      const result = await tokenActor.icrc1_balance_of(account);
       
-      if (result.ok !== undefined) {
-        return result.ok;
-      } else if (result.err) {
-        throw new Error(result.err);
-      } else {
-        throw new Error('Unexpected response format');
-      }
+      return result;
     } catch (error) {
       console.error('Error getting token balance:', error);
       throw error;

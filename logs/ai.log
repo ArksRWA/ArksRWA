@@ -1,0 +1,15 @@
+
+> arks-rwa-ai-service@1.0.0 dev
+> node --watch index.js
+
+[dotenv@17.2.2] injecting env (15) from .env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+📰 SerpAPI Service initialized with tiered Indonesian news sources
+   Total sources: 13 across 4 tiers
+Gemini API disabled via GEMINI_ENABLED flag - using mock responses
+🔍 Website Verification Service initialized
+[dotenv@17.2.2] injecting env (0) from .env -- tip: ⚙️  override existing env vars with { override: true }
+🚀 ARKS RWA AI Service running on port 4000
+📍 Environment: development
+🔐 Auth required: Yes
+🤖 Gemini API: Configured
+⏱️ Server timeout configured: 960000ms (16 minutes)

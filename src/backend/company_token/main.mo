@@ -7,6 +7,16 @@ import Time       "mo:base/Time";
 import Option     "mo:base/Option";
 import Types      "./types";
 
+// Core actor interface for holdings updates
+type CoreActor = actor {
+  on_token_transfer : shared ({
+    companyId : Nat;
+    from : ?Principal;
+    to : ?Principal;
+    amount : Nat;
+  }) -> async ();
+};
+
 persistent actor class CompanyToken(init : Types.Init) = this {
 
   // ---------------- Stable metadata/config ----------------
@@ -20,6 +30,10 @@ persistent actor class CompanyToken(init : Types.Init) = this {
   var _treasury : Principal        = init.treasury;
   var _primary_mint_fee_bips : Nat = init.primary_mint_fee_bips;
   var _transfer_fee : Nat          = init.transfer_fee; // ICRC-1 flat fee (default 0)
+  
+  // Core integration
+  var _company_id : Nat            = init.company_id;
+  var _core_canister : Principal   = init.core_canister;
 
   // Supply / mint gate
   var _total : Nat = 0;
@@ -184,8 +198,26 @@ persistent actor class CompanyToken(init : Types.Init) = this {
   // ---------------- ICRC-1: transfer ----------------
   public shared({ caller }) func icrc1Transfer(args : Types.TransferArgs) : async Types.TransferResult {
     let from : Types.Account = { owner = caller; subaccount = args.from_subaccount };
-    switch (do_transfer(from, args.to, args.amount, Option.get(args.fee, _transfer_fee))) {
-      case (#ok(idx))  { #Ok(idx) };
+    let result = do_transfer(from, args.to, args.amount, Option.get(args.fee, _transfer_fee));
+    
+    // Update holdings index in core after successful transfer
+    switch (result) {
+      case (#ok(idx)) {
+        // Notify core about the transfer
+        let core : CoreActor = actor (Principal.toText(_core_canister));
+        try {
+          await core.on_token_transfer({
+            companyId = _company_id;
+            from = ?caller;
+            to = ?args.to.owner;
+            amount = args.amount;
+          });
+        } catch (e) {
+          // Log error but don't fail the transfer
+          // In production, you might want to use a more robust logging mechanism
+        };
+        #Ok(idx);
+      };
       case (#err(e))   { #Err(e) };
     }
   };
@@ -257,7 +289,9 @@ persistent actor class CompanyToken(init : Types.Init) = this {
     };
 
     // perform underlying transfer (owner pays fee)
-    switch (do_transfer(args.from, args.to, args.amount, Option.get(args.fee, _transfer_fee))) {
+    let transferResult = do_transfer(args.from, args.to, args.amount, Option.get(args.fee, _transfer_fee));
+    
+    switch (transferResult) {
       case (#err(e)) { return #Err(
         switch (e) {
           case (#BadFee(x))            #BadFee(x);
@@ -272,6 +306,20 @@ persistent actor class CompanyToken(init : Types.Init) = this {
       case (#ok(idx)) {
         // decrement allowance
         setAllow(allowKey, { remaining = al.remaining - args.amount; expires_at = al.expires_at });
+        
+        // Notify core about the transfer
+        let core : CoreActor = actor (Principal.toText(_core_canister));
+        try {
+          await core.on_token_transfer({
+            companyId = _company_id;
+            from = ?args.from.owner;
+            to = ?args.to.owner;
+            amount = args.amount;
+          });
+        } catch (e) {
+          // Log error but don't fail the transfer
+        };
+        
         #Ok(idx)
       }
     }
@@ -305,6 +353,20 @@ persistent actor class CompanyToken(init : Types.Init) = this {
     };
 
     _total += (amount + feeMint);
+    
+    // Notify core about the mint (from = null for mint)
+    let core : CoreActor = actor (Principal.toText(_core_canister));
+    try {
+      await core.on_token_transfer({
+        companyId = _company_id;
+        from = null; // null for mint
+        to = ?to.owner;
+        amount = amount;
+      });
+    } catch (e) {
+      // Log error but don't fail the mint
+    };
+    
     #Ok(bumpTx())
   };
 
@@ -318,6 +380,20 @@ persistent actor class CompanyToken(init : Types.Init) = this {
     };
     setBal(from, b - amount);
     _total -= amount;
+    
+    // Notify core about the burn (to = null for burn)
+    let core : CoreActor = actor (Principal.toText(_core_canister));
+    try {
+      await core.on_token_transfer({
+        companyId = _company_id;
+        from = ?from.owner;
+        to = null; // null for burn
+        amount = amount;
+      });
+    } catch (e) {
+      // Log error but don't fail the burn
+    };
+    
     #Ok(bumpTx())
   };
 

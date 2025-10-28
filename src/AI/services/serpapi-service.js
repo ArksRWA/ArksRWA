@@ -176,97 +176,12 @@ export class SerpAPIService {
    * Execute SerpAPI search with retry logic and extended timeout support
    */
   async executeSearch(engine, query, options = {}) {
-    // Check if SerpAPI is enabled via environment flag
-    const serpApiEnabled = process.env.SERPAPI_ENABLED === 'true';
-    
-    if (!serpApiEnabled) {
-      console.log(chalk.yellow('⚠️ SerpAPI disabled via SERPAPI_ENABLED flag, returning structured noop result'));
-      return {
-        search_metadata: {
-          id: 'disabled',
-          status: 'Disabled',
-          json_endpoint: '',
-          created_at: new Date().toISOString(),
-          processed_at: new Date().toISOString(),
-          google_url: '',
-          raw_html_file: '',
-          total_time_taken: 0
-        },
-        search_parameters: {
-          engine,
-          q: query,
-          ...options
-        },
-        organic_results: [],
-        news_results: [],
-        related_searches: [],
-        knowledge_graph: {},
-        answer_box: {},
-        shopping_results: [],
-        images_results: [],
-        inline_videos: [],
-        related_questions: []
-      };
-    }
-    
     if (!this.apiKey || this.apiKey === 'your-serpapi-key-here') {
-      console.log(chalk.yellow('⚠️ SerpAPI key not configured, returning structured noop result'));
-      return {
-        search_metadata: {
-          id: 'no_key',
-          status: 'No Key',
-          json_endpoint: '',
-          created_at: new Date().toISOString(),
-          processed_at: new Date().toISOString(),
-          google_url: '',
-          raw_html_file: '',
-          total_time_taken: 0
-        },
-        search_parameters: {
-          engine,
-          q: query,
-          ...options
-        },
-        organic_results: [],
-        news_results: [],
-        related_searches: [],
-        knowledge_graph: {},
-        answer_box: {},
-        shopping_results: [],
-        images_results: [],
-        inline_videos: [],
-        related_questions: []
-      };
+      throw new Error('SerpAPI key not configured. Please provide a valid API key.');
     }
 
     if (!this.isWithinQuota()) {
-      console.log(chalk.yellow('⚠️ SerpAPI quota exceeded, returning structured noop result'));
-      return {
-        search_metadata: {
-          id: 'quota_exceeded',
-          status: 'Quota Exceeded',
-          json_endpoint: '',
-          created_at: new Date().toISOString(),
-          processed_at: new Date().toISOString(),
-          google_url: '',
-          raw_html_file: '',
-          total_time_taken: 0
-        },
-        search_parameters: {
-          engine,
-          q: query,
-          ...options
-        },
-        organic_results: [],
-        news_results: [],
-        related_searches: [],
-        knowledge_graph: {},
-        answer_box: {},
-        shopping_results: [],
-        images_results: [],
-        inline_videos: [],
-        related_questions: []
-      };
+      throw new Error(`SerpAPI daily quota exceeded: ${this.quotaUsed}/${this.dailyQuota} searches used.`);
     }
 
     const cacheKey = this.getCacheKey(engine, query, options);
@@ -295,7 +210,7 @@ export class SerpAPIService {
         
         const result = await Promise.race([
           getJson(searchParams),
-          new Promise((_, reject) =>
+          new Promise((_, reject) => 
             setTimeout(() => reject(new Error(`Search timeout after ${timeoutMs}ms`)), timeoutMs)
           )
         ]);

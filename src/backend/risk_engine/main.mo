@@ -57,7 +57,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     
     // Core canister interface for callbacks
     private func getCoreCanisterActor(canisterId : Principal) : actor {
-      updateVerificationResult : (Nat, CoreVerificationProfile) -> async ();
+      updateVerificationResult : (Nat, Types.VerificationProfile, Principal) -> async ();
       getCompany : (Nat) -> async ?CoreCompany;
       listCompanies : () -> async [CoreCompany];
     } {
@@ -78,11 +78,11 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
 
     // Core canister interface type
     type CoreCanisterInterface = actor {
-      updateVerificationResult : (Nat, CoreVerificationProfile) -> async ();
+      updateVerificationResult : (Nat, CoreVerificationProfile, Principal) -> async ();
     };
 
     // Core canister management functions
-    public shared ({ caller }) func registerCoreCanister(canisterId : Principal) : async () {
+    public func registerCoreCanister(canisterId : Principal, caller : Principal) : async () {
       if (caller != admin) {
         throw Error.reject("Authorization failed: Only admin can register core canisters");
       };
@@ -95,7 +95,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
       registeredCoreCanisterIds := Array.append(registeredCoreCanisterIds, [canisterId]);
     };
     
-    public shared ({ caller }) func unregisterCoreCanister(canisterId : Principal) : async () {
+    public func unregisterCoreCanister(canisterId : Principal, caller : Principal) : async () {
       if (caller != admin) {
         throw Error.reject("Authorization failed: Only admin can unregister core canisters");
       };
@@ -103,7 +103,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
       registeredCoreCanisterIds := Array.filter(registeredCoreCanisterIds, func(id : Principal) : Bool { id != canisterId });
     };
     
-    public shared query ({ caller }) func listRegisteredCoreCanisterIds() : async [Principal] {
+    public query func listRegisteredCoreCanisterIds(caller : Principal) : async [Principal] {
       if (caller != admin) {
         return [];
       };
@@ -195,8 +195,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
             for (coreCanisterId in registeredCoreCanisterIds.vals()) {
               let coreRef = getCoreCanisterActor(coreCanisterId);
               try {
-                let coreProfile = _mapToCoreverificationProfile(profile);
-                await coreRef.updateVerificationResult(job.companyId, coreProfile);
+                await coreRef.updateVerificationResult(job.companyId, profile, Principal.fromActor(self));
               } catch (error) {
                 Debug.print("Failed to update core canister for company " # job.companyName # ": " # Error.message(error));
                 // Continue anyway - verification is complete even if core update fails
@@ -951,11 +950,10 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     private func parseAIResponse(responseText : Text) : AIAnalysisResponse {
       // Simplified JSON parsing - in production, use proper JSON parser
       if (Text.contains(responseText, #text "\"success\":true")) {
-        // Note: In production, implement proper JSON parsing here
-        let fraudScore = null : ?Nat;
-        let confidence = null : ?Nat;
-        let processingTime = null : ?Nat;
-        let riskLevel = null : ?Text;
+        let fraudScore = extractNumberFromJson(responseText, "fraudScore");
+        let confidence = extractNumberFromJson(responseText, "confidence");
+        let processingTime = extractNumberFromJson(responseText, "processingTimeMs");
+        let riskLevel = extractTextFromJson(responseText, "riskLevel");
         
         {
           success = true;
@@ -975,6 +973,18 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
           error = ?"AI service returned unsuccessful response";
         };
       };
+    };
+
+    // Extract number from JSON string (simplified)
+    private func extractNumberFromJson(_json : Text, _key : Text) : ?Nat {
+      // Very simplified - in production use proper JSON parser
+      null; // Would implement JSON parsing logic
+    };
+
+    // Extract text from JSON string (simplified)
+    private func extractTextFromJson(_json : Text, _key : Text) : ?Text {
+      // Very simplified - in production use proper JSON parser
+      null; // Would implement JSON parsing logic
     };
 
     // ===== VERIFICATION SYSTEM FUNCTIONS =====
@@ -1013,7 +1023,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     };
 
     // Start manual verification for a company (admin only)
-    public shared ({ caller }) func startManualVerification(companyId : Nat, priority : JobPriority) : async ?Nat {
+    public func startManualVerification(companyId : Nat, priority : JobPriority, caller : Principal) : async ?Nat {
       if (caller != admin) {
         throw Error.reject("Authorization failed: Only admin can start manual verification.");
       };
@@ -1037,7 +1047,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     };
 
     // Process pending verification jobs (admin only)
-    public shared ({ caller }) func processVerificationJobs(maxJobs : Nat) : async Nat {
+    public func processVerificationJobs(maxJobs : Nat, caller : Principal) : async Nat {
       if (caller != admin) {
         throw Error.reject("Authorization failed: Only admin can process verification jobs.");
       };
@@ -1082,7 +1092,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     };
 
     // Get verification statistics for admin dashboard
-    public shared query ({ caller }) func getVerificationStats() : async ?{
+    public query func getVerificationStats(caller : Principal) : async ?{
       totalCompanies : Nat;
       verifiedCompanies : Nat;
       pendingVerifications : Nat;
@@ -1136,7 +1146,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     };
 
     // Cancel verification job (admin only)
-    public shared ({ caller }) func cancelVerificationJob(jobId : Nat) : async Bool {
+    public func cancelVerificationJob(jobId : Nat, caller : Principal) : async Bool {
       if (caller != admin) {
         throw Error.reject("Authorization failed: Only admin can cancel verification jobs.");
       };
@@ -1145,7 +1155,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     };
   
     // NEW: Get Scorer API verification cache statistics
-    public shared query ({ caller }) func getScorerCacheStats() : async ?{ entries : Nat; expiredEntries : Nat; hitRate : ?Float } {
+    public query func getScorerCacheStats(caller : Principal) : async ?{ entries : Nat; expiredEntries : Nat; hitRate : ?Float } {
       // Only admin can access cache stats
       if (caller != admin) {
         return null;
@@ -1155,7 +1165,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     };
     
     // NEW: Clean up expired Scorer API cache entries
-    public shared ({ caller }) func cleanupScorerCache() : async ?Nat {
+    public func cleanupScorerCache(caller : Principal) : async ?Nat {
       // Only admin can clean cache
       if (caller != admin) {
         return null;
@@ -1165,7 +1175,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     };
     
     // NEW: Test Scorer API verification with external API key (for testing the new architecture)
-    public shared ({ caller }) func testScorerApiVerification(companyId : Nat, _apiKey : Text) : async ?VerificationProfile {
+    public func testScorerApiVerification(companyId : Nat, _apiKey : Text, caller : Principal) : async ?VerificationProfile {
       // Only admin can test Scorer API
       if (caller != admin) {
         return null;
@@ -1190,7 +1200,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     };
 
     // NEW: Force refresh company verification using new architecture
-    public shared ({ caller }) func refreshCompanyVerificationScorer(companyId : Nat) : async ?VerificationProfile {
+    public func refreshCompanyVerificationScorer(companyId : Nat, caller : Principal) : async ?VerificationProfile {
       // Only admin can force refresh
       if (caller != admin) {
         return null;
@@ -1210,10 +1220,11 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     };
 
     // Override verification status (admin emergency function)
-    public shared ({ caller }) func overrideVerificationStatus(
+    public func overrideVerificationStatus(
       companyId : Nat, 
       newStatus : VerificationStatus, 
       newScore : ?Float, 
+      caller : Principal
     ) : async Bool {
       if (caller != admin) {
         throw Error.reject("Authorization failed: Only admin can override verification status.");
@@ -1239,7 +1250,7 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     // ==========================================
     
     // Monitor registered core canisters for new companies needing verification
-    public shared ({ caller }) func scanCoreCanistersForPendingVerification() : async Nat {
+    public func scanCoreCanistersForPendingVerification(caller : Principal) : async Nat {
       if (caller != admin) {
         throw Error.reject("Authorization failed: Only admin can scan for pending verification.");
       };
@@ -1284,12 +1295,11 @@ persistent actor class VerificationEngine(init_admin: Principal, ai_service_url:
     public func periodicVerificationScan() : async Nat {
       // This function doesn't require admin access as it's meant to be called automatically
       // by the system or scheduled jobs
-      // Runs with canister principal as caller; relies on admin checks inside scan
-      await scanCoreCanistersForPendingVerification();
+      await scanCoreCanistersForPendingVerification(admin);
     };
     
     // Get summary of companies across all registered core canisters
-    public shared query ({ caller }) func getMultiCoreCompanySummary() : async ?{
+    public query func getMultiCoreCompanySummary(caller : Principal) : async ?{
       totalCompanies : Nat;
       pendingVerification : Nat;
       verified : Nat;

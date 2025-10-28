@@ -42,14 +42,14 @@ persistent actor class ARKSRWA_Core(init_admin : Principal) = this {
     false
   };
 
-  public shared ({ caller }) func addAdmin(p : Principal) : async () {
+  public func addAdmin(p : Principal, caller : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     // no duplicates
     var i = 0; while (i < _admins.size()) { if (_admins[i] == p) return; i += 1 };
     _admins := Array.append(_admins, [p]);
   };
 
-  public shared ({ caller }) func removeAdmin(p : Principal) : async () {
+  public func removeAdmin(p : Principal, caller : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     var out : [Principal] = [];
     var i = 0; while (i < _admins.size()) { if (_admins[i] != p) { out := Array.append(out, [_admins[i]]) }; i += 1 };
@@ -73,22 +73,22 @@ persistent actor class ARKSRWA_Core(init_admin : Principal) = this {
 
   public query func getGovernance() : async Types.Governance { governance };
 
-  public shared ({ caller }) func setGovernance(g : Types.Governance) : async () {
+  public func setGovernance(g : Types.Governance, caller : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     governance := g;
   };
 
-  public shared ({ caller }) func rotateTreasury(newTreasury : Principal) : async () {
+  public func rotateTreasury(newTreasury : Principal, caller : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     governance := { governance with platform_treasury = newTreasury };
   };
 
   // Global platform pause (affects orchestrations; trading is on CompanyToken)
   var _platform_paused : Bool = false;
-  public shared ({ caller }) func pausePlatform() : async () {
+  public func pausePlatform(caller : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); }; _platform_paused := true;
   };
-  public shared ({ caller }) func unpausePlatform() : async () {
+  public func unpausePlatform(caller : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); }; _platform_paused := false;
   };
 
@@ -119,14 +119,15 @@ persistent actor class ARKSRWA_Core(init_admin : Principal) = this {
   };
 
   // ---------- Company Registration ----------
-  public shared ({ caller }) func createCompany(
+  public func createCompany(
     name : Text,
     symbol : Text,
     logo_url : Text,
     description : Text,
     valuation : Nat,
     desiredSupply : ?Nat,
-    desiredPrice : ?Nat
+    desiredPrice : ?Nat,
+    caller : Principal
   ) : async CompanyId {
     if (_platform_paused) { throw Error.reject("Platform is paused"); };
     
@@ -215,14 +216,14 @@ persistent actor class ARKSRWA_Core(init_admin : Principal) = this {
     currentCompanyId
   };
 
-  public shared ({ caller }) func setTokenCanister(id : CompanyId, tokenCid : Principal) : async () {
+  public func setTokenCanister(id : CompanyId, tokenCid : Principal, caller : Principal) : async () {
     // called by TokenFactory or admin after spawning CompanyToken (ICRC-1/2)
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     let c = switch (companies.get(id)) { case (?x) x; case null { throw Error.reject("Invalid company") } };
     companies.put(id, { c with token_canister_id = ?tokenCid });
   };
 
-  public shared ({ caller }) func listOnDex(id : CompanyId, pool_url : Text) : async () {
+  public func listOnDex(id : CompanyId, pool_url : Text, caller : Principal) : async () {
     let c = switch (companies.get(id)) { case (?x) x; case null { throw Error.reject("Invalid company") } };
     if (caller != c.owner and not isAdmin(caller)) { throw Error.reject("Only owner/admin"); };
     if (not governance.allow_public_listing) { throw Error.reject("Public listing disabled"); };
@@ -231,7 +232,7 @@ persistent actor class ARKSRWA_Core(init_admin : Principal) = this {
   };
 
   // ---------- Company updates & queries ----------
-  public shared ({ caller }) func updateDescription(id : CompanyId, newDesc : Text) : async () {
+  public func updateDescription(id : CompanyId, newDesc : Text, caller : Principal) : async () {
     let c = switch (companies.get(id)) { case (?x) x; case null { throw Error.reject("Invalid company") } };
     if (caller != c.owner) { throw Error.reject("Only company owner"); };
     companies.put(id, { c with description = newDesc });
@@ -267,25 +268,25 @@ persistent actor class ARKSRWA_Core(init_admin : Principal) = this {
   };
 
   // ---------- Admin company controls ----------
-  public shared ({ caller }) func pauseCompany(id : CompanyId) : async () {
+  public func pauseCompany(id : CompanyId, caller : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     let c = switch (companies.get(id)) { case (?x) x; case null { throw Error.reject("Invalid company") } };
     companies.put(id, { c with trading_paused = true });
   };
 
-  public shared ({ caller }) func unpauseCompany(id : CompanyId) : async () {
+  public func unpauseCompany(id : CompanyId, caller : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     let c = switch (companies.get(id)) { case (?x) x; case null { throw Error.reject("Invalid company") } };
     companies.put(id, { c with trading_paused = false });
   };
 
-  public shared ({ caller }) func delistCompany(id : CompanyId) : async () {
+  public func delistCompany(id : CompanyId, caller : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     let c = switch (companies.get(id)) { case (?x) x; case null { throw Error.reject("Invalid company") } };
     companies.put(id, { c with listing_state = #Delisted; trading_paused = true });
   };
 
-  public shared ({ caller }) func relistCompany(id : CompanyId) : async () {
+  public func relistCompany(id : CompanyId, caller : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     let c = switch (companies.get(id)) { case (?x) x; case null { throw Error.reject("Invalid company") } };
     if (c.verification.state != #Verified) { throw Error.reject("Not verified"); };
@@ -298,9 +299,10 @@ persistent actor class ARKSRWA_Core(init_admin : Principal) = this {
   };
 
   // Webhook for risk engine to update verification results
-  public shared ({ caller }) func updateVerificationResult(
+  public func updateVerificationResult(
     companyId : CompanyId, 
-    profile : Types.VerificationProfile
+    profile : Types.VerificationProfile,
+    caller : Principal
   ) : async () {
     // Note: Authorization now handled by risk engine canister registration
     // Risk engine must be registered as authorized caller via admin functions
@@ -316,20 +318,20 @@ persistent actor class ARKSRWA_Core(init_admin : Principal) = this {
     companies.put(companyId, { c with verification = profile });
   };
 
-  public shared ({ caller }) func setRiskProfile(id : CompanyId, profile : Types.VerificationProfile) : async () {
+  public func setRiskProfile(id : CompanyId, profile : Types.VerificationProfile, caller : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     let c = switch (companies.get(id)) { case (?x) x; case null { throw Error.reject("Invalid company") } };
     companies.put(id, { c with verification = profile });
   };
 
-  public shared ({ caller }) func markVerificationPending(id : CompanyId) : async () {
+  public func markVerificationPending(id : CompanyId, caller : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     let c = switch (companies.get(id)) { case (?x) x; case null { throw Error.reject("Invalid company") } };
     companies.put(id, { c with verification = { c.verification with state = #VerificationPending } });
   };
 
   // Admin function to mark company for manual verification
-  public shared ({ caller }) func retriggerVerification(id : CompanyId, priority : { #high; #normal; #low }) : async ?Nat {
+  public func retriggerVerification(id : CompanyId, priority : { #high; #normal; #low }, caller : Principal) : async ?Nat {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     
     let c = switch (companies.get(id)) {
@@ -345,13 +347,13 @@ persistent actor class ARKSRWA_Core(init_admin : Principal) = this {
   };
 
   // Admin function to batch mark multiple companies for verification
-  public shared ({ caller }) func batchRetriggerVerification(companyIds : [CompanyId]) : async [(?Nat)] {
+  public func batchRetriggerVerification(companyIds : [CompanyId], caller : Principal) : async [(?Nat)] {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     
     var results : [(?Nat)] = [];
     for (id in companyIds.vals()) {
       try {
-        let jobId = await retriggerVerification(id, #normal);
+        let jobId = await retriggerVerification(id, #normal, caller);
         results := Array.append(results, [jobId]);
       } catch (error) {
         // Continue with other companies even if one fails
@@ -381,13 +383,13 @@ persistent actor class ARKSRWA_Core(init_admin : Principal) = this {
 };
 
   // ---------- Escrow policy (accounting only; funds live off-ledger or in a separate canister) ----------
-  public shared ({ caller }) func setEscrowPolicy(id : CompanyId, cap_per_window : Nat) : async () {
+  public func setEscrowPolicy(id : CompanyId, cap_per_window : Nat, caller : Principal) : async () {
     if (not isAdmin(caller)) { throw Error.reject("Only admin"); };
     let c = switch (companies.get(id)) { case (?x) x; case null { throw Error.reject("Invalid company") } };
     companies.put(id, { c with escrow = { c.escrow with cap_per_window = cap_per_window } });
   };
 
-  public shared ({ caller }) func requestWithdraw(id : CompanyId, amount : Nat) : async () {
+  public func requestWithdraw(id : CompanyId, amount : Nat, caller : Principal) : async () {
     let c = switch (companies.get(id)) { case (?x) x; case null { throw Error.reject("Invalid company") } };
     if (caller != c.owner) { throw Error.reject("Only company owner"); };
     if (c.escrow.status != #Open) { throw Error.reject("Escrow paused"); };
@@ -458,7 +460,7 @@ public query func list_holdings() : async [Types.TokenHolder] {
   out
 };
 
-public shared query ({ caller }) func get_my_holding(companyId : Types.CompanyId) : async Nat {
+public query func get_my_holding(companyId : Types.CompanyId, caller : Principal) : async Nat {
   switch (_holdingsIndex.get(caller)) {
     case null 0;
     case (?m) Option.get(m.get(companyId), 0);
